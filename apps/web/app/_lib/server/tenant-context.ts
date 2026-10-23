@@ -1,9 +1,10 @@
 import "server-only";
 import { headers } from "next/headers";
 import { resolveTenant, type ResolvedTenant } from "@rwaxi/database";
+import { LocalizedError } from "@/app/_i18n/marks";
 
-/** Expected access failures: the message is safe to show to the user. */
-export class TenantAccessError extends Error {}
+/** Expected access failures: the message is safe to show to the user (in the visitor's language). */
+export class TenantAccessError extends LocalizedError {}
 
 /**
  * Demo access until real authentication exists (backoffice demo session, inspector data).
@@ -22,7 +23,7 @@ export async function requireHostTenant(): Promise<ResolvedTenant> {
   const slug = (await headers()).get("x-rwaxi-tenant");
   if (!slug) throw new TenantAccessError("Esta dirección no corresponde a un tenant.");
   const tenant = await resolveTenant(slug);
-  if (!tenant) throw new TenantAccessError(`El tenant "${slug}" no existe en la base de datos.`);
+  if (!tenant) throw new TenantAccessError('El tenant "{slug}" no existe en la base de datos.', { slug });
   return tenant;
 }
 

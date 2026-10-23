@@ -10,8 +10,10 @@ import { DEMO_KYC } from "@/app/_lib/data/tenants";
 import { nowISO, shortHash } from "@/app/_lib/format";
 import { sha256Hex } from "@/app/_lib/hash";
 import { sha256Text } from "@/app/_lib/sha256";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist: g }) {
+  const { locale, tr } = useI18n();
   const [l, r] = useState(""),
     [i, s] = useState(""),
     [c, d] = useState(false),
@@ -24,12 +26,12 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
         <div className="flex flex-col gap-3">
           <p className="inline-flex items-center gap-2 text-aquaInk font-semibold text-[14px]">
             <Icon name="CheckCircle2" size={18} />
-            {"NDA firmado con "}
-            {e.legalName}
+            {tr("NDA firmado con {name}", { name: e.legalName })}
           </p>
           <p className="text-[13.5px] text-inkBody leading-[1.65]">
-            Ya puedes ver los detalles reservados del proyecto. El siguiente paso es tu verificación KYC/AML
-            con el Oficial de Cumplimiento del desarrollador.
+            {tr(
+              "Ya puedes ver los detalles reservados del proyecto. El siguiente paso es tu verificación KYC/AML con el Oficial de Cumplimiento del desarrollador.",
+            )}
           </p>
         </div>
         <dl className="border border-line text-[12.5px]">
@@ -38,9 +40,9 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
           </div>
           {[
             ["ID", b.id],
-            ["Firmante", `${b.signer} · ${b.email}`],
-            ["Contraparte", `${e.legalName} · NIT ${e.nit}`],
-            ["Fecha (UTC)", b.at],
+            [tr("Firmante"), `${b.signer} · ${b.email}`],
+            [tr("Contraparte"), `${e.legalName} · NIT ${e.nit}`],
+            [tr("Fecha (UTC)"), b.at],
           ].map(([y, f]) => (
             <div key={y} className="grid grid-cols-[96px_minmax(0,1fr)] gap-3 px-4 py-2 border-b border-line">
               <dt className="text-muted">{y}</dt>
@@ -64,11 +66,11 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
   }
   const h = async () => {
     if (l.trim().split(/\s+/).length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(i)) {
-      v("Escribe tu nombre completo y un correo válido.");
+      v(tr("Escribe tu nombre completo y un correo válido."));
       return;
     }
     if (!c) {
-      v("Confirma que leíste el acuerdo.");
+      v(tr("Confirma que leíste el acuerdo."));
       return;
     }
     v(""), m(true);
@@ -85,7 +87,7 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
         }),
       ).catch(() => null);
     if (!y) {
-      m(false), v("Tu navegador no pudo calcular el hash SHA-256 del acuerdo.");
+      m(false), v(tr("Tu navegador no pudo calcular el hash SHA-256 del acuerdo."));
       return;
     }
     if (g) {
@@ -109,11 +111,19 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
   };
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-6">
-      <div className="border border-line bg-stone max-h-[300px] overflow-y-auto p-5">
-        <LegalText tpl={e.ndaText} vars={legalVars(e, a)} />
+      <div className="flex flex-col gap-2 min-w-0">
+        {locale !== "es" && (
+          <p className="text-[11.5px] text-muted flex gap-1.5 items-start" data-legal-original>
+            <Icon name="Scale" size={14} className="tc-text shrink-0 mt-0.5" />
+            {tr("Texto legal del desarrollador en su idioma original (español): es la versión vinculante que firmas.")}
+          </p>
+        )}
+        <div className="border border-line bg-stone max-h-[300px] overflow-y-auto p-5" lang="es">
+          <LegalText tpl={e.ndaText} vars={legalVars(e, a)} />
+        </div>
       </div>
       <div className="flex flex-col gap-3">
-        <Field id="nda-name" label="Nombre completo del firmante">
+        <Field id="nda-name" label={tr("Nombre completo del firmante")}>
           <input
             id="nda-name"
             value={l}
@@ -122,7 +132,7 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
             autoComplete="name"
           />
         </Field>
-        <Field id="nda-email" label="Correo electrónico">
+        <Field id="nda-email" label={tr("Correo electrónico")}>
           <input
             id="nda-email"
             type="email"
@@ -140,8 +150,7 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
             onChange={(b) => d(b.target.checked)}
             className="mt-0.5 accent-[#2F145F]"
           />
-          {"Leí y acepto el Acuerdo de Confidencialidad con "}
-          {e.legalName}.
+          {tr("Leí y acepto el Acuerdo de Confidencialidad con {name}.", { name: e.legalName })}
         </label>
         {u && (
           <p className="text-[12px] text-[#B42318]" role="alert">
@@ -154,7 +163,7 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
           className="tc-btn font-semibold text-[13px] py-3 inline-flex items-center justify-center gap-2 focus-ring disabled:opacity-60"
         >
           <Icon name={p ? "Loader2" : "FileSignature"} size={15} className={p ? "spin" : ""} />
-          Firmar NDA con un clic
+          {tr("Firmar NDA con un clic")}
         </button>
         <button
           onClick={() => {
@@ -163,11 +172,10 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
           }}
           className="text-[12px] text-rxBlue underline underline-offset-2 self-start focus-ring"
         >
-          Completar con datos de ejemplo
+          {tr("Completar con datos de ejemplo")}
         </button>
         <p className="text-[11px] text-muted">
-          La firma genera un ConsentRecord con hash SHA-256 del texto aceptado, con validez probatoria según
-          la Ley 527 de 1999.
+          {tr("La firma genera un ConsentRecord con hash SHA-256 del texto aceptado, con validez probatoria según la Ley 527 de 1999.")}
         </p>
       </div>
     </div>

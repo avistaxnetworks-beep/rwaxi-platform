@@ -1,13 +1,14 @@
 import "server-only";
 import { forTenant, type ResolvedTenant } from "@rwaxi/database";
+import { msg } from "@/app/_i18n/marks";
 import { TenantAccessError, demoAccessEnabled, requireHostTenant } from "@/app/_lib/server/tenant-context";
 
 /** Backoffice roles: compliance decisions vs. treasury (payment reconciliation, minting). */
 export type BackofficeRole = "COMPLIANCE_OFFICER" | "TENANT_ADMIN";
 
 const ROLE_LABEL: Record<BackofficeRole, string> = {
-  COMPLIANCE_OFFICER: "Oficial de Cumplimiento",
-  TENANT_ADMIN: "Administrador",
+  COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento"),
+  TENANT_ADMIN: msg("Administrador"),
 };
 
 export interface BackofficeSession {
@@ -31,6 +32,6 @@ export async function requireBackofficeSession(role: BackofficeRole = "COMPLIANC
     orderBy: { createdAt: "asc" },
     select: { id: true, email: true, fullName: true },
   });
-  if (!user) throw new TenantAccessError(`El tenant no tiene un ${ROLE_LABEL[role]} activo.`);
+  if (!user) throw new TenantAccessError("El tenant no tiene un {role} activo.", { role: ROLE_LABEL[role] });
   return { tenant, role, reviewer: user };
 }

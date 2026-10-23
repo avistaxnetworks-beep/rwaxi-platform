@@ -1,22 +1,23 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
+import { msg, vmsg } from "@/app/_i18n/marks";
 import { seededHex } from "@/app/_lib/hash";
 
 export const TRM = 4100;
 
 export const STAGES = {
   operacion: {
-    label: "En Operación / Rentando",
-    short: "En operación",
+    label: vmsg("En Operación / Rentando"),
+    short: vmsg("En operación"),
     cls: "bg-blueTint text-rxBlue",
   },
   estructuracion: {
-    label: "En Estructuración / Construcción",
-    short: "En estructuración",
+    label: vmsg("En Estructuración / Construcción"),
+    short: vmsg("En estructuración"),
     cls: "bg-goldTint text-goldInk",
   },
   preventa: {
-    label: "Pre-venta",
-    short: "Pre-venta",
+    label: vmsg("Pre-venta"),
+    short: vmsg("Pre-venta"),
     cls: "bg-purpleTint text-rxPurple",
   },
 };
@@ -112,66 +113,74 @@ export const PROJECTS = [
 export const PIPELINE = [
   {
     n: "01",
-    name: "Legal",
+    name: msg("Legal"),
     icon: "Scale",
-    text: "Constitución del vehículo, estudio de títulos y tradición del inmueble, y constitución del Vehículo Jurídico Independiente (Legal Wrapper) que separa el activo del patrimonio del originador: S.A.S., patrimonio autónomo o cuentas en participación, según el negocio.",
+    text: msg(
+      "Constitución del vehículo, estudio de títulos y tradición del inmueble, y constitución del Vehículo Jurídico Independiente (Legal Wrapper) que separa el activo del patrimonio del originador: S.A.S., patrimonio autónomo o cuentas en participación, según el negocio.",
+    ),
   },
   {
     n: "02",
-    name: "Financiero",
+    name: msg("Financiero"),
     icon: "Calculator",
-    text: "Modelo financiero auditado, avalúo de referencia, escenarios base y conservador de renta y valorización, y política de distribuciones.",
+    text: msg(
+      "Modelo financiero auditado, avalúo de referencia, escenarios base y conservador de renta y valorización, y política de distribuciones.",
+    ),
   },
   {
     n: "03",
-    name: "Tecnología",
+    name: msg("Tecnología"),
     icon: "Cpu",
-    text: "Emisión de unidades digitales con contrato OpenZeppelin permissioned, whitelist de inversionistas elegibles y sellado del Data Room con Merkle Root SHA-256.",
+    text: msg(
+      "Emisión de unidades digitales con contrato OpenZeppelin permissioned, whitelist de inversionistas elegibles y sellado del Data Room con Merkle Root SHA-256.",
+    ),
   },
   {
     n: "04",
-    name: "Capital",
+    name: msg("Capital"),
     icon: "Coins",
-    text: "Ronda de suscripción para inversionistas elegibles, registro on-chain de la titularidad y distribuciones periódicas en USDC o transferencia bancaria.",
+    text: msg(
+      "Ronda de suscripción para inversionistas elegibles, registro on-chain de la titularidad y distribuciones periódicas en USDC o transferencia bancaria.",
+    ),
   },
 ];
 
 export const DATAROOM = [
   {
     n: "01",
-    name: "Jurídico y Tradición",
+    name: msg("Jurídico y Tradición"),
     docs: [
-      ["Resumen de estructura del vehículo", false],
-      ["Certificado de tradición y libertad", true],
-      ["Documento constitutivo del Legal Wrapper", true],
-      ["Estudio de títulos", true],
+      [msg("Resumen de estructura del vehículo"), false],
+      [msg("Certificado de tradición y libertad"), true],
+      [msg("Documento constitutivo del Legal Wrapper"), true],
+      [msg("Estudio de títulos"), true],
     ],
   },
   {
     n: "02",
-    name: "Modelo Financiero",
+    name: msg("Modelo Financiero"),
     docs: [
-      ["Teaser financiero del proyecto", false],
-      ["Modelo financiero (escenarios base y conservador)", true],
-      ["Avalúo comercial de referencia", true],
+      [msg("Teaser financiero del proyecto"), false],
+      [msg("Modelo financiero (escenarios base y conservador)"), true],
+      [msg("Avalúo comercial de referencia"), true],
     ],
   },
   {
     n: "03",
-    name: "Licencias Técnicas",
+    name: msg("Licencias Técnicas"),
     docs: [
-      ["Ficha técnica del inmueble", false],
-      ["Licencia de construcción / uso de suelo", true],
-      ["Pólizas y estudios técnicos", true],
+      [msg("Ficha técnica del inmueble"), false],
+      [msg("Licencia de construcción / uso de suelo"), true],
+      [msg("Pólizas y estudios técnicos"), true],
     ],
   },
   {
     n: "04",
-    name: "Gobierno Corporativo",
+    name: msg("Gobierno Corporativo"),
     docs: [
-      ["Política de distribuciones", false],
-      ["Reglamento de asamblea de inversionistas", true],
-      ["Informe del comité de inversiones", true],
+      [msg("Política de distribuciones"), false],
+      [msg("Reglamento de asamblea de inversionistas"), true],
+      [msg("Informe del comité de inversiones"), true],
     ],
   },
 ];

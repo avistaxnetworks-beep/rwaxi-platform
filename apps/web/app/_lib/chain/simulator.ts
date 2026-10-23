@@ -362,7 +362,7 @@ export function initChainLog(e, a) {
   });
   PROJECTS.forEach((c, d) => {
     const p = e[c.id];
-    t.push({
+    (t.push({
       ...TX.registry(p),
       tenantId: c.id,
       ...n(p.since, d),
@@ -376,7 +376,7 @@ export function initChainLog(e, a) {
             ...n(m.at, d + 2),
             id: "g-ap-" + m.id,
           }),
-        );
+        ));
   });
   const l = e.avista,
     r = byId("avista"),
@@ -426,7 +426,8 @@ export function initChainLog(e, a) {
   );
 }
 
-export function chainStateFor(e, a, t, o) {
+/** `tr` translates the demo labels to the language of the inspector. */
+export function chainStateFor(e, a, t, o, tr = (s) => s) {
   const n = a[e.id],
     l = t[e.id],
     r = o[e.id] || {
@@ -435,10 +436,10 @@ export function chainStateFor(e, a, t, o) {
       moves: [],
     },
     i = [];
-  l.kyc.status === "aprobado" &&
+  (l.kyc.status === "aprobado" &&
     i.push({
       wallet: DEMO_WALLET,
-      label: l.kyc.data.fullName || "Inversionista demo",
+      label: l.kyc.data.fullName || tr("Inversionista demo"),
       dossier: "0x" + (l.kyc.dossierHash || seededHex("dossier-demo-" + e.id, 64)),
     }),
     n.leads
@@ -458,8 +459,8 @@ export function chainStateFor(e, a, t, o) {
       }),
     ),
     i.forEach((m) => {
-      (m.isApproved = true), (m.isFrozen = !!r.frozen[m.wallet]), (m.countryCode = 170);
-    });
+      ((m.isApproved = true), (m.isFrozen = !!r.frozen[m.wallet]), (m.countryCode = 170));
+    }));
   const s = tokenAddrOf(n, e),
     c = [];
   s &&
@@ -487,7 +488,7 @@ export function chainStateFor(e, a, t, o) {
       d[m.wallet] = (d[m.wallet] || 0) + m.units;
     }),
     r.moves.forEach((m) => {
-      (d[m.from] = (d[m.from] || 0) - m.amount), (d[m.to] = (d[m.to] || 0) + m.amount);
+      ((d[m.from] = (d[m.from] || 0) - m.amount), (d[m.to] = (d[m.to] || 0) + m.amount));
     }),
     {
       t: n,
@@ -499,8 +500,8 @@ export function chainStateFor(e, a, t, o) {
       bal: d,
       labelOf: (m) =>
         m === DEMO_WALLET
-          ? l.kyc.data.fullName || "Inversionista demo"
-          : (i.find((u) => u.wallet === m) || {}).label || "Wallet externa",
+          ? l.kyc.data.fullName || tr("Inversionista demo")
+          : (i.find((u) => u.wallet === m) || {}).label || tr("Wallet externa"),
       totalSupply: c.reduce((m, u) => m + u.units, 0),
       paused: !!n.tokenPaused,
       eligible: (m) => {

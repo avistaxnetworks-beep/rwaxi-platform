@@ -9,6 +9,7 @@ import { PrismaClient, type Prisma } from "@prisma/client";
 import { computeDataRoomRoot, sha256Document, toOnchainId } from "@rwaxi/blockchain-sdk";
 import { DATAROOM, DEVELOPERS, LEADS } from "./seed-data/developers";
 import { LEGAL_COMPLIANCE, LEGAL_NDA } from "./seed-data/legal";
+import { OFFERING_TRANSLATIONS } from "./seed-data/translations";
 
 if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
   console.error("Refusing to reset a production database. Pass --force if you really mean it.");
@@ -119,6 +120,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       network: o.network,
       pipeline: o.pipeline,
       dataRoomRoot,
+      translations: (OFFERING_TRANSLATIONS[o.id] ?? {}) as Prisma.InputJsonValue,
       published: true,
     },
   });

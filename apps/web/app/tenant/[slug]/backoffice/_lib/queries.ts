@@ -1,5 +1,8 @@
 import "server-only";
 import { forTenant, type KycStatus, type RiskProfile } from "@rwaxi/database";
+import { msg } from "@/app/_i18n/marks";
+import { render, requestTranslate } from "@/app/_i18n/server";
+import { spanish, type Translate } from "@/app/_i18n/translate";
 import { TenantAccessError } from "@/app/_lib/server/tenant-context";
 import { toAuditEntry } from "./audit";
 import { requireBackofficeSession, type BackofficeSession } from "./session";
@@ -20,20 +23,20 @@ const RISK_VIEW: Record<RiskProfile, RiskKey> = {
 
 const group = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
-const DOC_LABEL: Record<string, string> = { CC: "C.C.", CE: "C.E.", PA: "Pasaporte", NIT: "NIT" };
+const DOC_LABEL: Record<string, string> = { CC: msg("C.C."), CE: msg("C.E."), PA: msg("Pasaporte"), NIT: "NIT" };
 
 /** "CC" + "52381904" → "C.C. 52.381.904" · "NIT" + "901330448-2" → "NIT 901.330.448-2" · none yet → "—" */
-export function formatDoc(docType: string | null, docNumber: string | null): string {
+export function formatDoc(docType: string | null, docNumber: string | null, tr: Translate = spanish): string {
   if (!docType || !docNumber) return "—";
   const [base = docNumber, dv] = docNumber.split("-");
   const grouped = /^\d+$/.test(base) ? group(base) : base;
-  return `${DOC_LABEL[docType] ?? docType} ${grouped}${dv ? `-${dv}` : ""}`;
+  return `${DOC_LABEL[docType] ? tr(DOC_LABEL[docType]) : docType} ${grouped}${dv ? `-${dv}` : ""}`;
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Documents and liveness recorded in KycCase.evidence by the portal (absent for seeded cases). */
-function evidenceSummary(evidence: unknown): Pick<ComplianceRow, "documents" | "liveness"> {
+function evidenceSummary(evidence: unknown, tr: Translate): Pick<ComplianceRow, "documents" | "liveness"> {
   const ev = (evidence ?? {}) as {
     documents?: { kind?: unknown; name?: unknown; sha256?: unknown }[];
     liveness?: { method?: unknown; result?: unknown };
@@ -47,14 +50,14 @@ function evidenceSummary(evidence: unknown): Pick<ComplianceRow, "documents" | "
     : [];
   const liveness =
     ev.liveness && typeof ev.liveness.result === "string"
-      ? `${ev.liveness.result === "done" ? "Completada" : ev.liveness.result}${
-          ev.liveness.method === "simulated" ? " · simulada (sin proveedor biométrico)" : ""
+      ? `${ev.liveness.result === "done" ? tr("Completada") : ev.liveness.result}${
+          ev.liveness.method === "simulated" ? ` · ${tr("simulada (sin proveedor biométrico)")}` : ""
         }`
       : null;
   return { documents, liveness };
 }
 
-async function readInbox(session: BackofficeSession): Promise<ComplianceInboxData> {
+async function readInbox(session: BackofficeSession, tr: Translate): Promise<ComplianceInboxData> {
   const db = forTenant(session.tenant.id);
   const [org, investors, whitelistTxs, audit] = await Promise.all([
     db.organization.findUniqueOrThrow({
@@ -99,7 +102,7 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
       investorId: inv.id,
       kycCaseId: kyc?.id ?? null,
       name: inv.fullName,
-      doc: formatDoc(inv.docType, inv.docNumber),
+      doc: formatDoc(inv.docType, inv.docNumber, tr),
       source: lead?.source === "REFERRAL" ? "RWAXI" : "DIRECT",
       token: lead?.referralToken ?? null,
       at: day(lead?.landedAt ?? inv.createdAt),
@@ -113,7 +116,7 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
       ptee: ptee && submitted,
       wallet: inv.walletAddress,
       dossierHash: kyc?.dossierHash ?? null,
-      ...evidenceSummary(kyc?.evidence),
+      ...evidenceSummary(kyc?.evidence, tr),
       whitelist: inv.walletAddress ? (whitelistByWallet.get(inv.walletAddress.toLowerCase()) ?? null) : null,
       rejectionReason: kyc?.rejectionReason ?? null,
       reviewedAt: kyc?.reviewedAt?.toISOString() ?? null,
@@ -121,7 +124,7 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
     };
   });
 
-  const entries: AuditEntry[] = audit.map(toAuditEntry);
+  const entries: AuditEntry[] = audit.map((e) => toAuditEntry(e, tr));
 
   return {
     organization: {
@@ -138,12 +141,13 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
 
 /** Compliance inbox of the tenant resolved from the host. Never throws: failures become `ok: false`. */
 export async function loadComplianceInbox(): Promise<ComplianceInboxResult> {
+  const tr = await requestTranslate("tenant");
   try {
     const session = await requireBackofficeSession();
-    return { ok: true, data: await readInbox(session) };
+    return { ok: true, data: await readInbox(session, tr) };
   } catch (e) {
-    if (e instanceof TenantAccessError) return { ok: false, error: e.message };
+    if (e instanceof TenantAccessError) return { ok: false, error: render(tr, e.reason) };
     console.error("[backoffice] compliance inbox failed", e);
-    return { ok: false, error: "No se pudo leer la bandeja de cumplimiento desde la base de datos." };
+    return { ok: false, error: tr("No se pudo leer la bandeja de cumplimiento desde la base de datos.") };
   }
 }

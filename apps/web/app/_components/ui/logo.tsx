@@ -1,13 +1,16 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
+import { useI18n } from "@/app/_i18n/provider";
+
 export const OFFICIAL_LOGO_SRC = null;
 
 export function Logo({ onClick: e }) {
+  const { tr } = useI18n();
   return (
     <button
       onClick={e}
       className="brand-logo flex flex-col items-start leading-none focus-ring"
-      aria-label="RWAXI, ir a oportunidades"
+      aria-label={tr("RWAXI, ir a oportunidades")}
     >
       {OFFICIAL_LOGO_SRC ? (
         <img src={OFFICIAL_LOGO_SRC} alt="RWAXI" className="h-[34px] w-auto" />
@@ -23,7 +26,7 @@ export function Logo({ onClick: e }) {
             className="mt-[5px] text-[8.5px] font-semibold tracking-[0.24em] text-rxGold"
             aria-hidden="true"
           >
-            ACTIVOS REALES · INVERSIONES DIGITALES
+            {tr("ACTIVOS REALES · INVERSIONES DIGITALES")}
           </span>
         </>
       )}

@@ -3,14 +3,16 @@
 import { useEffect, useState } from "react";
 import { Icon } from "@/app/_components/ui/icon";
 import { PIPELINE } from "@/app/_lib/data/projects";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function Pipeline({ p: e }) {
+  const { tr } = useI18n();
   const [a, t] = useState(() => Math.max(0, e.pipeline.indexOf("active")));
   useEffect(() => t(Math.max(0, e.pipeline.indexOf("active"))), [e.id]);
   const o = {
-    done: "Completada",
-    active: "En curso",
-    pending: "Pendiente",
+    done: tr("Completada"),
+    active: tr("En curso"),
+    pending: tr("Pendiente"),
   };
   return (
     <div className="bg-white border border-line">
@@ -23,13 +25,13 @@ export function Pipeline({ p: e }) {
                 <button
                   onClick={() => t(l)}
                   aria-pressed={a === l}
-                  className={`flex flex-col items-start text-left gap-2 focus-ring px-1 -mx-1 ${a === l ? "" : "opacity-80 hover:opacity-100"}`}
+                  className={`flex flex-col items-start text-start gap-2 focus-ring px-1 -mx-1 ${a === l ? "" : "opacity-80 hover:opacity-100"}`}
                 >
                   <span className="font-mono text-[11px] tracking-[0.12em] text-muted">{n.n}</span>
                   <span
                     className={`font-display font-semibold text-[22px] leading-none ${a === l ? "text-rxPurple" : "text-inkBody"}`}
                   >
-                    {n.name}
+                    {tr(n.name)}
                   </span>
                   <span
                     className={`text-[10px] font-semibold tracking-[0.1em] uppercase ${r === "done" ? "text-aquaInk" : r === "active" ? "text-goldInk" : "text-muted"}`}
@@ -57,9 +59,9 @@ export function Pipeline({ p: e }) {
         <Icon name={PIPELINE[a].icon} size={18} className="text-rxPurple mt-0.5 shrink-0" />
         <p className="text-[13.5px] text-inkBody leading-[1.6] max-w-[80ch]">
           <strong className="text-rxPurple">
-            {PIPELINE[a].n} {PIPELINE[a].name}.
+            {PIPELINE[a].n} {tr(PIPELINE[a].name)}.
           </strong>{" "}
-          {PIPELINE[a].text}
+          {tr(PIPELINE[a].text)}
         </p>
       </div>
     </div>

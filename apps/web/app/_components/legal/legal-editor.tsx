@@ -3,8 +3,11 @@
 import { useState } from "react";
 import { LegalText } from "@/app/_components/legal/legal-text";
 import { fieldCls } from "@/app/_components/ui/form";
+import { useI18n } from "@/app/_i18n/provider";
 
+/** Editor of a tenant legal template: the chrome follows the language, the template stays in its Spanish original. */
 export function LegalEditor({ id: e, label: a, value: t, onChange: o, onReset: n, vars: l, isDefault: r }) {
+  const { tr } = useI18n();
   const [i, s] = useState("plantilla"),
     c = Array.from(new Set((t.match(/\{\{([A-Z_]+)\}\}/g) || []).map((d) => d.slice(2, -2))));
   return (
@@ -16,17 +19,17 @@ export function LegalEditor({ id: e, label: a, value: t, onChange: o, onReset: n
         <div className="flex items-center gap-2">
           {!r && (
             <button type="button" onClick={n} className="text-[11.5px] text-rxBlue underline focus-ring">
-              Restaurar plantilla oficial
+              {tr("Restaurar plantilla oficial")}
             </button>
           )}
           <div
             className="flex border border-line p-0.5 text-[11px] font-semibold"
             role="group"
-            aria-label="Vista"
+            aria-label={tr("Vista")}
           >
             {[
-              ["plantilla", "Plantilla"],
-              ["vista", "Vista previa"],
+              ["plantilla", tr("Plantilla")],
+              ["vista", tr("Vista previa")],
             ].map(([d, p]) => (
               <button
                 key={d}
@@ -47,10 +50,11 @@ export function LegalEditor({ id: e, label: a, value: t, onChange: o, onReset: n
           rows={10}
           value={t}
           onChange={(d) => o(d.target.value)}
+          lang="es"
           className={fieldCls() + " font-mono text-[11.5px] leading-[1.6]"}
         />
       ) : (
-        <div className="border border-line bg-stone p-4 max-h-[320px] overflow-y-auto">
+        <div lang="es" className="border border-line bg-stone p-4 max-h-[320px] overflow-y-auto">
           <LegalText tpl={t} vars={l} />
         </div>
       )}
@@ -66,7 +70,7 @@ export function LegalEditor({ id: e, label: a, value: t, onChange: o, onReset: n
               {`{{${d}}}`}
               <span className="text-muted">
                 {" = "}
-                {String((p = l[d]) != null ? p : "sin valor").slice(0, 28)}
+                {String((p = l[d]) != null ? p : tr("sin valor")).slice(0, 28)}
                 {String((m = l[d]) != null ? m : "").length > 28 ? "…" : ""}
               </span>
             </span>

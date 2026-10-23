@@ -15,15 +15,17 @@ import {
   shortAddr,
 } from "@/app/_lib/chain/simulator";
 import { nf, shortHash } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function ContractCard({ name: e, addr: a, sub: t, children: o, status: n }) {
+  const { tr } = useI18n();
   return (
     <section className="border border-white/15 bg-[#120726]">
       <header className="px-4 py-3 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="font-mono text-[13px] text-white font-semibold">{e}</p>
           <p className="font-mono text-[11px] text-[#A79FC0] break-all">
-            {a || "no desplegado"}
+            {a || tr("no desplegado")}
             {t ? ` · ${t}` : ""}
           </p>
         </div>
@@ -35,6 +37,7 @@ export function ContractCard({ name: e, addr: a, sub: t, children: o, status: n 
 }
 
 export function StateTab({ s: e, toast: a }) {
+  const { tr, rich } = useI18n();
   const { t, p: o, token: n } = e,
     l = t.chainRegime || regimeEnum(t.regime),
     r = n && e.onchainRoot === t.merkle;
@@ -43,7 +46,7 @@ export function StateTab({ s: e, toast: a }) {
       <ContractCard
         name="RwaxiTenantFactory.sol"
         addr={FACTORY_ADDR}
-        sub="infraestructura maestra RWAXI"
+        sub={tr("infraestructura maestra RWAXI")}
         status={<Pill ok={true}>RWAXI_OPERATOR_ROLE</Pill>}
       >
         <KV
@@ -77,12 +80,9 @@ export function StateTab({ s: e, toast: a }) {
       <ContractCard
         name="RwaxiComplianceRegistry.sol"
         addr={registryOf(t.slug)}
-        sub={`aislado · ${t.displayName}`}
+        sub={tr("aislado · {name}", { name: t.displayName })}
         status={
-          <Pill ok={true}>
-            {e.investors.length}
-            {" wallets"}
-          </Pill>
+          <Pill ok={true}>{tr("{n} wallets", { n: e.investors.length, count: e.investors.length })}</Pill>
         }
       >
         <KV k="organizationId" v={orgIdOf(t.slug)} />
@@ -94,9 +94,10 @@ export function StateTab({ s: e, toast: a }) {
               "{l}"
               {l !== regimeEnum(t.regime) && (
                 <span className="block text-[#D9A24A] font-sans text-[11px] mt-1">
-                  {"El Backoffice ahora usa "}
-                  {regimeEnum(t.regime)}. El valor on-chain es inmutable: requiere desplegar un nuevo registro
-                  y migrar la whitelist.
+                  {tr(
+                    "El Backoffice ahora usa {regime}. El valor on-chain es inmutable: requiere desplegar un nuevo registro y migrar la whitelist.",
+                    { regime: regimeEnum(t.regime) },
+                  )}
                 </span>
               )}
             </>
@@ -147,7 +148,7 @@ export function StateTab({ s: e, toast: a }) {
                 {!e.investors.length && (
                   <tr>
                     <td colSpan={5} className="py-3 text-[#A79FC0]">
-                      Sin wallets aprobadas todavía.
+                      {tr("Sin wallets aprobadas todavía.")}
                     </td>
                   </tr>
                 )}
@@ -166,7 +167,7 @@ export function StateTab({ s: e, toast: a }) {
               {e.paused ? "paused() = true" : "paused() = false"}
             </Pill>
           ) : (
-            <Pill warn={true}>pendiente de deployOfferingToken</Pill>
+            <Pill warn={true}>{tr("pendiente de deployOfferingToken")}</Pill>
           )
         }
       >
@@ -204,7 +205,9 @@ export function StateTab({ s: e, toast: a }) {
                   {ROLE.MINTER_ROLE.slice(0, 18)}
                   {"… → "}
                   {RWAXI_ADAPTER}{" "}
-                  <span className="text-[#A79FC0] font-sans">(adaptador RWAXI · solo mintSubscription)</span>
+                  <span className="text-[#A79FC0] font-sans">
+                    {tr("(adaptador RWAXI · solo mintSubscription)")}
+                  </span>
                 </>
               }
             />
@@ -212,7 +215,7 @@ export function StateTab({ s: e, toast: a }) {
               k="hasRole(PAUSE, RWAXI)"
               v={
                 <span className="text-[#FF8A80]">
-                  false · RWAXI no puede pausar, congelar ni ejecutar forcedTransfer
+                  {tr("false · RWAXI no puede pausar, congelar ni ejecutar forcedTransfer")}
                 </span>
               }
             />
@@ -221,7 +224,7 @@ export function StateTab({ s: e, toast: a }) {
                 k="Portal off-chain"
                 v={
                   <span className="text-[#D9A24A]">
-                    SUSPENDED en la Consola RWAXI · el contrato no se modifica
+                    {tr("SUSPENDED en la Consola RWAXI · el contrato no se modifica")}
                   </span>
                 }
               />
@@ -236,13 +239,16 @@ export function StateTab({ s: e, toast: a }) {
                   <span className="block mt-1">
                     {r ? (
                       <Pill ok={true}>
-                        sincronizado con el Data Room ({t.docs.length}
-                        {" documentos)"}
+                        {tr("sincronizado con el Data Room ({n} documentos)", {
+                          n: t.docs.length,
+                          count: t.docs.length,
+                        })}
                       </Pill>
                     ) : (
                       <Pill warn={true}>
-                        Data Room off-chain: 0x{shortHash(t.merkle, 10, 6)}
-                        {" · pendiente de anclar"}
+                        {tr("Data Room off-chain: 0x{hash} · pendiente de anclar", {
+                          hash: shortHash(t.merkle, 10, 6),
+                        })}
                       </Pill>
                     )}
                   </span>
@@ -259,7 +265,7 @@ export function StateTab({ s: e, toast: a }) {
                     <span className="text-rxAqua">true</span>
                   </p>
                 ))}
-                {!e.mints.length && <p className="font-mono text-[11px] text-[#A79FC0]">(vacío)</p>}
+                {!e.mints.length && <p className="font-mono text-[11px] text-[#A79FC0]">{tr("(vacío)")}</p>}
               </div>
               <div className="min-w-0">
                 <p className="font-mono text-[11px] text-[#A79FC0] mb-1.5">balanceOf(wallet)</p>
@@ -278,9 +284,9 @@ export function StateTab({ s: e, toast: a }) {
           </>
         ) : (
           <p className="px-4 py-4 text-[12px] text-[#C9C1E3]">
-            {"El token se crea con "}
-            <Mono className="text-rxAqua">RwaxiTenantFactory.deployOfferingToken()</Mono>
-            {" al emitir desde el Backoffice → Data Room y Minting."}
+            {rich("El token se crea con {fn} al emitir desde el Backoffice → Data Room y Minting.", {
+              fn: <Mono className="text-rxAqua">RwaxiTenantFactory.deployOfferingToken()</Mono>,
+            })}
           </p>
         )}
       </ContractCard>

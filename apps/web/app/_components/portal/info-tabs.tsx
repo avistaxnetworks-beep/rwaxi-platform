@@ -8,6 +8,7 @@ import { CopyChip, LayerTag } from "@/app/_components/ui/primitives";
 import { Pipeline } from "@/app/_components/vitrina/pipeline";
 import { simulate } from "@/app/_lib/finance";
 import { alt, money, nf, pct, shortHash } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function InfoTabs({
   t: e,
@@ -19,6 +20,7 @@ export function InfoTabs({
   toSubscribe: r,
   toast: i,
 }) {
+  const { tr } = useI18n();
   const [s, c] = useState("capas"),
     [d, p] = useState(60),
     m = simulate(a, n, d),
@@ -27,10 +29,10 @@ export function InfoTabs({
     <section id="info" className="bg-white border border-line">
       <div className="flex overflow-x-auto border-b border-line" role="tablist">
         {[
-          ["capas", "Estructura de 4 capas"],
-          ["simulador", "Simulador financiero"],
-          ["ruta", "Ruta de estructuración"],
-          ["ficha", "Ficha técnica"],
+          ["capas", tr("Estructura de 4 capas")],
+          ["simulador", tr("Simulador financiero")],
+          ["ruta", tr("Ruta de estructuración")],
+          ["ficha", tr("Ficha técnica")],
         ].map(([h, b]) => (
           <button
             key={h}
@@ -47,19 +49,24 @@ export function InfoTabs({
         {s === "capas" && (
           <div className="grid md:grid-cols-4 border border-line">
             {[
-              ["1", "Activo real", a.asset, `${a.city} · ${a.type}`],
-              ["2", "Vehículo Jurídico Independiente", a.wrapper, `${a.vehicle} · Structured by RWAXI`],
-              ["3", "Derecho económico", "Flujos de renta + valorización", "Escenario Estimado"],
+              ["1", tr("Activo real"), a.asset, `${a.city} · ${a.type}`],
+              [
+                "2",
+                tr("Vehículo Jurídico Independiente"),
+                tr(a.wrapper),
+                `${a.vehicle} · Structured by RWAXI`,
+              ],
+              ["3", tr("Derecho económico"), tr("Flujos de renta + valorización"), tr("Escenario Estimado")],
               [
                 "4",
-                "Infraestructura digital",
+                tr("Infraestructura digital"),
                 "Powered by RWAXI",
                 `OpenZeppelin · ${e.mint.network} · SHA-256`,
               ],
             ].map(([h, b, y, f], N) => (
               <div
                 key={h}
-                className={`p-5 min-w-0 ${N ? "border-t md:border-t-0 md:border-l border-line" : ""} ${h === "4" ? "bg-aquaTint" : ""}`}
+                className={`p-5 min-w-0 ${N ? "border-t md:border-t-0 md:border-s border-line" : ""} ${h === "4" ? "bg-aquaTint" : ""}`}
               >
                 <LayerTag n={h}>{b}</LayerTag>
                 <p
@@ -74,8 +81,7 @@ export function InfoTabs({
                 </p>
                 {h === "2" && (
                   <p className="text-[11.5px] text-muted mt-1">
-                    {"Desarrollador: "}
-                    {e.legalName}
+                    {tr("Desarrollador:")} {e.legalName}
                   </p>
                 )}
               </div>
@@ -87,7 +93,7 @@ export function InfoTabs({
             <div className="flex flex-col gap-5 min-w-0">
               <div className="flex justify-between items-center gap-3 flex-wrap">
                 <span className="text-[12px] font-semibold tracking-[0.06em] uppercase text-muted">
-                  Capital
+                  {tr("Capital")}
                 </span>
                 <CurrencyToggle currency={t} setCurrency={o} label={false} />
               </div>
@@ -96,7 +102,7 @@ export function InfoTabs({
                 <p className="font-mono text-[12px] text-muted">{alt(n, t)}</p>
                 <input
                   id="info-amt"
-                  aria-label="Monto"
+                  aria-label={tr("Monto")}
                   type="range"
                   min={a.ticket}
                   max={u}
@@ -109,7 +115,7 @@ export function InfoTabs({
                   }}
                 />
               </div>
-              <div className="grid grid-cols-2 border border-line" role="group" aria-label="Horizonte">
+              <div className="grid grid-cols-2 border border-line" role="group" aria-label={tr("Horizonte")}>
                 {[36, 60].map((h) => (
                   <button
                     key={h}
@@ -117,8 +123,7 @@ export function InfoTabs({
                     aria-pressed={d === h}
                     className={`py-2.5 text-[13px] font-semibold focus-ring ${d === h ? "tc-btn" : "bg-white text-inkBody hover:bg-cloud"}`}
                   >
-                    {h}
-                    {" meses"}
+                    {tr("{n} meses", { n: h, count: h })}
                   </button>
                 ))}
               </div>
@@ -126,21 +131,29 @@ export function InfoTabs({
                 onClick={r}
                 className="tc-btn font-semibold text-[13px] py-3 inline-flex items-center justify-center gap-2 focus-ring"
               >
-                {"Suscribir este monto "}
-                <Icon name="ArrowUpRight" size={15} />
+                {tr("Suscribir este monto")}{" "}
+                <Icon name="ArrowUpRight" size={15} className="rtl:-scale-x-100" />
               </button>
             </div>
             <div className="flex flex-col gap-3 min-w-0">
               <div className="grid sm:grid-cols-2 gap-px bg-line border border-line">
                 {[
-                  ["Unidades digitales", nf(0).format(m.units), `${money(a.unit, t)} c/u`],
                   [
-                    "Flujo mensual estimado",
-                    money(m.monthly, t),
-                    a.rentStart ? `Desde el mes ${a.rentStart + 1}` : alt(m.monthly, t),
+                    tr("Unidades digitales"),
+                    nf(0).format(m.units),
+                    tr("{price} c/u", { price: money(a.unit, t) }),
                   ],
-                  [`Valorización · ${d} m`, money(m.valuation, t), `${pct(a.val)} anual`],
-                  ["Retorno total estimado", money(m.total, t), alt(m.total, t)],
+                  [
+                    tr("Flujo mensual estimado"),
+                    money(m.monthly, t),
+                    a.rentStart ? tr("Desde el mes {month}", { month: a.rentStart + 1 }) : alt(m.monthly, t),
+                  ],
+                  [
+                    tr("Valorización · {months} m", { months: d }),
+                    money(m.valuation, t),
+                    tr("{rate} anual", { rate: pct(a.val) }),
+                  ],
+                  [tr("Retorno total estimado"), money(m.total, t), alt(m.total, t)],
                 ].map(([h, b, y]) => (
                   <div key={h} className="bg-white p-4 min-w-0">
                     <p className="text-[10.5px] font-semibold tracking-[0.08em] uppercase text-muted">{h}</p>
@@ -150,9 +163,10 @@ export function InfoTabs({
                 ))}
               </div>
               <YearChart years={m.years} currency={t} />
-              <p className="text-[11.5px] text-muted border-l-2 border-rxGold pl-3">
-                Escenario Estimado con base en el modelo financiero del vehículo. No constituye oferta ni
-                promesa de rentabilidad; el capital está sujeto a riesgo.
+              <p className="text-[11.5px] text-muted border-s-2 border-rxGold ps-3">
+                {tr(
+                  "Escenario Estimado con base en el modelo financiero del vehículo. No constituye oferta ni promesa de rentabilidad; el capital está sujeto a riesgo.",
+                )}
               </p>
             </div>
           </div>
@@ -161,15 +175,15 @@ export function InfoTabs({
         {s === "ficha" && (
           <dl className="border border-line">
             {[
-              ["Desarrollador", `${e.legalName} · NIT ${e.nit}`],
-              ["Legal Wrapper", a.wrapper],
-              ["Vehículo", `${a.vehicle} | Structured by RWAXI`],
-              ["Red", e.mint.network],
+              [tr("Desarrollador"), `${e.legalName} · NIT ${e.nit}`],
+              ["Legal Wrapper", tr(a.wrapper)],
+              [tr("Vehículo"), `${a.vehicle} | Structured by RWAXI`],
+              [tr("Red"), e.mint.network],
               [
-                "Contrato inteligente",
-                e.mint.contract ? <CopyChip text={e.mint.contract} toast={i} /> : "Pendiente de emisión",
+                tr("Contrato inteligente"),
+                e.mint.contract ? <CopyChip text={e.mint.contract} toast={i} /> : tr("Pendiente de emisión"),
               ],
-              ["Estándar", "OpenZeppelin Permissioned Token (ERC-20 + whitelist)"],
+              [tr("Estándar"), "OpenZeppelin Permissioned Token (ERC-20 + whitelist)"],
               [
                 "Merkle Root SHA-256",
                 <CopyChip

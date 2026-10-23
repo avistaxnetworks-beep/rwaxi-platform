@@ -1,5 +1,6 @@
 import "server-only";
 import { listPublicOfferings, type PublicOffering } from "@rwaxi/database";
+import { vmsg } from "@/app/_i18n/marks";
 
 export type PublicCatalogResult = { ok: true; offerings: PublicOffering[] } | { ok: false; error: string };
 
@@ -9,6 +10,6 @@ export async function loadPublicCatalog(): Promise<PublicCatalogResult> {
     return { ok: true, offerings: await listPublicOfferings() };
   } catch (e) {
     console.error("[vitrina] public catalogue failed", e);
-    return { ok: false, error: "Catálogo en vivo no disponible: se muestran los datos ilustrativos del prototipo." };
+    return { ok: false, error: vmsg("Catálogo en vivo no disponible: se muestran los datos ilustrativos del prototipo.") };
   }
 }

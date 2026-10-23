@@ -1,6 +1,13 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { forTenant, type KycStatus, type Prisma, type Subscription } from "@rwaxi/database";
+import {
+  forTenant,
+  offeringTranslations,
+  type KycStatus,
+  type Prisma,
+  type Subscription,
+} from "@rwaxi/database";
+import { render, requestTranslate } from "@/app/_i18n/server";
 import { REF_COOKIE, verifyReferral, type ReferralClaims } from "@/app/_lib/referral";
 import { readInvestorSession } from "@/app/_lib/server/investor-session";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
@@ -37,6 +44,7 @@ export const OFFERING_STATE_SELECT = {
   unitPriceUsd: true,
   minTicketUsd: true,
   capturePausedAt: true,
+  translations: true,
   token: { select: { status: true, contractAddress: true, symbol: true } },
 } satisfies Prisma.OfferingSelect;
 
@@ -49,9 +57,11 @@ export function offeringState(o: OfferingStateRow): PortalOfferingState {
     unitsSubscribed: o.unitsSubscribed,
     unitPriceUsd: Number(o.unitPriceUsd),
     minTicketUsd: Number(o.minTicketUsd),
-    tokenDeployed: !!o.token?.contractAddress && (o.token.status === "DEPLOYED" || o.token.status === "PAUSED"),
+    tokenDeployed:
+      !!o.token?.contractAddress && (o.token.status === "DEPLOYED" || o.token.status === "PAUSED"),
     tokenPaused: o.token?.status === "PAUSED",
     capturePaused: !!o.capturePausedAt,
+    translations: offeringTranslations(o.translations),
   };
 }
 
@@ -91,7 +101,11 @@ async function investorDistributions(
     where: { investorId, distribution: { offeringId } },
     orderBy: { createdAt: "desc" },
     include: {
-      distribution: { include: { offering: { select: { code: true, network: true, token: { select: { contractAddress: true } } } } } },
+      distribution: {
+        include: {
+          offering: { select: { code: true, network: true, token: { select: { contractAddress: true } } } },
+        },
+      },
     },
   });
   if (!allocations.length) return [];
@@ -99,7 +113,12 @@ async function investorDistributions(
     where: { kind: "DISTRIBUTION_ROOT_ANCHORED", status: "CONFIRMED" },
     select: { args: true, executionMode: true },
   });
-  const modeOf = new Map(anchors.map((t) => [String((t.args as { distributionId?: string }).distributionId).toLowerCase(), t.executionMode]));
+  const modeOf = new Map(
+    anchors.map((t) => [
+      String((t.args as { distributionId?: string }).distributionId).toLowerCase(),
+      t.executionMode,
+    ]),
+  );
   return allocations.map((a) => {
     const d = a.distribution;
     return {
@@ -130,7 +149,10 @@ async function investorDistributions(
 }
 
 /** A referral is shown (and later persisted) only if its HMAC verifies for this tenant. */
-async function verifiedReferral(slug: string, ...candidates: (string | undefined)[]): Promise<ReferralClaims | null> {
+async function verifiedReferral(
+  slug: string,
+  ...candidates: (string | undefined)[]
+): Promise<ReferralClaims | null> {
   for (const token of candidates) {
     if (!token) continue;
     const check = await verifyReferral(token, { slug, secret: process.env.REFERRAL_SECRET });
@@ -211,10 +233,20 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
         portalStatus: tenant.portalStatus,
         investor: { name: investor.fullName, email: investor.email },
         lead: lead
-          ? { token: lead.referralToken, at: isoSeconds(lead.landedAt), source: lead.source === "REFERRAL" ? "RWAXI" : "DIRECT" }
+          ? {
+              token: lead.referralToken,
+              at: isoSeconds(lead.landedAt),
+              source: lead.source === "REFERRAL" ? "RWAXI" : "DIRECT",
+            }
           : referral,
         nda: nda
-          ? { id: nda.id, signer: nda.signerName, email: nda.signerEmail, at: isoSeconds(nda.acceptedAt), hash: nda.documentHash }
+          ? {
+              id: nda.id,
+              signer: nda.signerName,
+              email: nda.signerEmail,
+              at: isoSeconds(nda.acceptedAt),
+              hash: nda.documentHash,
+            }
           : null,
         kyc:
           kyc && status
@@ -241,8 +273,9 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
       },
     };
   } catch (e) {
-    if (e instanceof TenantAccessError) return { ok: false, error: e.message };
+    const tr = await requestTranslate("tenant");
+    if (e instanceof TenantAccessError) return { ok: false, error: render(tr, e.reason) };
     console.error("[portal] investor journey failed", e);
-    return { ok: false, error: "No se pudo cargar tu progreso desde la base de datos." };
+    return { ok: false, error: tr("No se pudo cargar tu progreso desde la base de datos.") };
   }
 }

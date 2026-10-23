@@ -9,8 +9,10 @@ import { legalVars } from "@/app/_lib/data/legal";
 import { WALLET } from "@/app/_lib/data/projects";
 import { shortHash } from "@/app/_lib/format";
 import { sha256Hex } from "@/app/_lib/hash";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, toBackoffice: l, persist: g }) {
+  const { locale, rich, tr } = useI18n();
   const [w, A] = useState(null),
     [P, z] = useState(false);
   const r = t.kyc,
@@ -30,16 +32,17 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
         {P && (
           <p role="status" className="text-[12.5px] text-muted inline-flex items-center gap-2">
             <Icon name="Loader2" size={14} className="spin" />
-            Enviando tu expediente al Oficial de Cumplimiento…
+            {tr("Enviando tu expediente al Oficial de Cumplimiento…")}
           </p>
         )}
         <p className="text-[12.5px] text-inkBody bg-cloud border border-line px-4 py-3 flex gap-2 items-start">
           <Icon name="Scale" size={16} className="tc-text shrink-0 mt-0.5" />
-          {"Responsable del tratamiento y la debida diligencia: "}
-          <strong className="font-semibold">{e.legalName}</strong>
-          {" · NIT "}
-          {e.nit}
-          {" · Oficial de Cumplimiento del desarrollador."}
+          <span>
+            {rich("Responsable del tratamiento y la debida diligencia: {name} · NIT {nit} · Oficial de Cumplimiento del desarrollador.", {
+              name: <strong className="font-semibold">{e.legalName}</strong>,
+              nit: e.nit,
+            })}
+          </span>
         </p>
         <Wizard
           auth={{
@@ -62,7 +65,18 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
           }
           currency={n}
           entity={e.legalName}
-          sarlaftText={<LegalText tpl={e.complianceTpl[e.regime]} vars={legalVars(e, a)} compact={true} />}
+          sarlaftText={
+            <div className="flex flex-col gap-2">
+              {locale !== "es" && (
+                <p className="text-[11.5px] text-muted" data-legal-original>
+                  {tr("Texto legal del desarrollador en su idioma original (español): es la versión vinculante que aceptas.")}
+                </p>
+              )}
+              <div lang="es">
+                <LegalText tpl={e.complianceTpl[e.regime]} vars={legalVars(e, a)} compact={true} />
+              </div>
+            </div>
+          }
           regime={e.regime}
           onSubmit={async () => {
             if (g) {
@@ -123,21 +137,21 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
       <div className="flex flex-col gap-4 max-w-[760px]">
         <p className="inline-flex items-center gap-2 text-goldInk font-semibold text-[14px]">
           <Icon name="Clock" size={18} />
-          Pendiente
+          {tr("Pendiente")}
         </p>
         <p className="text-[15px] text-inkBody leading-[1.65]">
-          {"Tus datos se encuentran en revisión por el Oficial de Cumplimiento de "}
-          {e.legalName}
-          {" (Auditoría estimada: 15 minutos)."}
+          {tr("Tus datos se encuentran en revisión por el Oficial de Cumplimiento de {name} (Auditoría estimada: 15 minutos).", {
+            name: e.legalName,
+          })}
         </p>
         <div className="border border-dashed border-[#C9C4D6] p-4 flex flex-wrap items-center gap-3 justify-between">
           <span className="text-[12.5px] text-muted">
             {g
-              ? "Tu expediente quedó registrado en la bandeja de cumplimiento del desarrollador."
-              : "Simulación: la aprobación ocurre en el Backoffice aislado del desarrollador."}
+              ? tr("Tu expediente quedó registrado en la bandeja de cumplimiento del desarrollador.")
+              : tr("Simulación: la aprobación ocurre en el Backoffice aislado del desarrollador.")}
             {r.dossierHash && (
               <span className="block font-mono text-[11px] mt-1">
-                {"SHA-256 del expediente "}
+                {tr("SHA-256 del expediente")}{" "}
                 {shortHash(r.dossierHash, 14, 8)}
               </span>
             )}
@@ -147,7 +161,7 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
             className="border border-line bg-white px-3.5 py-2 text-[12.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring"
           >
             <Icon name="ArrowUpRight" size={14} />
-            Abrir Bandeja de Cumplimiento
+            {tr("Abrir Bandeja de Cumplimiento")}
           </button>
         </div>
       </div>
@@ -155,10 +169,11 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
       <div className="flex flex-col gap-4 max-w-[760px]">
         <div className="border border-[#F3C5BF] bg-[#FDF6F5] p-4" role="alert">
           <p className="text-[12px] font-semibold tracking-[0.06em] uppercase text-[#B42318]">
-            {"Motivo del rechazo · "}
+            {tr("Motivo del rechazo")}
+            {" · "}
             {e.legalName}
           </p>
-          <p className="text-[14px] text-inkBody leading-[1.6] mt-1.5">{r.reason}</p>
+          <p className="text-[14px] text-inkBody leading-[1.6] mt-1.5">{r.reason ? tr(r.reason) : r.reason}</p>
         </div>
         <button
           onClick={() =>
@@ -177,38 +192,37 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
           className="self-start tc-btn font-semibold text-[13px] px-5 py-3 inline-flex items-center gap-2 focus-ring"
         >
           <Icon name="RefreshCw" size={15} />
-          Corregir documentación
+          {tr("Corregir documentación")}
         </button>
       </div>
     ) : (
       <div className="flex flex-col gap-3 max-w-[820px]">
         <p className="inline-flex items-center gap-2 text-aquaInk font-semibold text-[14px]">
           <Icon name="BadgeCheck" size={18} />
-          Aprobado · Inversionista Elegible
+          {tr("Aprobado · Inversionista Elegible")}
         </p>
         <p className="text-[15px] text-inkBody leading-[1.65]">
-          {"¡Verificación exitosa! Tu perfil ha sido aprobado por "}
-          {e.legalName}
-          {r.whitelistQueued
-            ? " y tu billetera está en cola para la Whitelist On-Chain ("
-            : " y tu billetera ha sido vinculada a la Whitelist On-Chain ("}
-          <span className="font-mono text-aquaInk">{r.wallet ? shortHash(r.wallet, 8, 6) : WALLET}</span>).
+          {rich(
+            r.whitelistQueued
+              ? "¡Verificación exitosa! Tu perfil ha sido aprobado por {name} y tu billetera está en cola para la Whitelist On-Chain ({wallet})."
+              : "¡Verificación exitosa! Tu perfil ha sido aprobado por {name} y tu billetera ha sido vinculada a la Whitelist On-Chain ({wallet}).",
+            { name: e.legalName, wallet: <span className="font-mono text-aquaInk">{r.wallet ? shortHash(r.wallet, 8, 6) : WALLET}</span> },
+          )}
         </p>
         {r.whitelistQueued && (
           <p className="text-[12px] text-goldInk">
-            ChainTransaction PENDING: approveInvestor() espera la firma del Oficial de Cumplimiento en
-            RwaxiComplianceRegistry.
+            {tr("ChainTransaction PENDING: approveInvestor() espera la firma del Oficial de Cumplimiento en RwaxiComplianceRegistry.")}
           </p>
         )}
         {r.whitelistTx && (
           <p className="text-[12px] text-muted">
-            {"Transacción de whitelist: "}
+            {tr("Transacción de whitelist:")}{" "}
             <span className="font-mono text-aquaInk">{shortHash(r.whitelistTx, 12, 8)}</span>
           </p>
         )}
       </div>
     )
   ) : (
-    <LockedNote text="Firma primero el NDA (Paso 1) para iniciar tu verificación." />
+    <LockedNote text={tr("Firma primero el NDA (Paso 1) para iniciar tu verificación.")} />
   );
 }

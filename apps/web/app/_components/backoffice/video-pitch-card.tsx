@@ -5,8 +5,10 @@ import { Field, fieldCls } from "@/app/_components/ui/form";
 import { Icon } from "@/app/_components/ui/icon";
 import { mmss, streamProvider } from "@/app/_lib/data/video";
 import { nf, onColor } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }) {
+  const { tr } = useI18n();
   const l = useRef(),
     r = useRef(),
     [i, s] = useState(e.video.url),
@@ -25,7 +27,7 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
     v = (y) => {
       if (!y) return;
       if (!/^video\/(mp4|quicktime)$/.test(y.type) && !/\.(mp4|mov)$/i.test(y.name)) {
-        n("Usa un archivo .mp4 o .mov");
+        n(tr("Usa un archivo .mp4 o .mov"));
         return;
       }
       if (p.fileUrl)
@@ -34,14 +36,14 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
         } catch (x) {}
       const f = URL.createObjectURL(y),
         N = document.createElement("video");
-      (N.preload = "metadata"),
+      ((N.preload = "metadata"),
         (N.onloadedmetadata = () => {
           const x = N.duration;
-          m({
+          (m({
             fileDuration: x,
             fileRes: N.videoHeight ? `${N.videoWidth}×${N.videoHeight}` : null,
           }),
-            x > 181 && n(`El video dura ${mmss(x)}: supera el máximo de 3:00`);
+            x > 181 && n(tr("El video dura {duration}: supera el máximo de 3:00", { duration: mmss(x) })));
         }),
         (N.onerror = () =>
           m({
@@ -58,7 +60,7 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
           fileRes: null,
           fileUnreadable: false,
         }),
-        n(`Video cargado: ${y.name}`);
+        n(tr("Video cargado: {name}", { name: y.name })));
     },
     h = () => {
       if (!i.trim()) {
@@ -69,14 +71,14 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
         return;
       }
       if (!/^https:\/\//i.test(i) || !u) {
-        n("Pega un enlace https de Vimeo Pro, Cloudflare Stream o YouTube no listado");
+        n(tr("Pega un enlace https de Vimeo Pro, Cloudflare Stream o YouTube no listado"));
         return;
       }
-      m({
+      (m({
         source: "url",
         url: i.trim(),
       }),
-        n(`URL de ${u} guardada`);
+        n(tr("URL de {provider} guardada", { provider: u })));
     },
     b = p.fileDuration && p.fileDuration > 181;
   return (
@@ -90,20 +92,20 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
       <div className="px-5 py-3.5 border-b border-line bg-cloud flex flex-wrap justify-between items-center gap-2">
         <p className="text-[13px] font-semibold text-rxPurple inline-flex items-center gap-2">
           <Icon name="Video" size={16} className="tc-text" />
-          Video Pitch del Proyecto (Máx. 3:00 min - Alta Definición)
+          {tr("Video Pitch del Proyecto (Máx. 3:00 min - Alta Definición)")}
         </p>
         <span
           className={`text-[10.5px] font-semibold tracking-[0.08em] uppercase px-2 py-1 ${p.source === "demo" ? "bg-goldTint text-goldInk" : "bg-aquaTint text-aquaInk"}`}
         >
           {p.source === "file"
-            ? "Archivo cargado"
+            ? tr("Archivo cargado")
             : p.source === "url"
-              ? "Streaming"
-              : "Vista interactiva de ejemplo"}
+              ? tr("Streaming")
+              : tr("Vista interactiva de ejemplo")}
         </span>
       </div>
       <div className="p-5 flex flex-col gap-5">
-        <Field id="vp-title" label="Título del video">
+        <Field id="vp-title" label={tr("Título del video")}>
           <input
             id="vp-title"
             value={p.title}
@@ -116,7 +118,7 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
           />
         </Field>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field id="vp-presenter" label="Nombre del presentador">
+          <Field id="vp-presenter" label={tr("Nombre del presentador")}>
             <input
               id="vp-presenter"
               value={p.presenter}
@@ -128,7 +130,7 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
               className={fieldCls()}
             />
           </Field>
-          <Field id="vp-role" label="Cargo">
+          <Field id="vp-role" label={tr("Cargo")}>
             <input
               id="vp-role"
               value={p.role}
@@ -143,14 +145,14 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-semibold text-inkBody">Archivo de video</span>
+            <span className="text-[12px] font-semibold text-inkBody">{tr("Archivo de video")}</span>
             <div
               onDragOver={(y) => {
-                y.preventDefault(), d(true);
+                (y.preventDefault(), d(true));
               }}
               onDragLeave={() => d(false)}
               onDrop={(y) => {
-                y.preventDefault(), d(false), v(y.dataTransfer.files[0]);
+                (y.preventDefault(), d(false), v(y.dataTransfer.files[0]));
               }}
               className={`border-2 border-dashed min-h-[140px] grid place-items-center text-center p-4 rounded-[8px] ${c ? "tc-border bg-cloud" : p.fileUrl ? "border-rxAqua bg-aquaTint" : "border-[#C9C4D6] bg-white"}`}
             >
@@ -164,14 +166,14 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
                     {p.fileDuration
                       ? mmss(p.fileDuration)
                       : p.fileUnreadable
-                        ? "duración no legible en este navegador"
-                        : "leyendo duración…"}
+                        ? tr("duración no legible en este navegador")
+                        : tr("leyendo duración…")}
                     {p.fileRes ? ` · ${p.fileRes}` : ""}
                     {p.fileSize ? ` · ${nf(1).format(p.fileSize / 1048576)} MB` : ""}
                   </span>
                   {b && (
                     <span className="text-[11px] text-[#B42318]">
-                      Supera 3:00. Recórtalo antes de publicar.
+                      {tr("Supera 3:00. Recórtalo antes de publicar.")}
                     </span>
                   )}
                   <div className="flex gap-3">
@@ -180,7 +182,7 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
                       onClick={() => l.current.click()}
                       className="text-[11.5px] text-rxBlue underline focus-ring"
                     >
-                      Reemplazar
+                      {tr("Reemplazar")}
                     </button>
                     <button
                       type="button"
@@ -197,22 +199,22 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
                       }}
                       className="text-[11.5px] text-muted underline focus-ring"
                     >
-                      Quitar
+                      {tr("Quitar")}
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-1.5">
                   <Icon name="UploadCloud" size={24} className="tc-text" />
-                  <span className="text-[12.5px] text-inkBody">Arrastra el video o</span>
+                  <span className="text-[12.5px] text-inkBody">{tr("Arrastra el video o")}</span>
                   <button
                     type="button"
                     onClick={() => l.current.click()}
                     className="text-[12.5px] font-semibold text-rxBlue underline underline-offset-2 focus-ring"
                   >
-                    selecciona un archivo
+                    {tr("selecciona un archivo")}
                   </button>
-                  <span className="text-[11px] text-muted">.mp4 / .mov · 1080p o 4K · máx. 3:00</span>
+                  <span className="text-[11px] text-muted">{tr(".mp4 / .mov · 1080p o 4K · máx. 3:00")}</span>
                 </div>
               )}
               <input
@@ -222,7 +224,7 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
                 accept="video/mp4,video/quicktime,.mp4,.mov"
                 className="sr-only"
                 onChange={(y) => {
-                  v(y.target.files[0]), (y.target.value = "");
+                  (v(y.target.files[0]), (y.target.value = ""));
                 }}
               />
             </div>
@@ -230,8 +232,12 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
           <div className="flex flex-col gap-1.5">
             <Field
               id="vp-url"
-              label="O pega una URL de streaming"
-              hint={u ? `Proveedor detectado: ${u}` : "Vimeo Pro, Cloudflare Stream o YouTube no listado."}
+              label={tr("O pega una URL de streaming")}
+              hint={
+                u
+                  ? tr("Proveedor detectado: {provider}", { provider: u })
+                  : tr("Vimeo Pro, Cloudflare Stream o YouTube no listado.")
+              }
             >
               <div className="flex gap-2">
                 <input
@@ -246,19 +252,21 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
                   onClick={h}
                   className="shrink-0 tc-btn px-3 text-[12.5px] font-semibold focus-ring"
                 >
-                  Guardar
+                  {tr("Guardar")}
                 </button>
               </div>
             </Field>
             <p className="text-[11.5px] text-muted leading-[1.5]">
-              En producción el portal incrusta el reproductor del proveedor. En esta vista previa los
-              reproductores externos están bloqueados: el portal muestra la vista interactiva y un enlace al
-              video.
+              {tr(
+                "En producción el portal incrusta el reproductor del proveedor. En esta vista previa los reproductores externos están bloqueados: el portal muestra la vista interactiva y un enlace al video.",
+              )}
             </p>
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          <span className="text-[12px] font-semibold text-inkBody">Imagen de portada (thumbnail)</span>
+          <span className="text-[12px] font-semibold text-inkBody">
+            {tr("Imagen de portada (thumbnail)")}
+          </span>
           <div className="flex flex-wrap gap-2 items-center">
             {o.map((y, f) => (
               <button
@@ -273,14 +281,14 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
                 aria-pressed={!p.poster && p.posterIdx === f}
                 className={`relative w-[96px] overflow-hidden border-2 rounded-[6px] focus-ring ${!p.poster && p.posterIdx === f ? "tc-border" : "border-transparent"}`}
               >
-                <img src={y.src} alt={y.label} className="w-full aspect-[16/9] object-cover" />
+                <img src={y.src} alt={tr(y.label)} className="w-full aspect-[16/9] object-cover" />
               </button>
             ))}
             {p.poster && (
               <span className="relative w-[96px] overflow-hidden border-2 tc-border rounded-[6px]">
                 <img
                   src={p.poster}
-                  alt="Portada personalizada"
+                  alt={tr("Portada personalizada")}
                   className="w-full aspect-[16/9] object-cover"
                 />
               </span>
@@ -295,12 +303,12 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
                 const f = y.target.files[0];
                 if (!f) return;
                 const N = new FileReader();
-                (N.onload = () =>
+                ((N.onload = () =>
                   m({
                     poster: N.result,
                   })),
                   N.readAsDataURL(f),
-                  (y.target.value = "");
+                  (y.target.value = ""));
               }}
             />
             <button
@@ -309,7 +317,7 @@ export function VideoPitchCard({ t: e, p: a, setTenant: t, photos: o, toast: n }
               className="border border-line bg-white px-3 py-2 text-[12px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring"
             >
               <Icon name="ImagePlus" size={14} />
-              Subir portada
+              {tr("Subir portada")}
             </button>
           </div>
         </div>

@@ -1,8 +1,10 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
 import { money } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function YearChart({ years: e, currency: a }) {
+  const { tr } = useI18n();
   const t = Math.max(...e.map((s) => s.rent + s.val), 1),
     o = 520,
     n = 170,
@@ -19,7 +21,7 @@ export function YearChart({ years: e, currency: a }) {
       viewBox={`0 0 ${o} ${n}`}
       className="w-full h-auto"
       role="img"
-      aria-label="Retorno estimado acumulado por año"
+      aria-label={tr("Retorno estimado acumulado por año")}
     >
       <line x1={l.l} x2={o - l.r} y1={n - l.b} y2={n - l.b} stroke="#E3E0EA" />
       {e.map((s, c) => {
@@ -50,8 +52,7 @@ export function YearChart({ years: e, currency: a }) {
               fill="#5E5873"
               fontFamily="IBM Plex Mono, monospace"
             >
-              {"Año "}
-              {s.y}
+              {tr("Año {n}", { n: s.y })}
             </text>
           </g>
         );

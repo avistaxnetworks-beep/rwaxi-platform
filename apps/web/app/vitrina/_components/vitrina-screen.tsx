@@ -9,6 +9,7 @@ import { Catalog } from "@/app/_components/vitrina/catalog";
 import { HowItWorks } from "@/app/_components/vitrina/how-it-works";
 import { LegalFrontier } from "@/app/_components/vitrina/legal-frontier";
 import { Icon } from "@/app/_components/ui/icon";
+import { useI18n } from "@/app/_i18n/provider";
 import { PROJECTS } from "@/app/_lib/data/projects";
 import { issueReferral } from "../actions";
 import type { PublicCatalogResult } from "../_lib/catalog";
@@ -17,15 +18,17 @@ import { projectIdOf, toVitrinaDeveloper, toVitrinaProject } from "@/app/_lib/of
 /* eslint-disable @typescript-eslint/no-explicit-any -- the prototype components are untyped */
 export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {
   const d = useDemo();
+  const { locale, tr } = useI18n();
 
-  // Live catalogue: projects and developers come from rwaxi_public_offerings(); the
-  // prototype data is only a fallback when the database cannot be reached.
+  // Live catalogue: projects and developers come from rwaxi_public_offerings(), with each offering's
+  // commercial copy in the visitor's language; the prototype data is only a fallback when the
+  // database cannot be reached.
   const { projects, developers } = useMemo(() => {
     if (!catalog.ok) return { projects: PROJECTS as any[], developers: d.tenants };
     const live: Record<string, any> = {};
     for (const o of catalog.offerings) live[projectIdOf(o)] = toVitrinaDeveloper(o, d.tenants[projectIdOf(o)]);
-    return { projects: catalog.offerings.map(toVitrinaProject), developers: { ...d.tenants, ...live } };
-  }, [catalog, d.tenants]);
+    return { projects: catalog.offerings.map((o) => toVitrinaProject(o, locale)), developers: { ...d.tenants, ...live } };
+  }, [catalog, d.tenants, locale]);
 
   // Every click to a developer portal carries a referral signed on the server (HMAC-SHA256).
   const openPortal = async (projectId: string) => {
@@ -49,7 +52,7 @@ export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {
         <div role="alert" className="bg-goldTint text-goldInk border-b border-line">
           <p className="gutter max-w-[1240px] mx-auto py-3 text-[12.5px] flex gap-2 items-center">
             <Icon name="AlertTriangle" size={15} />
-            {catalog.error}
+            {tr(catalog.error)}
           </p>
         </div>
       )}
@@ -73,12 +76,12 @@ export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {
       <footer className="bg-white border-t border-line">
         <div className="gutter max-w-[1240px] mx-auto py-6 flex flex-wrap gap-4 justify-between items-center text-[11.5px] text-muted">
           <span className="font-semibold tracking-[0.2em] text-goldInk text-[10px]">
-            ACTIVOS REALES · INVERSIONES DIGITALES
+            {tr("ACTIVOS REALES · INVERSIONES DIGITALES")}
           </span>
           <span className="max-w-[80ch]">
-            RWAXI actúa como canal de descubrimiento y proveedor de infraestructura tecnológica. Cada oferta,
-            vehículo y proceso de cumplimiento es responsabilidad del desarrollador. Proyectos, cifras y entidades
-            son ilustrativos.
+            {tr(
+              "RWAXI actúa como canal de descubrimiento y proveedor de infraestructura tecnológica. Cada oferta, vehículo y proceso de cumplimiento es responsabilidad del desarrollador. Proyectos, cifras y entidades son ilustrativos.",
+            )}
           </span>
         </div>
       </footer>

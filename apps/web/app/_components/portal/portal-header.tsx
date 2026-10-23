@@ -2,19 +2,22 @@
 "use client";
 import { PoweredSeal, TenantLogo } from "@/app/_components/portal/tenant-brand";
 import { Icon } from "@/app/_components/ui/icon";
+import { LanguageToggle } from "@/app/_i18n/language-switcher";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function PortalHeader({ t: e, journey: a, go: t }) {
+  const { tr } = useI18n();
   const o = a.kyc.status,
     n =
       o === "aprobado"
-        ? ["Inversionista Elegible", "bg-aquaTint text-aquaInk", "BadgeCheck"]
+        ? [tr("Inversionista Elegible"), "bg-aquaTint text-aquaInk", "BadgeCheck"]
         : o === "pendiente"
-          ? ["KYC en revisión", "bg-goldTint text-goldInk", "Clock"]
+          ? [tr("KYC en revisión"), "bg-goldTint text-goldInk", "Clock"]
           : o === "rechazado"
-            ? ["KYC rechazado", "bg-[#FDECEA] text-[#B42318]", "AlertTriangle"]
+            ? [tr("KYC rechazado"), "bg-[#FDECEA] text-[#B42318]", "AlertTriangle"]
             : a.nda
-              ? ["NDA firmado", "bg-cloud text-inkBody", "FileSignature"]
-              : ["Visitante", "bg-cloud text-muted", "User"];
+              ? [tr("NDA firmado"), "bg-cloud text-inkBody", "FileSignature"]
+              : [tr("Visitante"), "bg-cloud text-muted", "User"];
   return (
     <header
       className="sticky-top bg-white border-b border-line z-30"
@@ -41,12 +44,15 @@ export function PortalHeader({ t: e, journey: a, go: t }) {
             </p>
           </div>
         </div>
-        <nav className="flex gap-5 text-[13px] font-medium md:ml-auto overflow-x-auto" aria-label="Portal">
+        <nav
+          className="flex gap-5 text-[13px] font-medium md:ms-auto overflow-x-auto"
+          aria-label={tr("Portal")}
+        >
           {[
-            ["top", "Proyecto"],
-            ["info", "Simulador"],
-            ["funnel-3", "Data Room"],
-            ["funnel-4", "Mi portafolio"],
+            ["top", tr("Proyecto")],
+            ["info", tr("Simulador")],
+            ["funnel-3", tr("Data Room")],
+            ["funnel-4", tr("Mi portafolio")],
           ].map(([l, r]) => (
             <button
               key={l}
@@ -63,6 +69,7 @@ export function PortalHeader({ t: e, journey: a, go: t }) {
           <Icon name={n[2]} size={14} />
           {n[0]}
         </span>
+        <LanguageToggle />
         <div className="w-full md:w-auto flex md:block">
           <PoweredSeal />
         </div>

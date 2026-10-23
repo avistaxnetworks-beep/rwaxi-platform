@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import { highlightSol } from "@/app/_lib/chain/highlight";
 import { SOL_SIZES, SOL_SOURCES } from "@/app/_lib/chain/sol-sources";
 import { copyText, nf } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function CodeViewer({ toast: e }) {
+  const { tr } = useI18n();
   const a = Object.keys(SOL_SOURCES),
     [t, o] = useState("RwaxiPropertyToken"),
     n = useMemo(() => highlightSol(SOL_SOURCES[t]), [t]);
@@ -24,11 +26,13 @@ export function CodeViewer({ toast: e }) {
         ))}
         <button
           onClick={() =>
-            copyText(SOL_SOURCES[t], (l) => e(l ? `${t}.sol copiado` : "Selecciona el texto para copiarlo"))
+            copyText(SOL_SOURCES[t], (l) =>
+              e(l ? tr("{file} copiado", { file: `${t}.sol` }) : tr("Selecciona el texto para copiarlo")),
+            )
           }
           className="ml-auto px-2.5 py-1.5 font-mono text-[11px] text-rxAqua focus-ring"
         >
-          Copiar
+          {tr("Copiar")}
         </button>
       </div>
       <p className="px-3 py-1.5 font-mono text-[10.5px] text-[#A79FC0] border-b border-white/10">

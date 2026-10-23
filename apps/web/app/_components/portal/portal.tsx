@@ -16,6 +16,7 @@ import { SectionHead } from "@/app/_components/ui/primitives";
 import { REGIMES } from "@/app/_lib/data/kyc";
 import { LEGAL_FRONTIER_TENANT, legalVars } from "@/app/_lib/data/legal";
 import { onColor } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function Portal({
   t: e,
@@ -36,6 +37,7 @@ export function Portal({
   // Persisted yield distributions with their Merkle proofs (app/tenant/[slug]/_components/investor-distributions.tsx).
   distributionsSlot: D,
 }) {
+  const { tr } = useI18n();
   const [m, u] = useState(() => (t.holdings.length || t.grant ? 3 : t.nda ? 1 : 0)),
     [v, h] = useState(Math.max(a.ticket, 25e3));
   useEffect(() => {
@@ -62,10 +64,10 @@ export function Portal({
     f = REGIMES[e.regime],
     N = e.portalStatus === "SUSPENDED",
     x = [
-      "Paso 1 · Acuerdo de Confidencialidad (NDA)",
-      `Paso 2 · Verificación KYC/AML + ${f.short}`,
-      "Paso 3 · Data Room (AccessGrant)",
-      "Paso 4 · Suscripción de tokens y portafolio",
+      tr("Paso 1 · Acuerdo de Confidencialidad (NDA)"),
+      tr("Paso 2 · Verificación KYC/AML + {regime}", { regime: f.short }),
+      tr("Paso 3 · Data Room (AccessGrant)"),
+      tr("Paso 4 · Suscripción de tokens y portafolio"),
     ];
   return (
     <div
@@ -91,13 +93,16 @@ export function Portal({
             <div className="min-w-0">
               <p className="font-semibold text-[14px]">
                 {e.portalStatus === "SUSPENDED"
-                  ? "Portal temporalmente suspendido para nuevas operaciones"
-                  : "Portal en revisión por RWAXI"}
+                  ? tr("Portal temporalmente suspendido para nuevas operaciones")
+                  : tr("Portal en revisión por RWAXI")}
               </p>
               <p className={`text-[12.5px] mt-0.5 ${e.portalStatus === "SUSPENDED" ? "text-[#C9C1E3]" : ""}`}>
                 {e.portalStatus === "SUSPENDED"
-                  ? `Por decisión de gobierno de la plataforma, ${e.legalName} no puede recibir nuevos NDA, verificaciones ni suscripciones. Si ya eres inversionista, tu portafolio y tus documentos siguen disponibles.`
-                  : "El portal opera normalmente, pero el proyecto no recibe tráfico desde la vitrina pública mientras termina la revisión."}
+                  ? tr(
+                      "Por decisión de gobierno de la plataforma, {name} no puede recibir nuevos NDA, verificaciones ni suscripciones. Si ya eres inversionista, tu portafolio y tus documentos siguen disponibles.",
+                      { name: e.legalName },
+                    )
+                  : tr("El portal opera normalmente, pero el proyecto no recibe tráfico desde la vitrina pública mientras termina la revisión.")}
               </p>
             </div>
           </div>
@@ -108,7 +113,8 @@ export function Portal({
           <div className="min-w-0">
             <p className="font-mono text-[11px] tracking-[0.14em] uppercase tc-text">
               {a.code}
-              {" · Portal oficial del desarrollador"}
+              {" · "}
+              {tr("Portal oficial del desarrollador")}
             </p>
             <h1 className="font-display font-semibold text-rxPurple text-[36px] md:text-[48px] leading-[1.04] mt-1 balance">
               {a.asset}
@@ -124,14 +130,15 @@ export function Portal({
           {t.lead && (
             <span className="inline-flex items-center gap-2 border border-line bg-white px-3 py-2 text-[11.5px] text-inkBody">
               <Icon name="Link2" size={14} className="text-rxAqua" />
-              {"Referido desde RWAXI · "}
+              {tr("Referido desde RWAXI")}
+              {" · "}
               <span className="font-mono text-aquaInk">{t.lead.token.slice(0, 16)}…</span>
             </span>
           )}
         </div>
         <MediaHero t={e} p={a} photos={r(a)} onUpload={i} currency={n} toast={d} />
         <section id="funnel" className="flex flex-col gap-4 scroll-mt-24">
-          <SectionHead n="Embudo legal y de cumplimiento" title="Tu proceso con el desarrollador" />
+          <SectionHead n={tr("Embudo legal y de cumplimiento")} title={tr("Tu proceso con el desarrollador")} />
           <FunnelStepper
             journey={t}
             active={m}
@@ -142,7 +149,7 @@ export function Portal({
           <div className="bg-white border border-line p-6 flex flex-col gap-5">
             <h3 className="font-display font-semibold text-[26px] text-rxPurple leading-tight">{x[m]}</h3>
             {m === 0 && N && !t.nda && (
-              <LockedNote text="Portal temporalmente suspendido para nuevas operaciones: no se pueden firmar nuevos NDA." />
+              <LockedNote text={tr("Portal temporalmente suspendido para nuevas operaciones: no se pueden firmar nuevos NDA.")} />
             )}
             {m === 0 && !(N && !t.nda) && (
               <NdaPanel
@@ -156,13 +163,13 @@ export function Portal({
                     ...w,
                     nda: g,
                   })),
-                    d("NDA firmado · ConsentRecord registrado"),
+                    d(tr("NDA firmado · ConsentRecord registrado")),
                     u(1);
                 }}
               />
             )}
             {m === 1 && N && t.kyc.stage === "form" && (
-              <LockedNote text="Portal temporalmente suspendido para nuevas operaciones: no se reciben nuevas verificaciones." />
+              <LockedNote text={tr("Portal temporalmente suspendido para nuevas operaciones: no se reciben nuevas verificaciones.")} />
             )}
             {m === 1 && !(N && t.kyc.stage === "form") && (
               <KycPanel t={e} p={a} journey={t} setJourney={o} currency={n} toBackoffice={p} persist={Q} />
@@ -202,8 +209,8 @@ export function Portal({
         <div className="gutter max-w-[1240px] mx-auto py-6 flex flex-wrap gap-4 justify-between items-center text-[11.5px] text-muted">
           <div className="max-w-[90ch]">
             <LegalText
-              tpl={LEGAL_FRONTIER_TENANT}
-              vars={legalVars(e, a)}
+              tpl={tr(LEGAL_FRONTIER_TENANT)}
+              vars={{ ...legalVars(e, a), LEGAL_WRAPPER_TYPE: tr(a.wrapper) }}
               compact={true}
               className="text-[11.5px] text-muted"
             />

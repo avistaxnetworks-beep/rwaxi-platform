@@ -2,8 +2,10 @@
 "use client";
 import { useEffect } from "react";
 import { Icon } from "@/app/_components/ui/icon";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function Modal({ title: e, onClose: a, children: t, wide: o }) {
+  const { tr } = useI18n();
   return (
     useEffect(() => {
       const n = (l) => l.key === "Escape" && a();
@@ -25,7 +27,7 @@ export function Modal({ title: e, onClose: a, children: t, wide: o }) {
             <button
               onClick={a}
               className="p-1.5 text-muted hover:text-rxPurple focus-ring"
-              aria-label="Cerrar"
+              aria-label={tr("Cerrar")}
             >
               <Icon name="X" size={18} />
             </button>

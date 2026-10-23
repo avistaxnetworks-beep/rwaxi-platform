@@ -4,6 +4,8 @@ import { ConfigTab } from "@/app/_components/backoffice/config-tab";
 import { DataMintTab } from "@/app/_components/backoffice/data-mint-tab";
 import { TenantLogo } from "@/app/_components/portal/tenant-brand";
 import { Icon } from "@/app/_components/ui/icon";
+import { LanguageToggle } from "@/app/_i18n/language-switcher";
+import { useI18n } from "@/app/_i18n/provider";
 import { onColor } from "@/app/_lib/format";
 
 export function Backoffice({
@@ -27,12 +29,13 @@ export function Backoffice({
   // Persisted yield distributions (app/tenant/[slug]/backoffice/_components/distributions-desk.tsx).
   distributionsSlot: w,
 }) {
+  const { tr } = useI18n();
   const u = [
-    ["config", "Settings2", "Configuración White Label"],
-    ["cumplimiento", "ShieldCheck", "Cumplimiento y Leads"],
-    ["suscripciones", "Coins", "Suscripciones y Pagos"],
-    ["distribuciones", "Calculator", "Distribuciones y Rendimientos"],
-    ["dataroom", "Database", "Data Room y Minting"],
+    ["config", "Settings2", tr("Configuración White Label")],
+    ["cumplimiento", "ShieldCheck", tr("Cumplimiento y Leads")],
+    ["suscripciones", "Coins", tr("Suscripciones y Pagos")],
+    ["distribuciones", "Calculator", tr("Distribuciones y Rendimientos")],
+    ["dataroom", "Database", tr("Data Room y Minting")],
   ];
   return (
     <div
@@ -47,28 +50,31 @@ export function Backoffice({
           <div className="flex items-center gap-3 min-w-0">
             <TenantLogo t={e} size={36} />
             <div className="min-w-0">
-              <p className="text-[11px] font-mono tracking-[0.12em] text-muted">BACKOFFICE · TENANT ADMIN</p>
+              <p className="text-[11px] font-mono tracking-[0.12em] text-muted">
+                {tr("BACKOFFICE · TENANT ADMIN")}
+              </p>
               <p className="font-bold text-[16px] text-rxPurple leading-tight">{e.legalName}</p>
             </div>
           </div>
           <span className="inline-flex items-center gap-1.5 font-mono text-[11px] bg-cloud border border-line px-2.5 py-1.5">
             <Icon name="Boxes" size={13} className="tc-text" />
             tnt_{e.slug}
-            {" · datos aislados"}
+            {" · "}
+            {tr("datos aislados")}
           </span>
           <button
             onClick={m}
             className="md:ml-auto bg-rxDeep text-white text-[12px] font-mono px-3 py-2 inline-flex items-center gap-1.5 focus-ring"
           >
             <Icon name="Link" size={14} className="text-rxAqua" />
-            Inspector On-Chain
+            {tr("Inspector On-Chain")}
           </button>
+          <LanguageToggle />
           <button
             onClick={r}
             className="tc-btn text-[12.5px] font-semibold px-3.5 py-2 inline-flex items-center gap-1.5 focus-ring"
           >
-            {"Ver mi portal "}
-            <Icon name="ArrowUpRight" size={14} />
+            {tr("Ver mi portal")} <Icon name="ArrowUpRight" size={14} />
           </button>
         </div>
         <div className="gutter max-w-[1240px] mx-auto flex overflow-x-auto" role="tablist">

@@ -1,6 +1,7 @@
 import "server-only";
-import { forTenant, resolveTenant, type PublicOffering } from "@rwaxi/database";
+import { forTenant, offeringTranslations, resolveTenant, type PublicOffering } from "@rwaxi/database";
 import type { DbTenantView } from "@/app/_lib/data/db-tenants";
+import { msg } from "@/app/_i18n/marks";
 import { LEGAL_COMPLIANCE } from "@/app/_lib/data/legal";
 import { toVitrinaProject } from "@/app/_lib/offering-view";
 import { findTenant } from "./directory";
@@ -61,6 +62,7 @@ export async function loadDbTenantView(slug: string): Promise<DbTenantView | nul
     dataRoomRoot: offering.dataRoomRoot,
     token: token ? { status: token.status, symbol: token.symbol, address: token.contractAddress } : null,
     capturePaused: !!offering.capturePausedAt,
+    translations: offeringTranslations(offering.translations),
   };
   const project = { ...toVitrinaProject(listed), id: slug } as DbTenantView["project"];
   const merkle = String(project.merkle);
@@ -80,7 +82,7 @@ export async function loadDbTenantView(slug: string): Promise<DbTenantView | nul
     regime: org.complianceRegime === "SARLAFT" ? "sarlaft" : "sagrilaft",
     contact: org.complianceContactEmail,
     since: org.onboardedAt.toISOString().slice(0, 10),
-    presenter: [org.displayName, "Presentación del desarrollador"],
+    presenter: [org.displayName, msg("Presentación del desarrollador")],
     tenant: {
       portalStatus: org.portalStatus,
       published: org.published,

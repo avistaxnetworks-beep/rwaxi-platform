@@ -1,4 +1,6 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
+import { vmsg } from "@/app/_i18n/marks";
+
 export const RENDER_W = 960;
 
 export const RENDER_H = 600;
@@ -772,10 +774,11 @@ export function locationMap(e, a, t) {
     e.fillText("500 m", 842, 552);
 }
 
-export const SHOTS = ["Fachada", "Interior", "Zona Común", "Ubicación / Render"];
+export const SHOTS = [vmsg("Fachada"), vmsg("Interior"), vmsg("Zona Común"), vmsg("Ubicación / Render")];
 
 export function renderShot(e, a) {
-  const t = e.id + ":" + a;
+  // The location map prints the region and city, which follow the visitor's language.
+  const t = e.id + ":" + a + (a === 3 ? ":" + e.region + "|" + e.city : "");
   if (renderCache[t]) return renderCache[t];
   const o = document.createElement("canvas");
   (o.width = 960), (o.height = 600);

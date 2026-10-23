@@ -1,6 +1,10 @@
 // Browser-side: turns the wizard's form state into the KycSubmission sent to submitKyc().
+import { LocalizedError } from "@/app/_i18n/marks";
 import { sha256Bytes } from "@/app/_lib/sha256";
 import type { KycDocument, KycSubmission } from "./journey-types";
+
+/** A document of the wizard that could not be hashed; shown in the visitor's language. */
+export class KycFileError extends LocalizedError {}
 
 interface WizardFile {
   name: string;
@@ -21,7 +25,10 @@ async function documentOf(file: WizardFile | null | undefined): Promise<KycDocum
     type ||= /^data:([^;,]+)/.exec(file.src)?.[1];
     size ||= bytes.byteLength;
   }
-  if (!sha256) throw new Error(`No se pudo calcular el SHA-256 de ${file.name}; vuelve a cargarlo.`);
+  if (!sha256)
+    throw new KycFileError("No se pudo calcular el SHA-256 de {name}; vuelve a cargarlo.", {
+      name: file.name,
+    });
   return { name: file.name, size: size ?? 0, type: type || "application/octet-stream", sha256 };
 }
 

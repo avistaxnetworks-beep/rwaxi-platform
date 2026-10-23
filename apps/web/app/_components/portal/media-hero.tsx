@@ -4,15 +4,17 @@ import { useState } from "react";
 import { DetailGallery } from "@/app/_components/portal/detail-gallery";
 import { VideoPitch } from "@/app/_components/portal/video-pitch";
 import { Icon } from "@/app/_components/ui/icon";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function MediaHero({ t: e, p: a, photos: t, onUpload: o, currency: n, toast: l }) {
+  const { tr } = useI18n();
   const [r, i] = useState("video");
   return (
-    <section className="flex flex-col gap-3" aria-label="Video y fotografías del proyecto">
+    <section className="flex flex-col gap-3" aria-label={tr("Video y fotografías del proyecto")}>
       <div className="flex flex-wrap items-center gap-2" role="tablist">
         {[
-          ["video", "Video", "Video Explicativo (3 min)"],
-          ["fotos", "Image", "Fotografías y Renders del Activo"],
+          ["video", "Video", tr("Video Explicativo (3 min)")],
+          ["fotos", "Image", tr("Fotografías y Renders del Activo")],
         ].map(([s, c, d]) => (
           <button
             key={s}
@@ -38,11 +40,11 @@ export function MediaHero({ t: e, p: a, photos: t, onUpload: o, currency: n, toa
               >
                 <img
                   src={s.src}
-                  alt={`${a.asset}: ${s.label}`}
+                  alt={`${a.asset}: ${tr(s.label)}`}
                   className="w-full aspect-[16/10] lg:aspect-[16/9] object-cover"
                 />
-                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#190A36]/85 to-transparent px-2 pt-4 pb-1 text-white text-[10.5px] font-medium text-left">
-                  {s.label}
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#190A36]/85 to-transparent px-2 pt-4 pb-1 text-white text-[10.5px] font-medium text-start">
+                  {tr(s.label)}
                 </span>
               </button>
             ))}

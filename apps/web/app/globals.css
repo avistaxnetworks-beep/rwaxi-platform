@@ -68,3 +68,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 html, body { margin: 0; padding: 0; min-height: 100%; }
 img { max-width: 100%; }
+
+/* i18n (app/_i18n): scripts and directions. Figures, codes and hashes stay left-to-right and tabular (<Num>). */
+bdi[dir="ltr"] { unicode-bidi: isolate; }
+/* German compounds: hyphenate, and never let a long word push a button, tab or label out of its box. */
+:lang(de) { -webkit-hyphens: auto; hyphens: auto; }
+:lang(de) :is(button, [role="tab"], dt, th, h3) { overflow-wrap: anywhere; }
+/* Korean keeps words whole; Japanese and Chinese break between characters under strict kinsoku rules. */
+:lang(ko) { word-break: keep-all; overflow-wrap: anywhere; line-break: strict; }
+:lang(ja), :lang(zh) { word-break: normal; overflow-wrap: anywhere; line-break: strict; }
+/* Tracked capitals are a Latin convention; letter-spacing would also break Arabic joining. */
+:is(:lang(ar), :lang(ja), :lang(zh), :lang(ko)) [class*="tracking-"] { letter-spacing: 0; }
+/* IBM Plex Mono has no Arabic glyphs: Arabic words in mono labels take the system Arabic sans instead of a
+   monospaced fallback that spaces the letters apart; Latin, figures and hashes stay in IBM Plex Mono. */
+:lang(ar) .font-mono { font-family: "IBM Plex Mono", "Segoe UI", Tahoma, "Geeza Pro", "Noto Sans Arabic", sans-serif; }

@@ -8,8 +8,11 @@ import { DEMO_WALLET, TX, leadWallet, subIdOf, txHash } from "@/app/_lib/chain/s
 import { DATAROOM } from "@/app/_lib/data/projects";
 import { money, nf, shortHash } from "@/app/_lib/format";
 import { seededHex, sha256Hex } from "@/app/_lib/hash";
+import { folderLabel } from "@/app/_components/portal/data-room-panel";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: n, toast: l, emit: r }) {
+  const { tr } = useI18n();
   const i = useRef(),
     [s, c] = useState(DATAROOM[0].n + " " + DATAROOM[0].name),
     [d, p] = useState(true),
@@ -23,7 +26,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
       network: e.mint.network,
     }),
     f = useRef([]);
-  useEffect(() => () => f.current.forEach(clearTimeout), []),
+  (useEffect(() => () => f.current.forEach(clearTimeout), []),
     useEffect(
       () =>
         y({
@@ -34,7 +37,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
           network: e.mint.network,
         }),
       [e.slug],
-    );
+    ));
   const N = async (E) =>
       sha256Hex(
         E.map((I) => I.hash)
@@ -63,14 +66,14 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
         B = await N(_);
       if (e.mint.status === "minted") {
         const T = TX.anchor(e, a, e.onchainRoot || e.merkle, B);
-        r(T),
+        (r(T),
           t((C) => ({
             ...C,
             docs: _,
             merkle: B,
             onchainRoot: B,
             anchoredTx: T.hash,
-          }));
+          })));
       } else
         t((T) => ({
           ...T,
@@ -78,7 +81,13 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
           merkle: B,
           anchoredTx: null,
         }));
-      u(false), l(`${$.length} documento(s) cargados · SHA-256 calculado · Merkle Root actualizado`);
+      (u(false),
+        l(
+          tr("{n} documento(s) cargados · SHA-256 calculado · Merkle Root actualizado", {
+            n: $.length,
+            count: $.length,
+          }),
+        ));
     },
     g = async (E) => {
       const I = e.docs.filter((_) => _.id !== E),
@@ -92,20 +101,20 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
     },
     w = () => {
       const E = TX.anchor(e, a, e.onchainRoot || e.merkle, e.merkle);
-      r(E),
+      (r(E),
         t((I) => ({
           ...I,
           onchainRoot: I.merkle,
           anchoredTx: E.hash,
         })),
-        l(`updateDataRoomMerkleRoot() en ${e.mint.network}`);
+        l(tr("updateDataRoomMerkleRoot() en {network}", { network: e.mint.network })));
     },
     A = () => {
       if (!b.name.trim() || !/^[A-Z0-9]{2,6}$/.test(b.symbol) || b.supply <= 0 || b.price <= 0) {
-        l("Revisa nombre, símbolo (2–6 letras mayúsculas), unidades y precio");
+        l(tr("Revisa nombre, símbolo (2–6 letras mayúsculas), unidades y precio"));
         return;
       }
-      h(1),
+      (h(1),
         [2, 3, 4, 5].forEach((E, I) =>
           f.current.push(
             setTimeout(
@@ -113,7 +122,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                 if ((h(E), E === 5)) {
                   const $ = "0x" + seededHex("contract" + e.slug + Date.now(), 40),
                     _ = TX.deployToken(e, a, b, $);
-                  r(_),
+                  (r(_),
                     [
                       ...o.holdings
                         .filter((T) => T.status === "reservado")
@@ -150,23 +159,32 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                           : C,
                       ),
                     })),
-                    l(`${b.supply.toLocaleString("es-CO")} tokens ${b.symbol} emitidos en ${b.network}`);
+                    l(
+                      tr("{n} tokens {symbol} emitidos en {network}", {
+                        n: nf(0).format(b.supply),
+                        symbol: b.symbol,
+                        network: b.network,
+                      }),
+                    ));
                 }
               },
               900 * (I + 1),
             ),
           ),
-        );
+        ));
     },
     P = e.leads.filter((E) => E.kyc === "aprobado").length + (o.kyc.status === "aprobado" ? 1 : 0),
     z =
       o.holdings.filter((E) => E.status === "reservado").length +
       e.leads.filter((E) => E.kyc === "aprobado" && E.subCapital).length,
     G = [
-      "Validar configuración del token y del vehículo",
-      "RwaxiTenantFactory.deployOfferingToken() con el adaptador RWAXI",
-      `Anclar dataRoomMerkleRoot inicial y vincular el registro (${P} wallets en whitelist)`,
-      `mintSubscription() por cada suscripción aprobada (${z})`,
+      tr("Validar configuración del token y del vehículo"),
+      tr("RwaxiTenantFactory.deployOfferingToken() con el adaptador RWAXI"),
+      tr("Anclar dataRoomMerkleRoot inicial y vincular el registro ({n} wallets en whitelist)", {
+        n: P,
+        count: P,
+      }),
+      tr("mintSubscription() por cada suscripción aprobada ({n})", { n: z }),
     ],
     U = e.mint.status === "minted";
   return (
@@ -174,9 +192,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
       <div className="bg-white border border-line min-w-0">
         <div className="px-5 py-3.5 border-b border-line flex flex-wrap justify-between gap-3 items-center">
           <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
-            {"Data Room · "}
-            {e.docs.length}
-            {" documentos"}
+            {tr("Data Room · {n} documentos", { n: e.docs.length, count: e.docs.length })}
           </p>
           <span className="text-[11.5px] text-muted">
             {"Merkle Root "}
@@ -185,11 +201,11 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
         </div>
         <div className="p-5 grid sm:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end border-b border-line">
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field id="dr-folder" label="Carpeta">
+            <Field id="dr-folder" label={tr("Carpeta")}>
               <select id="dr-folder" value={s} onChange={(E) => c(E.target.value)} className={fieldCls()}>
                 {DATAROOM.map((E) => (
-                  <option key={E.n}>
-                    {E.n} {E.name}
+                  <option key={E.n} value={E.n + " " + E.name}>
+                    {E.n} {tr(E.name)}
                   </option>
                 ))}
               </select>
@@ -202,7 +218,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                 onChange={(E) => p(E.target.checked)}
                 className="accent-[#2F145F]"
               />
-              Requiere AccessGrant (NDA + KYC)
+              {tr("Requiere AccessGrant (NDA + KYC)")}
             </label>
           </div>
           <div>
@@ -213,7 +229,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
               multiple={true}
               className="sr-only"
               onChange={(E) => {
-                x(E.target.files), (E.target.value = "");
+                (x(E.target.files), (E.target.value = ""));
               }}
             />
             <button
@@ -222,7 +238,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
               className="tc-btn px-4 py-3 text-[12.5px] font-semibold inline-flex items-center gap-2 focus-ring disabled:opacity-60 w-full justify-center"
             >
               <Icon name={m ? "Loader2" : "Upload"} size={15} className={m ? "spin" : ""} />
-              {m ? "Calculando SHA-256…" : "Cargar documentos"}
+              {m ? tr("Calculando SHA-256…") : tr("Cargar documentos")}
             </button>
           </div>
         </div>
@@ -230,12 +246,12 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
           <table className="w-full min-w-[640px] text-[12.5px]">
             <thead className="sticky top-0 bg-white">
               <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-                <th className="font-semibold px-5 py-2.5">Documento</th>
+                <th className="font-semibold px-5 py-2.5">{tr("Documento")}</th>
                 <th className="font-semibold px-3 py-2.5">SHA-256</th>
-                <th className="font-semibold px-3 py-2.5">Acceso</th>
-                <th className="font-semibold px-3 py-2.5 text-right">Tamaño</th>
+                <th className="font-semibold px-3 py-2.5">{tr("Acceso")}</th>
+                <th className="font-semibold px-3 py-2.5 text-end">{tr("Tamaño")}</th>
                 <th className="px-3 py-2.5">
-                  <span className="sr-only">Acciones</span>
+                  <span className="sr-only">{tr("Acciones")}</span>
                 </th>
               </tr>
             </thead>
@@ -244,13 +260,13 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                 <tr key={E.id} className="border-b border-line last:border-b-0">
                   <td className="px-5 py-2.5">
                     <p className="text-inkBody">
-                      {E.name}
+                      {E.uploaded ? E.name : tr(E.name)}
                       {E.uploaded && (
-                        <span className="ml-1.5 text-[10px] font-semibold text-goldInk">NUEVO</span>
+                        <span className="ms-1.5 text-[10px] font-semibold text-goldInk">{tr("NUEVO")}</span>
                       )}
                     </p>
                     <p className="text-[10.5px] text-muted">
-                      {E.folder}
+                      {folderLabel(E.folder, tr)}
                       {" · "}
                       {E.at}
                     </p>
@@ -267,7 +283,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                     {E.restricted ? (
                       <span className="text-goldInk font-semibold">AccessGrant</span>
                     ) : (
-                      <span className="text-muted">Público</span>
+                      <span className="text-muted">{tr("Público")}</span>
                     )}
                   </td>
                   <td className="px-3 py-2.5 text-right font-mono text-[11px] text-muted tnum">
@@ -278,7 +294,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                     {E.uploaded && (
                       <button
                         onClick={() => g(E.id)}
-                        aria-label={`Quitar ${E.name}`}
+                        aria-label={tr("Quitar {name}", { name: E.name })}
                         className="text-muted hover:text-[#B42318] p-1 focus-ring"
                       >
                         <Icon name="Trash2" size={14} />
@@ -292,46 +308,51 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
         </div>
         <div className="px-5 py-3.5 border-t border-line bg-cloud flex flex-wrap items-center justify-between gap-3 text-[12px]">
           {e.mint.status !== "minted" ? (
-            <span className="text-muted">El Merkle Root se ancla al desplegar el token.</span>
+            <span className="text-muted">{tr("El Merkle Root se ancla al desplegar el token.")}</span>
           ) : e.onchainRoot === e.merkle ? (
             <span className="text-aquaInk inline-flex items-center gap-1.5">
               <Icon name="CheckCircle2" size={14} />
-              {"Merkle Root anclado · "}
+              {tr("Merkle Root anclado")}
+              {" · "}
               <span className="font-mono">{shortHash(e.anchoredTx, 10, 6)}</span>
             </span>
           ) : (
-            <span className="text-goldInk">El Merkle Root del Data Room difiere del anclado on-chain.</span>
+            <span className="text-goldInk">
+              {tr("El Merkle Root del Data Room difiere del anclado on-chain.")}
+            </span>
           )}
           <button
             onClick={w}
             disabled={e.mint.status !== "minted" || e.onchainRoot === e.merkle}
             className="border border-line bg-white px-3 py-1.5 font-semibold text-rxBlue disabled:opacity-40 focus-ring"
           >
-            Anclar Merkle Root
+            {tr("Anclar Merkle Root")}
           </button>
         </div>
       </div>
       <div className="bg-white border border-line min-w-0">
         <div className="px-5 py-3.5 border-b border-line flex justify-between items-center gap-3">
-          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">Emisión de tokens</p>
+          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
+            {tr("Emisión de tokens")}
+          </p>
           <span
             className={`text-[10.5px] font-semibold tracking-[0.08em] uppercase px-2 py-1 ${U ? "bg-aquaTint text-aquaInk" : "bg-goldTint text-goldInk"}`}
           >
-            {U ? "Emitido" : "Sin emitir"}
+            {U ? tr("Emitido") : tr("Sin emitir")}
           </span>
         </div>
         {U ? (
           <dl className="text-[12.5px]">
             {[
-              ["Estado on-chain", e.tokenPaused ? "paused() = true" : "paused() = false"],
-              ["Token", `${e.mint.name} (${e.mint.symbol})`],
-              ["Red", e.mint.network],
-              ["Estándar", "OpenZeppelin Permissioned ERC-20"],
-              ["Unidades", nf(0).format(e.mint.supply)],
-              ["Precio por unidad", `USD ${nf(0).format(e.mint.price)}`],
-              ["Contrato", e.mint.contract],
-              ["Tx de emisión", shortHash(e.mint.tx, 12, 8)],
-              ["Wallets en whitelist", P],
+              [tr("Estado on-chain"), e.tokenPaused ? "paused() = true" : "paused() = false"],
+              [tr("Token"), `${e.mint.name} (${e.mint.symbol})`],
+              [tr("Red"), e.mint.network],
+              [tr("Estándar"), "OpenZeppelin Permissioned ERC-20"],
+              [tr("Unidades"), nf(0).format(e.mint.supply)],
+              [tr("Precio por unidad"), `USD ${nf(0).format(e.mint.price)}`],
+              [tr("Contrato"), e.mint.contract],
+              [tr("Tx de emisión"), shortHash(e.mint.tx, 12, 8)],
+              [tr("Wallets en whitelist"), P],
             ].map(([E, I]) => (
               <div
                 key={E}
@@ -348,29 +369,34 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
             <button
               onClick={() => {
                 const E = !e.tokenPaused;
-                r(TX.pause(e, a, E)),
+                (r(TX.pause(e, a, E)),
                   t((I) => ({
                     ...I,
                     tokenPaused: E,
                   })),
-                  l(E ? `pause() ejecutado por ${e.legalName}` : `unpause() ejecutado por ${e.legalName}`);
+                  l(
+                    E
+                      ? tr("pause() ejecutado por {name}", { name: e.legalName })
+                      : tr("unpause() ejecutado por {name}", { name: e.legalName }),
+                  ));
               }}
               className={`${e.tokenPaused ? "tc-btn" : "border border-[#B42318] text-[#B42318] bg-white"} px-4 py-2.5 text-[12.5px] font-semibold inline-flex items-center justify-center gap-2 focus-ring`}
             >
               <Icon name={e.tokenPaused ? "Play" : "PauseOctagon"} size={15} />
-              {e.tokenPaused ? "Reanudar token · unpause()" : "Pausar token · pause()"}
+              {e.tokenPaused ? tr("Reanudar token · unpause()") : tr("Pausar token · pause()")}
             </button>
             <p className="text-[11px] text-muted">
-              {"Solo el ISSUER_ADMIN_ROLE o el COMPLIANCE_OFFICER_ROLE de "}
-              {e.legalName}
-              {" pueden pausar el token. RWAXI no tiene esta facultad."}
+              {tr(
+                "Solo el ISSUER_ADMIN_ROLE o el COMPLIANCE_OFFICER_ROLE de {name} pueden pausar el token. RWAXI no tiene esta facultad.",
+                { name: e.legalName },
+              )}
             </p>
           </div>
         )}
         {!U && (
           <div className="p-5 flex flex-col gap-4">
             <div className="grid sm:grid-cols-2 gap-3">
-              <Field id="mint-name" label="Nombre del token">
+              <Field id="mint-name" label={tr("Nombre del token")}>
                 <input
                   id="mint-name"
                   value={b.name}
@@ -384,7 +410,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                   disabled={v > 0}
                 />
               </Field>
-              <Field id="mint-symbol" label="Símbolo">
+              <Field id="mint-symbol" label={tr("Símbolo")}>
                 <input
                   id="mint-symbol"
                   value={b.symbol}
@@ -401,7 +427,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                   disabled={v > 0}
                 />
               </Field>
-              <Field id="mint-supply" label="Unidades a emitir">
+              <Field id="mint-supply" label={tr("Unidades a emitir")}>
                 <input
                   id="mint-supply"
                   type="number"
@@ -417,7 +443,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                   disabled={v > 0}
                 />
               </Field>
-              <Field id="mint-price" label="Precio por unidad (USD)">
+              <Field id="mint-price" label={tr("Precio por unidad (USD)")}>
                 <input
                   id="mint-price"
                   type="number"
@@ -433,7 +459,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                   disabled={v > 0}
                 />
               </Field>
-              <Field id="mint-net" label="Red">
+              <Field id="mint-net" label={tr("Red")}>
                 <select
                   id="mint-net"
                   value={b.network}
@@ -450,7 +476,7 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
                   <option>EVM Polygon</option>
                 </select>
               </Field>
-              <Field id="mint-std" label="Estándar">
+              <Field id="mint-std" label={tr("Estándar")}>
                 <input
                   id="mint-std"
                   value="OpenZeppelin Permissioned ERC-20"
@@ -460,10 +486,10 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
               </Field>
             </div>
             <p className="text-[12px] text-muted">
-              {
-                "Restricciones activas: solo wallets en la whitelist de este tenant · tope maxSupplyCap · pausable por el desarrollador y por RWAXI · capitalización total "
-              }
-              {money(b.supply * b.price, "USD", true)}.
+              {tr(
+                "Restricciones activas: solo wallets en la whitelist de este tenant · tope maxSupplyCap · pausable por el desarrollador · capitalización total {total}.",
+                { total: money(b.supply * b.price, "USD", true) },
+              )}
             </p>
             {v > 0 && (
               <ol className="flex flex-col gap-2 border border-line p-4">
@@ -490,9 +516,11 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
               className="bg-rxOrange hover:bg-[#F59C45] text-rxDeep font-semibold text-[13px] py-3 inline-flex items-center justify-center gap-2 focus-ring disabled:opacity-60"
             >
               <Icon name="Coins" size={15} />
-              Emitir (Mint) tokens con el adaptador RWAXI
+              {tr("Emitir (Mint) tokens con el adaptador RWAXI")}
             </button>
-            <p className="text-[11px] text-muted">Simulación: no se despliega ningún contrato real.</p>
+            <p className="text-[11px] text-muted">
+              {tr("Simulación: no se despliega ningún contrato real.")}
+            </p>
           </div>
         )}
       </div>

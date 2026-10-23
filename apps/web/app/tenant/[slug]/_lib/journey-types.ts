@@ -1,5 +1,6 @@
 // Shapes exchanged between the portal page, its Server Actions and the ported prototype UI.
 // Field names follow the prototype's `journey` so the existing panels render them unchanged.
+import type { OfferingTranslations } from "@rwaxi/database";
 
 export type KycStatusView = "pendiente" | "aprobado" | "rechazado";
 
@@ -57,6 +58,8 @@ export interface PortalOfferingState {
   tokenPaused: boolean;
   /** capital raising paused by the platform (off-chain): no new subscriptions */
   capturePaused: boolean;
+  /** the developer's commercial copy in other languages (Offering.translations) */
+  translations: OfferingTranslations;
 }
 
 /**

@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { BCP47 } from "./_i18n/config";
+import { hostScope, requestLocale } from "./_i18n/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "RWAXI Real Estate",
-  description: "Activos reales · Inversiones digitales. Infraestructura de tokenización inmobiliaria White Label.",
+  description:
+    "Activos reales · Inversiones digitales. Infraestructura de tokenización inmobiliaria White Label.",
 };
 
 export const viewport: Viewport = {
@@ -14,9 +17,15 @@ export const viewport: Viewport = {
   themeColor: "#190A36",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/** `lang` of the visitor's language in the vitrina and in tenant hosts; the Super-Admin console is Spanish. */
+async function documentLang(): Promise<string> {
+  const scope = await hostScope();
+  return BCP47[scope ? await requestLocale(scope) : "es"];
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es">
+    <html lang={await documentLang()}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

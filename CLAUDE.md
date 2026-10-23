@@ -25,6 +25,8 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   app/_lib/server/       tenant-context, investor-session (HMAC), chain-queue (calldata viem, puro),
                          chain-invariants (prelación + reverts de los contratos, puro), chain-executor (firma y confirma)
   app/_lib/referral.ts   tokens de referido firmados (HMAC-SHA256, Web Crypto: middleware y Server Actions)
+  app/_i18n/             i18n: config (idiomas, cookies), provider (useI18n), server (requestTranslate, render),
+                         marks (msg, vmsg, reason, LocalizedError), messages/<idioma>.ts, extract.ts + catalogs.test.ts
   app/superadmin/_lib/   métricas consolidadas con platformPrisma() (rol BYPASSRLS, sólo host admin)
   app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
@@ -56,8 +58,8 @@ Reglas:
    Las Server Actions reciben únicamente ids de registros y los buscan bajo RLS: un id de otro tenant es "no encontrado".
    Subdominios reservados: ver `RESERVED_SUBDOMAINS`. Las únicas lecturas sin contexto de tenant son funciones
    SECURITY DEFINER acotadas: `rwaxi_resolve_tenant` (enrutado), `rwaxi_public_offerings()` (vitrina: campos de
-   marketing, progreso y pausa de captación de ofertas publicadas de desarrolladores publicados, sin datos de
-   inversionistas), `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global) y
+   marketing y sus traducciones, progreso y pausa de captación de ofertas publicadas de desarrolladores publicados,
+   sin datos de inversionistas), `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global) y
    `rwaxi_factory_creations` (contratos que la factory ya creó en simulación: el nonce de su próximo `CREATE`).
    Un slug que no es de los desarrolladores demo del prototipo se sirve desde la BD: el layout del tenant lo resuelve
    con `resolveTenant`, lee su vista bajo RLS (`_lib/tenant-view.ts`) y la registra en el estado demo
@@ -130,6 +132,40 @@ Tipografía: **Cormorant Garamond** (display, `font-display`), **Montserrat** (t
 `next/font`: los renders en canvas usan los nombres de familia. En el portal White Label el color del tenant va en
 `--tc` (`.tc-btn`, `.tc-text`, …) y debe cumplir contraste AA (`onColor()`).
 
+## Internacionalización (i18n)
+
+Dos alcances: la **vitrina** en 10 idiomas (es, en, pt, fr, de, ru, ar, zh, ja, ko; cookie `rwaxi_vitrina_lang`,
+selector en el header) y **portal + backoffice** de cada tenant en es | en | pt (cookie `rwaxi_portal_lang`, por host:
+la comparten portal y backoffice). La consola Super-Admin es sólo español. El layout lee la cookie en servidor
+(`requestI18n`) y entrega el catálogo al `I18nProvider`: el primer render ya sale en el idioma, y cambiarlo no recarga.
+
+- **La clave es el texto español** (estilo gettext): en español la salida es byte a byte la fuente, así que selectores
+  E2E, valores persistidos y hashes no cambian; una traducción ausente cae al español. Nunca traducir un valor que se
+  guarda o se hashea: se traduce al mostrarlo.
+- Marcadores (los extrae `app/_i18n/extract.ts`, y `catalogs.test.ts` exige que cada catálogo los tenga):
+  `tr("…", { vars })` y `rich("…", { nodos })` en componentes (`useI18n()`); `msg("…")` / `vmsg("…")` en tablas de
+  datos (`vmsg` = también en la vitrina); en servidor `reason("…", vars)` y errores que extienden `LocalizedError`
+  (`new XxxError("…", vars)`), que se muestran con `render(tr, e.reason)` y `tr = await requestTranslate(scope)`.
+  Placeholders `{nombre}`, nunca template literals interpolados dentro del marcador. Plurales: pasar `count` y el
+  catálogo da las formas CLDR. Ámbito por ruta: `_components/{vitrina,ui,shell}`, `vitrina/`, `_i18n/` son de la
+  vitrina; el resto, de es/en/pt; `superadmin/` no se extrae. Tras añadir textos:
+  `pnpm --filter @rwaxi/web exec tsx app/_i18n/extract.ts > sources.json` y completar `app/_i18n/messages/<idioma>.ts`
+  (en y pt: todas las claves; los demás: las de la vitrina).
+- **Maquetación**: `lang`/`dir` van en la raíz de `EnvironmentFrame` (`data-env`); el árabe (sólo vitrina) es `rtl`.
+  Usar utilidades lógicas (`ms-`, `me-`, `ps-`, `start-`, `end-`, `text-start`, `border-s`) y `rtl:-scale-x-100` en
+  iconos direccionales; cifras, porcentajes y códigos en `<Num>` (`<bdi dir="ltr">` + `tabular-nums`, dígitos
+  latinos) y nombres legales en `<bdi>`. `globals.css` ajusta alemán (guiones, `overflow-wrap`), coreano
+  (`word-break: keep-all`), japonés/chino (`line-break: strict`), quita el tracking en ar/zh/ja/ko y, como IBM Plex
+  Mono no tiene glifos árabes, da a `font-mono` en árabe la sans árabe del sistema de respaldo. Los números
+  siguen el idioma (`format.ts`, `setNumberLocale`, sólo en el navegador). El Inspector On-Chain es es/en/pt: desde la
+  vitrina en otro idioma se abre en inglés (`TenantLanguages`), siempre `ltr`.
+- **Frontera legal**: los avisos propios de RWAXI se traducen; las plantillas legales del tenant (NDA, plantillas de
+  cumplimiento) se muestran en su original español vinculante (`lang="es"`) con un aviso traducido. La evidencia KYC
+  y el acuerdo de suscripción (versión 2) registran el `language` en que el inversionista los vio.
+- **Copy comercial de las ofertas**: `Offering.translations` (JSONB `{ idioma: { city, region, assetType,
+  economicRight, legalWrapperNote } }`, lo aporta y aprueba el desarrollador); las columnas son el original español
+  y el respaldo. Lo expone `rwaxi_public_offerings()` y lo aplica `localizeProject()` en vitrina y portal.
+
 ## Comandos
 
 ```bash
@@ -153,7 +189,7 @@ pnpm contracts:test                            # tests de cumplimiento (whitelis
 
 pnpm e2e                                       # suites E2E (Chrome headless) contra pnpm dev + la BD de .env; reseedea
 pnpm e2e portal onboarding                     # sólo esas (backoffice, portal, referrals-subscriptions, payments-queue,
-                                               #   superadmin-ops, onboarding, distributions)
+                                               #   superadmin-ops, onboarding, distributions, i18n)
 pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local (registry, token y factory) + next dev con
                                                #   CHAIN_EXECUTION=rpc y RWAXI_FACTORY_ADDRESS
 ```
@@ -250,5 +286,6 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   una tabla append-only debe revocar UPDATE/DELETE en su migración y en `scripts/provision-app-role.ts`.
 - Validación de formularios: las reglas de UI (`validateStep`) se reaplican en el servidor, más listas cerradas
   (países, actividades, rangos). Emails y wallets se guardan en minúsculas (únicos por tenant).
-- Copys en español (Colombia); importes con `money()` (COP/USD, TRM de demo 4.100).
+- Copys fuente en español (Colombia), siempre con un marcador de i18n (ver Internacionalización); importes con
+  `money()` (COP/USD, TRM de demo 4.100).
 - Cifras, proyectos, direcciones y hashes de los seeds son ilustrativos.

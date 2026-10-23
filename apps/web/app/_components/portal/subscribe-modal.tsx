@@ -7,8 +7,10 @@ import { Modal } from "@/app/_components/ui/modal";
 import { LEGAL_LAYERS, legalVars } from "@/app/_lib/data/legal";
 import { alt, money, nf, onColor } from "@/app/_lib/format";
 import { seededHex } from "@/app/_lib/hash";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClose: n, onConfirm: l, persist: g }) {
+  const { tr } = useI18n();
   const [r, i] = useState(false),
     [s, c] = useState(false),
     [d, p] = useState(false),
@@ -19,16 +21,16 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
   useEffect(() => () => h.current.forEach(clearTimeout), []);
   const b = g
       ? [
-          "Firma del contrato y registro en PostgreSQL",
+          tr("Firma del contrato y registro en PostgreSQL"),
           v
-            ? "Unidades reservadas · pago fiduciario pendiente de conciliación por el desarrollador"
-            : "Reserva de unidades en el registro del vehículo",
-          "Certificado con el SHA-256 del contrato",
+            ? tr("Unidades reservadas · pago fiduciario pendiente de conciliación por el desarrollador")
+            : tr("Reserva de unidades en el registro del vehículo"),
+          tr("Certificado con el SHA-256 del contrato"),
         ]
       : [
-          "Firma electrónica del contrato de suscripción",
-          v ? "Transferencia de tokens a tu wallet" : "Reserva de unidades en el registro del vehículo",
-          "Registro on-chain y certificado",
+          tr("Firma electrónica del contrato de suscripción"),
+          v ? tr("Transferencia de tokens a tu wallet") : tr("Reserva de unidades en el registro del vehículo"),
+          tr("Registro on-chain y certificado"),
         ],
     y = async () => {
       if (g) {
@@ -68,7 +70,7 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
       );
     };
   return (
-    <Modal title="Contrato de suscripción" onClose={n}>
+    <Modal title={tr("Contrato de suscripción")} onClose={n}>
       <div
         style={{
           "--tc": e.color,
@@ -78,11 +80,11 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
       >
         <dl className="border border-line text-[13px]">
           {[
-            ["Contraparte", `${e.legalName} · NIT ${e.nit}`],
-            ["Vehículo", `${a.wrapper}`],
-            ["Activo", a.asset],
-            ["Unidades", nf(0).format(t.units)],
-            ["Monto", `${money(t.capital, o)} (${alt(t.capital, o)})`],
+            [tr("Contraparte"), `${e.legalName} · NIT ${e.nit}`],
+            [tr("Vehículo"), tr(a.wrapper)],
+            [tr("Activo"), a.asset],
+            [tr("Unidades"), nf(0).format(t.units)],
+            [tr("Monto"), `${money(t.capital, o)} (${alt(t.capital, o)})`],
           ].map(([f, N], x) => (
             <div
               key={f}
@@ -103,7 +105,7 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
                 onChange={(f) => i(f.target.checked)}
                 className="mt-0.5 accent-[#2F145F]"
               />
-              Leí el contrato de suscripción del vehículo y el Data Room del proyecto.
+              {tr("Leí el contrato de suscripción del vehículo y el Data Room del proyecto.")}
             </label>
             <label className="flex gap-3 text-[12.5px] text-inkBody leading-[1.55]">
               <input
@@ -113,11 +115,10 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
                 onChange={(f) => c(f.target.checked)}
                 className="mt-0.5 accent-[#2F145F]"
               />
-              Entiendo que la TIR, las distribuciones y la valorización son escenarios estimados y que mi
-              capital está sujeto a riesgo.
+              {tr("Entiendo que la TIR, las distribuciones y la valorización son escenarios estimados y que mi capital está sujeto a riesgo.")}
             </label>
             <div className="border border-line bg-stone p-4 max-h-[240px] overflow-y-auto">
-              <LegalText tpl={LEGAL_LAYERS} vars={legalVars(e, a)} compact={true} />
+              <LegalText tpl={tr(LEGAL_LAYERS)} vars={{ ...legalVars(e, a), LEGAL_WRAPPER_TYPE: tr(a.wrapper) }} compact={true} />
             </div>
             <label className="flex gap-3 text-[12.5px] text-inkBody leading-[1.55]">
               <input
@@ -127,8 +128,9 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
                 onChange={(f) => p(f.target.checked)}
                 className="mt-0.5 accent-[#2F145F]"
               />
-              Reconozco expresamente las 4 Capas Estructurales de esta inversión y la función de recuperación
-              judicial o administrativa (forcedTransfer) descritas arriba.
+              {tr(
+                "Reconozco expresamente las 4 Capas Estructurales de esta inversión y la función de recuperación judicial o administrativa (forcedTransfer) descritas arriba.",
+              )}
             </label>
             {w && (
               <p role="alert" className="border border-[#F3C5C0] bg-[#FDECEA] text-[#B42318] text-[12.5px] px-4 py-3">
@@ -140,7 +142,7 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
               onClick={y}
               className="tc-btn font-semibold text-[13px] py-3 disabled:opacity-40 focus-ring"
             >
-              Firmar y confirmar
+              {tr("Firmar y confirmar")}
             </button>
           </>
         )}
@@ -165,7 +167,7 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
         )}
         {m === 4 && (
           <button onClick={n} className="tc-btn font-semibold text-[13px] py-3 focus-ring">
-            Ver mi portafolio
+            {tr("Ver mi portafolio")}
           </button>
         )}
       </div>

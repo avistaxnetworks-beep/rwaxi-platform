@@ -15,8 +15,10 @@ import {
 } from "@/app/_lib/chain/simulator";
 import { shortHash } from "@/app/_lib/format";
 import { seededHex, sha256Hex } from "@/app/_lib/hash";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
+  const { tr } = useI18n();
   const { t: n, p: l, token: r } = e,
     i = Object.entries(e.bal)
       .filter(([, k]) => k > 0)
@@ -32,11 +34,11 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
     [P, z] = useState(""),
     [G, U] = useState(null),
     E = useRef();
-  useEffect(() => {
-    c(i[0] || ""), y(i[0] || ""), h(null), U(null);
+  (useEffect(() => {
+    (c(i[0] || ""), y(i[0] || ""), h(null), U(null));
   }, [l.id]),
     useEffect(() => {
-      i.includes(s) || c(i[0] || ""), i.includes(b) || y(i[0] || "");
+      (i.includes(s) || c(i[0] || ""), i.includes(b) || y(i[0] || ""));
     }, [i.join()]),
     useEffect(() => {
       g(e.bal[b] || 0);
@@ -49,7 +51,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
           k = false;
         }
       );
-    }, [w]);
+    }, [w]));
   const I = (k) =>
     t((D) => ({
       ...D,
@@ -65,9 +67,10 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
     return (
       <div className="flex flex-col gap-4">
         <p className="font-mono text-[12px] text-[#C9C1E3] border border-white/15 px-4 py-6">
-          {"El token de "}
-          {l.asset}
-          {" aún no está desplegado. Emítelo desde Backoffice → Data Room y Minting para probar las reglas."}
+          {tr(
+            "El token de {asset} aún no está desplegado. Emítelo desde Backoffice → Data Room y Minting para probar las reglas.",
+            { asset: l.asset },
+          )}
         </p>
         <CodeViewer toast={o} />
       </div>
@@ -76,10 +79,10 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
       const k = Math.max(1, Math.floor(+m || 0)),
         D = [["ERC20.transfer(to, value) → _update(from, to, value)", "ok"]];
       let F = null;
-      if (e.paused) D.push(["ERC20Pausable: whenNotPaused", "fail"]), (F = "EnforcedPause()");
+      if (e.paused) (D.push(["ERC20Pausable: whenNotPaused", "fail"]), (F = "EnforcedPause()"));
       else {
         const V = e.eligible(d);
-        D.push([`complianceRegistry.isEligible(${shortAddr(d)}) → ${V}`, V ? "ok" : "fail"]),
+        (D.push([`complianceRegistry.isEligible(${shortAddr(d)}) → ${V}`, V ? "ok" : "fail"]),
           V
             ? e.frozen(s)
               ? (D.push([`complianceRegistry.isFrozen(${shortAddr(s)}) → true`, "fail"]),
@@ -87,8 +90,8 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
               : (e.bal[s] || 0) < k
                 ? (D.push(["balanceOf(from) ≥ value", "fail"]),
                   (F = `ERC20InsufficientBalance(${shortAddr(s)}, ${e.bal[s] || 0}, ${k})`))
-                : D.push(["super._update(): saldo actualizado", "ok"])
-            : (F = `Error("${REVERT_RECEIVER}")`);
+                : D.push([tr("super._update(): saldo actualizado"), "ok"])
+            : (F = `Error("${REVERT_RECEIVER}")`));
       }
       const M = makeTx({
         tenantId: l.id,
@@ -112,7 +115,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
               },
             ],
       });
-      a(M),
+      (a(M),
         F ||
           I((V) => ({
             ...V,
@@ -128,10 +131,10 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
         h({
           steps: D,
           revert: F,
-        });
+        }));
     },
     _ = (k, D) => {
-      I((F) => ({
+      (I((F) => ({
         ...F,
         frozen: {
           ...F.frozen,
@@ -139,23 +142,23 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
         },
       })),
         a(TX.freeze(n, l.id, k, D)),
-        o(`setFrozen(${shortAddr(k)}, ${D})`);
+        o(`setFrozen(${shortAddr(k)}, ${D})`));
     },
     B = () => {
       const k =
         (e.investors.find((D) => D.wallet === b) || {}).dossier || "0x" + seededHex("dossier-recovery", 64);
-      I((D) => ({
+      (I((D) => ({
         ...D,
         extra: {
           ...D.extra,
           [RECOVERY_WALLET]: {
-            label: `Nueva wallet de ${e.labelOf(b)}`,
+            label: tr("Nueva wallet de {name}", { name: e.labelOf(b) }),
             dossier: k,
           },
         },
       })),
         a(TX.approve(n, l.id, RECOVERY_WALLET, k)),
-        o("approveInvestor(nueva wallet del titular) ejecutado");
+        o(tr("approveInvestor(nueva wallet del titular) ejecutado")));
     },
     T = () => {
       const k = Math.max(0, Math.floor(+x || 0)),
@@ -170,7 +173,8 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
             : e.eligible(f)
               ? (F.push([`complianceRegistry.isEligible(${shortAddr(f)}) → true`, "ok"]),
                 F.push([
-                  `isFrozen(from) omitido en recuperación forzosa${e.frozen(b) ? " (origen congelado)" : ""}`,
+                  tr("isFrozen(from) omitido en recuperación forzosa") +
+                    (e.frozen(b) ? " " + tr("(origen congelado)") : ""),
                   "ok",
                 ]),
                 (e.bal[b] || 0) < k || k === 0
@@ -209,7 +213,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
           },
         ],
       });
-      a(V),
+      (a(V),
         M ||
           (I((Z) => ({
             ...Z,
@@ -222,11 +226,17 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
               },
             ],
           })),
-          o(`Recuperación ejecutada: ${k} ${n.mint.symbol} → ${shortAddr(f)}`)),
+          o(
+            tr("Recuperación ejecutada: {n} {symbol} → {wallet}", {
+              n: k,
+              symbol: n.mint.symbol,
+              wallet: shortAddr(f),
+            }),
+          )),
         U({
           steps: F,
           revert: M,
-        });
+        }));
     },
     C = "bg-[#0B0518] border border-white/20 text-white font-mono text-[11.5px] px-2 py-2 focus-ring w-full",
     S = ({ tr: k }) =>
@@ -243,7 +253,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
           <p
             className={`font-mono text-[12px] mt-1.5 px-2 py-1.5 ${k.revert ? "bg-[#3a1018] text-[#FF8A80]" : "bg-[#0c2a3a] text-rxAqua"}`}
           >
-            {k.revert ? `Revert On-Chain: ${k.revert}` : "Transacción exitosa"}
+            {k.revert ? tr("Revert On-Chain: {reason}", { reason: k.revert }) : tr("Transacción exitosa")}
           </p>
         </div>
       );
@@ -251,12 +261,12 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
     <div className="flex flex-col gap-5">
       <section className="border border-white/15 bg-[#120726] p-4 flex flex-col gap-3">
         <p className="font-mono text-[12.5px] text-white font-semibold">
-          {"1 · Bloqueo en mercado secundario "}
+          {tr("1 · Bloqueo en mercado secundario")}{" "}
           <span className="text-[#A79FC0] font-normal">(hook _update)</span>
         </p>
         <div className="grid md:grid-cols-3 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10.5px] text-[#A79FC0]">from (titular)</span>
+            <span className="font-mono text-[10.5px] text-[#A79FC0]">{tr("from (titular)")}</span>
             <select id="sim-from" value={s} onChange={(k) => c(k.target.value)} className={C}>
               {i.map((k) => (
                 <option key={k} value={k}>
@@ -272,7 +282,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[10.5px] text-[#A79FC0]">to</span>
             <select id="sim-to" value={d} onChange={(k) => p(k.target.value)} className={C}>
-              <option value={DEAD_WALLET}>0xDead…Beef · externa no verificada</option>
+              <option value={DEAD_WALLET}>0xDead…Beef · {tr("externa no verificada")}</option>
               {e.investors
                 .filter((k) => k.wallet !== s)
                 .map((k) => (
@@ -303,7 +313,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
             disabled={!s}
             className="bg-rxAqua text-rxDeep font-mono font-semibold text-[12px] px-4 py-2 focus-ring disabled:opacity-40"
           >
-            Ejecutar transfer()
+            {tr("Ejecutar transfer()")}
           </button>
           {s && (
             <button
@@ -318,32 +328,36 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
       </section>
       <section className="border border-white/15 bg-[#120726] p-4 flex flex-col gap-3">
         <p className="font-mono text-[12.5px] text-white font-semibold">
-          {"2 · Recuperación regulatoria / orden judicial "}
+          {tr("2 · Recuperación regulatoria / orden judicial")}{" "}
           <span className="text-[#A79FC0] font-normal">(forcedTransfer · LEGAL_ENFORCEMENT_ROLE)</span>
         </p>
         <div className="grid md:grid-cols-3 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10.5px] text-[#A79FC0]">from (extraviada / embargada)</span>
+            <span className="font-mono text-[10.5px] text-[#A79FC0]">
+              {tr("from (extraviada / embargada)")}
+            </span>
             <select id="claw-from" value={b} onChange={(k) => y(k.target.value)} className={C}>
               {i.map((k) => (
                 <option key={k} value={k}>
                   {shortAddr(k)}
                   {" · "}
                   {e.labelOf(k)}
-                  {e.frozen(k) ? " · congelada" : ""}
+                  {e.frozen(k) ? " · " + tr("congelada") : ""}
                 </option>
               ))}
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10.5px] text-[#A79FC0]">to (nueva wallet del titular)</span>
+            <span className="font-mono text-[10.5px] text-[#A79FC0]">
+              {tr("to (nueva wallet del titular)")}
+            </span>
             <select id="claw-to" value={f} onChange={(k) => N(k.target.value)} className={C}>
               <option value={RECOVERY_WALLET}>
                 {shortAddr(RECOVERY_WALLET)}
-                {" · nueva wallet "}
-                {e.eligible(RECOVERY_WALLET) ? "(whitelist)" : "(no aprobada)"}
+                {" · "}
+                {tr("nueva wallet")} {e.eligible(RECOVERY_WALLET) ? "(whitelist)" : tr("(no aprobada)")}
               </option>
-              <option value={DEAD_WALLET}>0xDead…Beef · externa no verificada</option>
+              <option value={DEAD_WALLET}>0xDead…Beef · {tr("externa no verificada")}</option>
             </select>
           </label>
           <label className="flex flex-col gap-1">
@@ -360,14 +374,16 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
         </div>
         <label className="flex flex-col gap-1">
           <span className="font-mono text-[10.5px] text-[#A79FC0]">
-            Acta o sentencia (texto o archivo) → legalActHash = SHA-256
+            {tr("Acta o sentencia (texto o archivo) → legalActHash = SHA-256")}
           </span>
           <textarea
             id="claw-act"
             rows={2}
             value={w}
             onChange={(k) => A(k.target.value)}
-            placeholder="Ej. Juzgado 12 Civil del Circuito de Bogotá, auto 2026-0457: restitución de unidades al titular…"
+            placeholder={tr(
+              "Ej. Juzgado 12 Civil del Circuito de Bogotá, auto 2026-0457: restitución de unidades al titular…",
+            )}
             className={C + " font-sans"}
           />
         </label>
@@ -381,14 +397,14 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
               const D = k.target.files[0];
               if (!D) return;
               const F = await sha256Hex(await D.arrayBuffer());
-              A(`[archivo] ${D.name}`), z(F), (k.target.value = "");
+              (A(tr("[archivo] {name}", { name: D.name })), z(F), (k.target.value = ""));
             }}
           />
           <button
             onClick={() => E.current.click()}
             className="border border-white/20 text-white font-mono text-[11.5px] px-3 py-2 focus-ring"
           >
-            Cargar acta (PDF)
+            {tr("Cargar acta (PDF)")}
           </button>
           <Mono className="text-[11px] text-rxAqua break-all">
             {P ? `0x${P}` : "legalActHash = 0x000…000"}
@@ -401,7 +417,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
               disabled={!b}
               className="border border-rxAqua text-rxAqua font-mono text-[11.5px] px-3 py-2 focus-ring disabled:opacity-40"
             >
-              approveInvestor(nueva wallet, 170, dossier)
+              {tr("approveInvestor(nueva wallet, 170, dossier)")}
             </button>
           )}
           {b && (
@@ -409,7 +425,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
               onClick={() => _(b, !e.frozen(b))}
               className="border border-white/20 text-white font-mono text-[11.5px] px-3 py-2 focus-ring"
             >
-              {e.frozen(b) ? "setFrozen(from, false)" : "setFrozen(from, true) · embargo"}
+              {e.frozen(b) ? "setFrozen(from, false)" : "setFrozen(from, true) · " + tr("embargo")}
             </button>
           )}
           <button
@@ -417,7 +433,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
             disabled={!b}
             className="bg-[#D9A24A] text-rxDeep font-mono font-semibold text-[12px] px-4 py-2 focus-ring disabled:opacity-40"
           >
-            Ejecutar forcedTransfer()
+            {tr("Ejecutar forcedTransfer()")}
           </button>
         </div>
         <S tr={G} />

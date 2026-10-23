@@ -17,6 +17,7 @@ import {
   validateStep,
 } from "@/app/_lib/data/kyc";
 import { WALLET } from "@/app/_lib/data/projects";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function Wizard({
   auth: e,
@@ -30,7 +31,8 @@ export function Wizard({
   sarlaftText: s,
   regime: c = "sagrilaft",
 }) {
-  const d = stepsFor(c),
+  const { rich, tr } = useI18n();
+  const d = stepsFor(c, tr),
     p = REGIMES[c],
     [m, u] = useState({}),
     v = (f) => (N) =>
@@ -39,8 +41,8 @@ export function Wizard({
         [f]: N,
       })),
     h = () => {
-      const f = validateStep(o, a, c);
-      u(f),
+      const f = validateStep(o, a, c, tr);
+      (u(f),
         !Object.keys(f).length &&
           (o < 3
             ? (n(o + 1),
@@ -48,15 +50,18 @@ export function Wizard({
                 top: 0,
                 behavior: "smooth",
               }))
-            : l());
+            : l()));
     },
     b = () => {
-      u({}), n(o - 1);
+      (u({}), n(o - 1));
     },
     y = () => {
       // Document and wallet are unique per tenant in the database: demo values are randomised.
-      const rnd = (f) => Array.from(crypto.getRandomValues(new Uint8Array(f)), (N) => N.toString(16).padStart(2, "0")).join("");
-      o === 0 &&
+      const rnd = (f) =>
+        Array.from(crypto.getRandomValues(new Uint8Array(f)), (N) => N.toString(16).padStart(2, "0")).join(
+          "",
+        );
+      (o === 0 &&
         t((f) => ({
           ...f,
           fullName: "María Fernanda Ríos Ospina",
@@ -75,8 +80,8 @@ export function Wizard({
         o === 2 &&
           t((f) => ({
             ...f,
-            docFront: sampleDoc("front"),
-            docBack: f.docType === "CC" ? sampleDoc("back") : f.docBack,
+            docFront: sampleDoc("front", tr),
+            docBack: f.docType === "CC" ? sampleDoc("back", tr) : f.docBack,
           })),
         o === 3 &&
           t((f) => ({
@@ -88,7 +93,7 @@ export function Wizard({
             ptee: true,
             listas: true,
           })),
-        u({});
+        u({}));
     };
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-8 items-start">
@@ -100,8 +105,7 @@ export function Wizard({
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
-                Paso 0{o + 1}
-                {" / 04"}
+                {tr("Paso {n} / 04", { n: `0${o + 1}` })}
               </p>
               <h3 className="font-display font-semibold text-[28px] text-rxPurple leading-tight">{d[o]}</h3>
             </div>
@@ -110,7 +114,7 @@ export function Wizard({
               onClick={y}
               className="text-[12px] text-rxBlue underline underline-offset-2 focus-ring"
             >
-              Completar con datos de ejemplo
+              {tr("Completar con datos de ejemplo")}
             </button>
           </div>
           {o === 0 && (
@@ -118,9 +122,9 @@ export function Wizard({
               <div className="sm:col-span-2">
                 <Field
                   id="kyc-name"
-                  label="Nombre completo"
+                  label={tr("Nombre completo")}
                   error={m.fullName}
-                  hint="Tal como aparece en el documento de identidad."
+                  hint={tr("Tal como aparece en el documento de identidad.")}
                 >
                   <input
                     id="kyc-name"
@@ -131,18 +135,18 @@ export function Wizard({
                   />
                 </Field>
               </div>
-              <Field id="kyc-doctype" label="Tipo de documento">
+              <Field id="kyc-doctype" label={tr("Tipo de documento")}>
                 <select
                   id="kyc-doctype"
                   value={a.docType}
                   onChange={(f) => v("docType")(f.target.value)}
                   className={fieldCls()}
                 >
-                  <option value="CC">Cédula de Ciudadanía</option>
-                  <option value="PA">Pasaporte</option>
+                  <option value="CC">{tr("Cédula de Ciudadanía")}</option>
+                  <option value="PA">{tr("Pasaporte")}</option>
                 </select>
               </Field>
-              <Field id="kyc-docnum" label="Número de documento" error={m.docNumber}>
+              <Field id="kyc-docnum" label={tr("Número de documento")} error={m.docNumber}>
                 <input
                   id="kyc-docnum"
                   inputMode={a.docType === "CC" ? "numeric" : "text"}
@@ -156,11 +160,11 @@ export function Wizard({
               <div className="sm:col-span-2">
                 <Field
                   id="kyc-country"
-                  label="País de residencia"
+                  label={tr("País de residencia")}
                   hint={
                     a.country === "Colombia"
-                      ? "Residente en Colombia: aplica régimen cambiario local."
-                      : "Inversionista no residente: se solicitará registro de inversión extranjera."
+                      ? tr("Residente en Colombia: aplica régimen cambiario local.")
+                      : tr("Inversionista no residente: se solicitará registro de inversión extranjera.")
                   }
                 >
                   <select
@@ -170,7 +174,9 @@ export function Wizard({
                     className={fieldCls()}
                   >
                     {COUNTRIES.map((f) => (
-                      <option key={f}>{f}</option>
+                      <option key={f} value={f}>
+                        {tr(f)}
+                      </option>
                     ))}
                   </select>
                 </Field>
@@ -178,9 +184,11 @@ export function Wizard({
               <div className="sm:col-span-2">
                 <Field
                   id="kyc-wallet"
-                  label="Wallet EVM para recibir tus unidades digitales"
+                  label={tr("Wallet EVM para recibir tus unidades digitales")}
                   error={m.wallet}
-                  hint="Dirección 0x… en Polygon o Base. Es la que el Oficial de Cumplimiento añadirá a la whitelist al aprobarte."
+                  hint={tr(
+                    "Dirección 0x… en Polygon o Base. Es la que el Oficial de Cumplimiento añadirá a la whitelist al aprobarte.",
+                  )}
                 >
                   <input
                     id="kyc-wallet"
@@ -202,7 +210,7 @@ export function Wizard({
               )}
               <Field
                 id="kyc-activity"
-                label="¿Cuál es la actividad económica principal del origen de sus fondos?"
+                label={tr("¿Cuál es la actividad económica principal del origen de sus fondos?")}
                 error={m.activity}
               >
                 <select
@@ -211,14 +219,16 @@ export function Wizard({
                   onChange={(f) => v("activity")(f.target.value)}
                   className={fieldCls(m.activity)}
                 >
-                  <option value="">Selecciona una opción</option>
+                  <option value="">{tr("Selecciona una opción")}</option>
                   {ACTIVITIES.map((f) => (
-                    <option key={f}>{f}</option>
+                    <option key={f} value={f}>
+                      {tr(f)}
+                    </option>
                   ))}
                 </select>
               </Field>
               {a.activity === "Otra actividad" && (
-                <Field id="kyc-activity-other" label="Describe la actividad" error={m.activityOther}>
+                <Field id="kyc-activity-other" label={tr("Describe la actividad")} error={m.activityOther}>
                   <input
                     id="kyc-activity-other"
                     value={a.activityOther}
@@ -229,7 +239,7 @@ export function Wizard({
               )}
               <fieldset className="flex flex-col gap-2">
                 <legend className="text-[12px] font-semibold text-inkBody mb-1.5">
-                  Ingresos anuales estimados
+                  {tr("Ingresos anuales estimados")}
                 </legend>
                 <div className="grid sm:grid-cols-2 gap-2">
                   {INCOME.map((f, N) => (
@@ -245,14 +255,18 @@ export function Wizard({
                         onChange={() => v("income")(N)}
                         className="accent-[#2F145F]"
                       />
-                      <span className="font-mono text-[12.5px] text-inkBody tnum">{incomeLabel(f, r)}</span>
+                      <span className="font-mono text-[12.5px] text-inkBody tnum">
+                        {incomeLabel(f, r, tr)}
+                      </span>
                     </label>
                   ))}
                 </div>
                 {m.income && <p className="text-[12px] text-[#B42318]">{m.income}</p>}
               </fieldset>
               <fieldset className="flex flex-col gap-2">
-                <legend className="text-[12px] font-semibold text-inkBody mb-1.5">Perfil de riesgo</legend>
+                <legend className="text-[12px] font-semibold text-inkBody mb-1.5">
+                  {tr("Perfil de riesgo")}
+                </legend>
                 <div className="grid sm:grid-cols-3 gap-2">
                   {RISK.map(([f, N, x]) => (
                     <label
@@ -268,9 +282,9 @@ export function Wizard({
                           onChange={() => v("risk")(f)}
                           className="accent-[#2F145F]"
                         />
-                        <span className="text-[13.5px] font-semibold text-rxPurple">{N}</span>
+                        <span className="text-[13.5px] font-semibold text-rxPurple">{tr(N)}</span>
                       </span>
-                      <span className="text-[12px] text-muted leading-[1.5]">{x}</span>
+                      <span className="text-[12px] text-muted leading-[1.5]">{tr(x)}</span>
                     </label>
                   ))}
                 </div>
@@ -283,7 +297,7 @@ export function Wizard({
               <div className={`grid gap-4 ${a.docType === "CC" ? "sm:grid-cols-2" : ""}`}>
                 <DropZone
                   id="kyc-front"
-                  label={a.docType === "CC" ? "Cédula · frente" : "Pasaporte · página de datos"}
+                  label={a.docType === "CC" ? tr("Cédula · frente") : tr("Pasaporte · página de datos")}
                   file={a.docFront}
                   onFile={v("docFront")}
                   error={m.docFront}
@@ -291,7 +305,7 @@ export function Wizard({
                 {a.docType === "CC" && (
                   <DropZone
                     id="kyc-back"
-                    label="Cédula · reverso"
+                    label={tr("Cédula · reverso")}
                     file={a.docBack}
                     onFile={v("docBack")}
                     error={m.docBack}
@@ -308,46 +322,46 @@ export function Wizard({
                 checked={a.noPep}
                 onChange={v("noPep")}
                 error={m.noPep}
-                title="Declaración de No-PEP"
+                title={tr("Declaración de No-PEP")}
               >
-                Declaro que no soy Persona Expuesta Políticamente (PEP), ni familiar o asociado cercano de una
-                PEP, en los términos del Decreto 830 de 2021. Me obligo a informar cualquier cambio en esta
-                condición.
+                {tr(
+                  "Declaro que no soy Persona Expuesta Políticamente (PEP), ni familiar o asociado cercano de una PEP, en los términos del Decreto 830 de 2021. Me obligo a informar cualquier cambio en esta condición.",
+                )}
               </CheckRow>
               <CheckRow
                 id="kyc-data"
                 checked={a.dataPolicy}
                 onChange={v("dataPolicy")}
                 error={m.dataPolicy}
-                title="Tratamiento de Datos Personales"
+                title={tr("Tratamiento de Datos Personales")}
               >
-                {"Autorizo a "}
-                {i}, como Responsable del Tratamiento, y a RWAXI, como Encargado Tecnológico de
-                Infraestructura que actúa por cuenta del Responsable, el tratamiento de mis datos conforme a
-                la Ley 1581 de 2012.
+                {tr(
+                  "Autorizo a {entity}, como Responsable del Tratamiento, y a RWAXI, como Encargado Tecnológico de Infraestructura que actúa por cuenta del Responsable, el tratamiento de mis datos conforme a la Ley 1581 de 2012.",
+                  { entity: i },
+                )}
               </CheckRow>
               <CheckRow
                 id="kyc-terms"
                 checked={a.terms}
                 onChange={v("terms")}
                 error={m.terms}
-                title="Términos de Coinversión"
+                title={tr("Términos de Coinversión")}
               >
-                Acepto los términos de coinversión y entiendo que la TIR, las distribuciones y la valorización
-                son escenarios estimados, y que mi capital está sujeto a riesgo.
+                {tr(
+                  "Acepto los términos de coinversión y entiendo que la TIR, las distribuciones y la valorización son escenarios estimados, y que mi capital está sujeto a riesgo.",
+                )}
               </CheckRow>
               <CheckRow
                 id="kyc-listas"
                 checked={a.listas}
                 onChange={v("listas")}
                 error={m.listas}
-                title="Consulta en listas restrictivas"
+                title={tr("Consulta en listas restrictivas")}
               >
-                {"Autorizo a "}
-                {i}
-                {
-                  " a consultar mi información en listas restrictivas y vinculantes (ONU, OFAC y fuentes nacionales) como parte de la debida diligencia."
-                }
+                {tr(
+                  "Autorizo a {entity} a consultar mi información en listas restrictivas y vinculantes (ONU, OFAC y fuentes nacionales) como parte de la debida diligencia.",
+                  { entity: i },
+                )}
               </CheckRow>
               {p.ptee && (
                 <CheckRow
@@ -355,12 +369,12 @@ export function Wizard({
                   checked={a.ptee}
                   onChange={v("ptee")}
                   error={m.ptee}
-                  title="Programa de Transparencia y Ética Empresarial (PTEE)"
+                  title={tr("Programa de Transparencia y Ética Empresarial (PTEE)")}
                 >
-                  {"Conozco y acepto el PTEE de "}
-                  {i}, adoptado conforme al Capítulo XIII de la Circular Básica Jurídica de la
-                  Superintendencia de Sociedades, y me comprometo a reportar cualquier situación de soborno o
-                  corrupción relacionada con este negocio.
+                  {tr(
+                    "Conozco y acepto el PTEE de {entity}, adoptado conforme al Capítulo XIII de la Circular Básica Jurídica de la Superintendencia de Sociedades, y me comprometo a reportar cualquier situación de soborno o corrupción relacionada con este negocio.",
+                    { entity: i },
+                  )}
                 </CheckRow>
               )}
               <CheckRow
@@ -368,15 +382,15 @@ export function Wizard({
                 checked={a.sarlaft}
                 onChange={v("sarlaft")}
                 error={m.sarlaft}
-                title={`Origen lícito de fondos (${p.sys})`}
+                title={tr("Origen lícito de fondos ({sys})", { sys: p.sys })}
               >
-                {
-                  "Declaro que la información suministrada es veraz y que mis recursos provienen de actividades lícitas, y autorizo su verificación conforme "
-                }
                 {p.sys === "SAGRILAFT"
-                  ? "al Capítulo X de la Circular Básica Jurídica de la Superintendencia de Sociedades"
-                  : "a la Parte I, Título IV, Capítulo IV de la Circular Básica Jurídica de la Superintendencia Financiera"}
-                .
+                  ? tr(
+                      "Declaro que la información suministrada es veraz y que mis recursos provienen de actividades lícitas, y autorizo su verificación conforme al Capítulo X de la Circular Básica Jurídica de la Superintendencia de Sociedades.",
+                    )
+                  : tr(
+                      "Declaro que la información suministrada es veraz y que mis recursos provienen de actividades lícitas, y autorizo su verificación conforme a la Parte I, Título IV, Capítulo IV de la Circular Básica Jurídica de la Superintendencia Financiera.",
+                    )}
               </CheckRow>
             </div>
           )}
@@ -388,52 +402,58 @@ export function Wizard({
             disabled={o === 0}
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-rxPurple px-3 py-2.5 border border-transparent hover:border-line disabled:opacity-0 focus-ring"
           >
-            <Icon name="ArrowLeft" size={15} />
-            Atrás
+            <Icon name="ArrowLeft" size={15} className="rtl:-scale-x-100" />
+            {tr("Atrás")}
           </button>
           <button
             type="button"
             onClick={h}
             className={`${o === 3 ? "bg-rxOrange hover:bg-[#F59C45] text-rxDeep" : "tc-btn"} font-semibold text-[13px] px-5 py-3 inline-flex items-center gap-2 focus-ring`}
           >
-            {o === 3 ? "Enviar a revisión de cumplimiento" : "Continuar"}
+            {o === 3 ? tr("Enviar a revisión de cumplimiento") : tr("Continuar")}
             <Icon name="ChevronRight" size={15} />
           </button>
         </div>
       </div>
       <aside className="flex flex-col gap-4 min-w-0">
         <div className="bg-white border border-line p-5 flex flex-col gap-3">
-          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">Sesión</p>
+          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">{tr("Sesión")}</p>
           {e.method === "wallet" ? (
             <p className="text-[13px] text-inkBody">
-              {"Billetera "}
-              {e.wallet}
+              {tr("Billetera")} {e.wallet}
               <span className="block font-mono text-aquaInk text-[12px] mt-0.5">{WALLET}</span>
             </p>
           ) : (
             <p className="text-[13px] text-inkBody break-words">
               {e.email}
               <span className="block text-[12px] text-muted mt-0.5">
-                {a.wallet ? "Billetera declarada · se añade a la whitelist al aprobarse" : "Billetera: decláralo en el paso 1"}
+                {a.wallet
+                  ? tr("Billetera declarada · se añade a la whitelist al aprobarse")
+                  : tr("Billetera: decláralo en el paso 1")}
               </span>
-              {a.wallet && <span className="block font-mono text-aquaInk text-[12px] mt-0.5 break-all">{a.wallet}</span>}
+              {a.wallet && (
+                <span className="block font-mono text-aquaInk text-[12px] mt-0.5 break-all">{a.wallet}</span>
+              )}
             </p>
           )}
         </div>
         <div className="bg-white border border-line p-5 flex flex-col gap-2.5">
-          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">Resumen</p>
+          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">{tr("Resumen")}</p>
           {[
-            ["Titular", a.fullName || "—"],
-            ["Documento", a.docNumber ? `${a.docType === "CC" ? "C.C." : "Pasaporte"} ${a.docNumber}` : "—"],
-            ["Residencia", a.country],
-            ["Wallet", a.wallet ? `${a.wallet.slice(0, 8)}…${a.wallet.slice(-6)}` : "—"],
-            ["Perfil", (RISK.find((f) => f[0] === a.risk) || [0, "—"])[1]],
-            ["Documento cargado", a.docFront ? "Sí" : "No"],
-            ["Prueba de vida", a.liveness === "done" ? "Completada" : "Pendiente"],
+            [tr("Titular"), a.fullName || "—"],
+            [
+              tr("Documento"),
+              a.docNumber ? `${a.docType === "CC" ? tr("C.C.") : tr("Pasaporte")} ${a.docNumber}` : "—",
+            ],
+            [tr("Residencia"), tr(a.country)],
+            [tr("Wallet"), a.wallet ? `${a.wallet.slice(0, 8)}…${a.wallet.slice(-6)}` : "—"],
+            [tr("Perfil"), tr((RISK.find((f) => f[0] === a.risk) || [0, "—"])[1])],
+            [tr("Documento cargado"), a.docFront ? tr("Sí") : tr("No")],
+            [tr("Prueba de vida"), a.liveness === "done" ? tr("Completada") : tr("Pendiente")],
           ].map(([f, N]) => (
             <div key={f} className="flex justify-between gap-3 text-[12.5px]">
               <span className="text-muted">{f}</span>
-              <span className="text-inkBody font-medium text-right min-w-0 break-words">{N}</span>
+              <span className="text-inkBody font-medium text-end min-w-0 break-words">{N}</span>
             </div>
           ))}
         </div>

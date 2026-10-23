@@ -271,6 +271,9 @@ model Offering {
   videoConfig          Json?            @map("video_config")
   /// current Data Room Merkle root (bytes32 hex) — see @rwaxi/blockchain-sdk/merkle
   dataRoomRoot         String?          @map("data_room_root")
+  /// the developer's commercial copy in other languages: { locale: { city, region, assetType, economicRight,
+  /// legalWrapperNote } }; the columns above are the Spanish original and the fallback
+  translations         Json             @default("{}")
   published            Boolean          @default(false)
   /// platform (off-chain) pause of capital raising: no new subscriptions while set; never touches the token
   capturePausedAt      DateTime?        @map("capture_paused_at")

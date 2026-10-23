@@ -1,18 +1,19 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
+import { msg, vmsg } from "@/app/_i18n/marks";
 import { REGIMES } from "@/app/_lib/data/kyc";
 import { portalHost } from "@/app/_lib/hosts";
 
 export const LEGAL_VARS_DOC = [
-  ["ORGANIZATION_LEGAL_NAME", "Razón social del desarrollador (oferente)"],
-  ["ORGANIZATION_TAX_ID", "NIT del desarrollador"],
-  ["LEGAL_ENTITY_NAME", "Nombre del vehículo emisor"],
-  ["LEGAL_WRAPPER_TYPE", "Tipo de vehículo jurídico (Legal Wrapper)"],
-  ["DATAROOM_MERKLE_ROOT", "Merkle Root SHA-256 vigente del Data Room"],
-  ["ASSET_NAME", "Activo subyacente"],
-  ["PORTAL_DOMAIN", "Dominio del portal"],
-  ["COMPLIANCE_REGIME", "Régimen de cumplimiento"],
-  ["TOKEN_SYMBOL", "Símbolo del token"],
-  ["NETWORK", "Red blockchain"],
+  ["ORGANIZATION_LEGAL_NAME", msg("Razón social del desarrollador (oferente)")],
+  ["ORGANIZATION_TAX_ID", msg("NIT del desarrollador")],
+  ["LEGAL_ENTITY_NAME", msg("Nombre del vehículo emisor")],
+  ["LEGAL_WRAPPER_TYPE", msg("Tipo de vehículo jurídico (Legal Wrapper)")],
+  ["DATAROOM_MERKLE_ROOT", msg("Merkle Root SHA-256 vigente del Data Room")],
+  ["ASSET_NAME", msg("Activo subyacente")],
+  ["PORTAL_DOMAIN", msg("Dominio del portal")],
+  ["COMPLIANCE_REGIME", msg("Régimen de cumplimiento")],
+  ["TOKEN_SYMBOL", msg("Símbolo del token")],
+  ["NETWORK", msg("Red blockchain")],
 ];
 
 export const LEGAL_NDA = `ACUERDO DE CONFIDENCIALIDAD Y NO DIVULGACIÓN (NDA)
@@ -62,7 +63,9 @@ export const LEGAL_COMPLIANCE = {
 5. Huella del expediente. Al enviar el formulario se genera el hash SHA-256 de tu expediente (kycDossierHash). Si eres aprobado, solo ese hash, y no tus datos personales, se registra en el contrato de cumplimiento del desarrollador en la red {{NETWORK}}.`,
 };
 
-export const LEGAL_FRONTIER = `FRONTERA LEGAL DE RWAXI
+// RWAXI's own notices are translated; the developer's legal templates (LEGAL_NDA, LEGAL_COMPLIANCE) are
+// shown in their binding original language.
+export const LEGAL_FRONTIER = vmsg(`FRONTERA LEGAL DE RWAXI
 
 RWAXI es un canal de descubrimiento y un proveedor de infraestructura tecnológica (portales white label, Data Room, firma electrónica, expediente KYC y adaptador de tokenización). En la vitrina www.rwaxi.com y en cada portal:
 
@@ -70,12 +73,14 @@ RWAXI es un canal de descubrimiento y un proveedor de infraestructura tecnológi
 2. RWAXI no capta recursos del público, no recibe dinero de los inversionistas, no presta asesoría de inversión ni actúa como intermediario del mercado de valores.
 3. Cada proyecto es ofrecido exclusivamente por su desarrollador, identificado con razón social y NIT, a través de su propio vehículo jurídico independiente. La relación contractual, la debida diligencia (SAGRILAFT + PTEE o SARLAFT) y las decisiones sobre los inversionistas son responsabilidad del desarrollador.
 4. En la cadena de bloques, los contratos del registro de cumplimiento y del token pertenecen al desarrollador. RWAXI no tiene facultades para pausar, congelar ni transferir unidades digitales; solo ejecuta, como adaptador técnico, las instrucciones de emisión que el desarrollador aprueba.
-5. Las cifras de TIR, distribuciones y valorización son escenarios estimados elaborados por cada desarrollador. No constituyen promesa de rentabilidad y el capital invertido está sujeto a riesgo.`;
+5. Las cifras de TIR, distribuciones y valorización son escenarios estimados elaborados por cada desarrollador. No constituyen promesa de rentabilidad y el capital invertido está sujeto a riesgo.`);
 
-export const LEGAL_FRONTIER_TENANT =
-  "Oferente responsable: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Vehículo emisor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Régimen de cumplimiento: {{COMPLIANCE_REGIME}}. RWAXI actúa solo como proveedor de infraestructura tecnológica: no es parte de la oferta, no recibe recursos y no controla las unidades digitales emitidas.";
+export const LEGAL_FRONTIER_TENANT = vmsg(
+  "Oferente responsable: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Vehículo emisor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Régimen de cumplimiento: {{COMPLIANCE_REGIME}}. RWAXI actúa solo como proveedor de infraestructura tecnológica: no es parte de la oferta, no recibe recursos y no controla las unidades digitales emitidas.",
+);
 
-export const LEGAL_LAYERS = `RECONOCIMIENTO DE LAS 4 CAPAS ESTRUCTURALES Y DE LA RECUPERACIÓN JUDICIAL O ADMINISTRATIVA
+export const LEGAL_LAYERS =
+  msg(`RECONOCIMIENTO DE LAS 4 CAPAS ESTRUCTURALES Y DE LA RECUPERACIÓN JUDICIAL O ADMINISTRATIVA
 
 Al suscribir declaro que entiendo y acepto que mi inversión se organiza en cuatro capas independientes:
 
@@ -89,7 +94,7 @@ Capa 4 · Infraestructura digital. Mis unidades se representan con el token {{TO
 
 Recuperación judicial o administrativa (forcedTransfer). Acepto que, solo por orden judicial, decisión de autoridad administrativa competente o acto jurídico que lo justifique (por ejemplo, sucesión, embargo o pérdida acreditada de mis llaves privadas), el titular del LEGAL_ENFORCEMENT_ROLE de {{ORGANIZATION_LEGAL_NAME}} podrá transferir mis unidades a una wallet verificada mediante la función forcedTransfer. Cada ejecución registra on-chain el hash SHA-256 del acto que la soporta (legalActHash) y emite el evento ForcedRecoveryExecuted, verificable por cualquier interesado. RWAXI no puede ejecutar esta función.
 
-Transferencias. Entiendo que mis unidades solo pueden transferirse a wallets aprobadas en la whitelist del desarrollador; cualquier transferencia a una wallet no verificada será rechazada por el contrato.`;
+Transferencias. Entiendo que mis unidades solo pueden transferirse a wallets aprobadas en la whitelist del desarrollador; cualquier transferencia a una wallet no verificada será rechazada por el contrato.`);
 
 export function legalVars(e, a) {
   return {

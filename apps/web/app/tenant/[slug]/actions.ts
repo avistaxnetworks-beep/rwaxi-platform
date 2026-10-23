@@ -13,6 +13,10 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { evidenceHash, toOnchainId } from "@rwaxi/blockchain-sdk";
 import { Prisma, isUniqueViolation, withTenant, type RiskProfile } from "@rwaxi/database";
+import { NUMBER_LOCALE, type Locale } from "@/app/_i18n/config";
+import { LocalizedError, msg } from "@/app/_i18n/marks";
+import { render, requestLocale, requestTranslate } from "@/app/_i18n/server";
+import type { Translate } from "@/app/_i18n/translate";
 import { ACTIVITIES, COUNTRIES, INCOME, REGIMES, RISK, validateStep } from "@/app/_lib/data/kyc";
 import { REF_COOKIE, verifyReferral } from "@/app/_lib/referral";
 import { readInvestorSession, startInvestorSession } from "@/app/_lib/server/investor-session";
@@ -52,15 +56,16 @@ const ISO_NUMERIC: Record<string, number> = {
 };
 const RISK_ENUM: Record<string, RiskProfile> = { conservador: "CONSERVATIVE", moderado: "MODERATE", dinamico: "DYNAMIC" };
 
-class OnboardingError extends Error {}
+class OnboardingError extends LocalizedError {}
 
-function failure(e: unknown): { ok: false; error: string } {
-  if (e instanceof OnboardingError || e instanceof TenantAccessError) return { ok: false, error: e.message };
+/** Messages go back in the investor's language (rwaxi_portal_lang); the server logs stay in Spanish. */
+function failure(e: unknown, tr: Translate): { ok: false; error: string } {
+  if (e instanceof LocalizedError) return { ok: false, error: render(tr, e.reason) };
   if (isUniqueViolation(e)) {
-    return { ok: false, error: "El correo, el documento o la wallet ya están registrados por otro inversionista de este portal." };
+    return { ok: false, error: tr("El correo, el documento o la wallet ya están registrados por otro inversionista de este portal.") };
   }
   console.error("[portal] onboarding action failed", e);
-  return { ok: false, error: "No se pudo guardar tu información. Inténtalo de nuevo." };
+  return { ok: false, error: tr("No se pudo guardar tu información. Inténtalo de nuevo.") };
 }
 
 /** Portal and backoffice of this tenant both render this state. */
@@ -84,6 +89,7 @@ async function activeTenant() {
 
 /** Signs the NDA: creates Investor + NdaAcceptance + Lead (RWAXI attribution) and the session. */
 export async function signNda(input: NdaSubmission): Promise<NdaResult> {
+  const tr = await requestTranslate("tenant");
   try {
     const signerName = typeof input?.signerName === "string" ? input.signerName.trim().slice(0, 120) : "";
     const email = typeof input?.signerEmail === "string" ? input.signerEmail.trim().toLowerCase().slice(0, 254) : "";
@@ -181,7 +187,7 @@ export async function signNda(input: NdaSubmission): Promise<NdaResult> {
       },
     };
   } catch (e) {
-    return failure(e);
+    return failure(e, tr);
   }
 }
 
@@ -201,12 +207,12 @@ function documentOf(value: unknown, label: string): KycDocument | null {
     /^(image\/[a-z0-9.+-]+|application\/pdf)$/.test(d.type) &&
     typeof d.sha256 === "string" &&
     HEX64.test(d.sha256);
-  if (!ok) throw new OnboardingError(`El archivo "${label}" no es válido; vuelve a cargarlo.`);
+  if (!ok) throw new OnboardingError('El archivo "{label}" no es válido; vuelve a cargarlo.', { label });
   return { name: d.name!, size: d.size!, type: d.type!, sha256: hex0x(d.sha256!) };
 }
 
 /** Same rules as the wizard (validateStep), re-applied on the server, plus closed lists. */
-function sanitizeKyc(input: KycSubmission, regimeKey: "sagrilaft" | "sarlaft") {
+function sanitizeKyc(input: KycSubmission, regimeKey: "sagrilaft" | "sarlaft", tr: Translate) {
   const i = (input ?? {}) as unknown as Record<string, unknown>;
   const str = (k: string, max: number) => (typeof i[k] === "string" ? (i[k] as string).trim().slice(0, max) : "");
   const bool = (k: string) => i[k] === true;
@@ -220,8 +226,8 @@ function sanitizeKyc(input: KycSubmission, regimeKey: "sagrilaft" | "sarlaft") {
     activityOther: str("activityOther", 160),
     income: Number.isInteger(i.income) ? (i.income as number) : null,
     risk: str("risk", 20),
-    docFront: documentOf(i.docFront, "frente del documento"),
-    docBack: documentOf(i.docBack, "reverso del documento"),
+    docFront: documentOf(i.docFront, tr("frente del documento")),
+    docBack: documentOf(i.docBack, tr("reverso del documento")),
     liveness: str("liveness", 10),
     noPep: bool("noPep"),
     dataPolicy: bool("dataPolicy"),
@@ -241,6 +247,7 @@ function sanitizeKyc(input: KycSubmission, regimeKey: "sagrilaft" | "sarlaft") {
   if (data.risk && !RISK.some((r) => r[0] === data.risk)) throw new OnboardingError("Perfil de riesgo no admitido.");
   for (let step = 0; step < 4; step++) {
     const first = Object.values(validateStep(step, data, regimeKey) as Record<string, string>)[0];
+    // validateStep() answers with Spanish source texts: rendered in the investor's language by failure().
     if (first) throw new OnboardingError(first);
   }
   if (!ADDRESS.test(data.wallet)) throw new OnboardingError("La wallet EVM no es válida.");
@@ -249,6 +256,8 @@ function sanitizeKyc(input: KycSubmission, regimeKey: "sagrilaft" | "sarlaft") {
 
 /** Submits the KYC dossier: KycCase PENDING with a server-computed dossierHash. */
 export async function submitKyc(input: KycSubmission): Promise<KycResult> {
+  const tr = await requestTranslate("tenant");
+  const language = await requestLocale("tenant");
   try {
     const tenant = await activeTenant();
     const session = await readInvestorSession(tenant.id);
@@ -281,7 +290,7 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
         if (latest?.status === "APPROVED") throw new OnboardingError("Tu perfil ya fue aprobado.");
 
         const regimeKey = org.complianceRegime === "SARLAFT" ? "sarlaft" : "sagrilaft";
-        const data = sanitizeKyc(input, regimeKey);
+        const data = sanitizeKyc(input, regimeKey, tr);
         const [docTaken, walletTaken] = await Promise.all([
           tx.investor.findFirst({
             where: { docType: data.docType, docNumber: data.docNumber, NOT: { id: investor.id } },
@@ -295,8 +304,10 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
         const submittedAt = new Date();
         const countryCode = ISO_NUMERIC[data.country] ?? 0;
         // Canonical dossier: anyone holding it can recompute dossierHash = sha256(canonicalJson(evidence)).
+        // v2 records the language the declarations were shown in (their binding text is the Spanish source).
         const evidence = {
-          version: 1,
+          version: 2,
+          language,
           organization: { id: org.id, taxId: org.taxId, regime: org.complianceRegime },
           offering: { id: offering.id, code: offering.code },
           investor: {
@@ -378,18 +389,18 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
       },
     };
   } catch (e) {
-    return failure(e);
+    return failure(e, tr);
   }
 }
 
 // ───────────────────────────────────────────────────────────── Paso 4 · Suscripción
 
-const CAPTURE_PAUSED = "La captación de esta oferta está pausada temporalmente por la plataforma: no se reciben nuevas suscripciones.";
+const CAPTURE_PAUSED = msg("La captación de esta oferta está pausada temporalmente por la plataforma: no se reciben nuevas suscripciones.");
 
 /** Ceiling of the prototype's amount slider (SubscriptionPanel), enforced server-side. */
 const MAX_SUBSCRIPTION_USD = 250_000;
-const usd = (n: Prisma.Decimal | number) =>
-  `${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Number(n))} USD`;
+const usd = (n: Prisma.Decimal | number, locale: Locale) =>
+  `${new Intl.NumberFormat(NUMBER_LOCALE[locale], { maximumFractionDigits: 0 }).format(Number(n))} USD`;
 
 /**
  * Signs a subscription for an approved investor and commits its units on the Offering.
@@ -399,6 +410,8 @@ const usd = (n: Prisma.Decimal | number) =>
  * Always records an AuditEvent with the canonical agreement (agreementHash).
  */
 export async function subscribe(input: SubscriptionSubmission): Promise<SubscriptionResult> {
+  const tr = await requestTranslate("tenant");
+  const language = await requestLocale("tenant");
   try {
     const units = Number(input?.units);
     if (!Number.isSafeInteger(units) || units < 1) throw new OnboardingError("Cantidad de unidades inválida.");
@@ -438,8 +451,12 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         if (state.capturePaused) throw new OnboardingError(CAPTURE_PAUSED);
 
         const capital = offering.unitPriceUsd.mul(units);
-        if (capital.lt(offering.minTicketUsd)) throw new OnboardingError(`El ticket mínimo es ${usd(offering.minTicketUsd)}.`);
-        if (capital.gt(MAX_SUBSCRIPTION_USD)) throw new OnboardingError(`El máximo por suscripción es ${usd(MAX_SUBSCRIPTION_USD)}.`);
+        if (capital.lt(offering.minTicketUsd)) {
+          throw new OnboardingError("El ticket mínimo es {amount}.", { amount: usd(offering.minTicketUsd, language) });
+        }
+        if (capital.gt(MAX_SUBSCRIPTION_USD)) {
+          throw new OnboardingError("El máximo por suscripción es {amount}.", { amount: usd(MAX_SUBSCRIPTION_USD, language) });
+        }
 
         // Atomic availability check (backed by the offerings_units_subscribed_range CHECK); a pause
         // decided by the platform in the meantime also makes it match no row.
@@ -449,7 +466,7 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         if (committed !== 1) {
           const current = await tx.offering.findUniqueOrThrow({ where: { id: offering.id }, select: { capturePausedAt: true } });
           if (current.capturePausedAt) throw new OnboardingError(CAPTURE_PAUSED);
-          throw new OnboardingError(`No hay unidades suficientes: quedan ${state.totalUnits - state.unitsSubscribed}.`);
+          throw new OnboardingError("No hay unidades suficientes: quedan {n}.", { n: state.totalUnits - state.unitsSubscribed });
         }
 
         const now = new Date();
@@ -468,8 +485,10 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         });
         const onchainId = toOnchainId(created.id);
         // The agreement the investor signed; its hash is combined with the payment reference later.
+        // v2 records the language the acknowledgments were shown in.
         const agreement = {
-          version: 1,
+          version: 2,
+          language,
           subscription: { id: created.id, onchainId },
           organization: { id: tenant.id, taxId: org.taxId },
           offering: { id: offering.id, code: offering.code },
@@ -530,11 +549,11 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
     return {
       ok: true,
       message: paymentCode
-        ? `Suscripción firmada: ${units} unidades reservadas · transfiere el pago con la referencia ${paymentCode}`
-        : `Reserva registrada: ${units} unidades (el token aún no está emitido)`,
+        ? tr("Suscripción firmada: {units} unidades reservadas · transfiere el pago con la referencia {code}", { units, code: paymentCode })
+        : tr("Reserva registrada: {units} unidades (el token aún no está emitido)", { units }),
       ...data,
     };
   } catch (e) {
-    return failure(e);
+    return failure(e, tr);
   }
 }

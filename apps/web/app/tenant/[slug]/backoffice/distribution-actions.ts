@@ -12,7 +12,10 @@
 import { revalidatePath } from "next/cache";
 import { buildDistribution } from "@rwaxi/blockchain-sdk/distribution";
 import { Prisma, isUniqueViolation, withTenant } from "@rwaxi/database";
-import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
+import { LocalizedError } from "@/app/_i18n/marks";
+import { render, requestTranslate } from "@/app/_i18n/server";
+import type { Translate } from "@/app/_i18n/translate";
+import { requestMeta } from "@/app/_lib/server/tenant-context";
 import { PERIOD, distributionOnchainId, mintedHoldings } from "./_lib/holdings";
 import { requireBackofficeSession } from "./_lib/session";
 import type { ActionResult, DistributionInput } from "./_lib/types";
@@ -27,13 +30,13 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 };
 const LIMITS = { USD: [1, 100_000_000], COP: [5_000, 400_000_000_000] } as const;
 const FX_LIMITS = [1_000, 10_000] as const;
 
-class DistributionError extends Error {}
+class DistributionError extends LocalizedError {}
 
-function failure(e: unknown): ActionResult {
-  if (e instanceof DistributionError || e instanceof TenantAccessError) return { ok: false, error: e.message };
-  if (isUniqueViolation(e)) return { ok: false, error: "Ya existe una distribución de ese periodo para esta oferta." };
+function failure(e: unknown, tr: Translate): ActionResult {
+  if (e instanceof LocalizedError) return { ok: false, error: render(tr, e.reason) };
+  if (isUniqueViolation(e)) return { ok: false, error: tr("Ya existe una distribución de ese periodo para esta oferta.") };
   console.error("[backoffice] distribution declaration failed", e);
-  return { ok: false, error: "No se pudo declarar la distribución. Inténtalo de nuevo." };
+  return { ok: false, error: tr("No se pudo declarar la distribución. Inténtalo de nuevo.") };
 }
 
 const refresh = () => {
@@ -45,7 +48,11 @@ function decimalOf(raw: unknown, rule: RegExp, [min, max]: readonly [number, num
   const s = typeof raw === "string" ? raw.trim().replace(/\s/g, "").replace(",", ".") : "";
   const value = rule.test(s) ? new Prisma.Decimal(s) : null;
   if (!value || value.lt(min) || value.gt(max)) {
-    throw new DistributionError(`${label}: entre ${min.toLocaleString("es-CO")} y ${max.toLocaleString("es-CO")} (hasta 2 decimales).`);
+    throw new DistributionError("{label}: entre {min} y {max} (hasta 2 decimales).", {
+      label,
+      min: min.toLocaleString("es-CO"),
+      max: max.toLocaleString("es-CO"),
+    });
   }
   return value;
 }
@@ -55,6 +62,7 @@ function decimalOf(raw: unknown, rule: RegExp, [min, max]: readonly [number, num
  * holders of the offering's token, and queues the anchoring of its Merkle root.
  */
 export async function declareDistribution(input: DistributionInput): Promise<ActionResult> {
+  const tr = await requestTranslate("tenant");
   try {
     const offeringId = typeof input?.offeringId === "string" ? input.offeringId : "";
     if (!ID.test(offeringId)) throw new DistributionError("Oferta inválida.");
@@ -62,8 +70,8 @@ export async function declareDistribution(input: DistributionInput): Promise<Act
     if (!PERIOD.test(period)) throw new DistributionError("Periodo: mes (2026-09) o trimestre (2026-Q3).");
     const currency = input.currency;
     if (currency !== "USD" && currency !== "COP") throw new DistributionError("Moneda: USD o COP.");
-    const amount = decimalOf(input.amount, AMOUNT, LIMITS[currency], `Monto en ${currency}`);
-    const fxRate = currency === "COP" ? decimalOf(input.fxRate, FX_RATE, FX_LIMITS, "Tasa COP/USD") : null;
+    const amount = decimalOf(input.amount, AMOUNT, LIMITS[currency], currency === "USD" ? tr("Monto en USD") : tr("Monto en COP"));
+    const fxRate = currency === "COP" ? decimalOf(input.fxRate, FX_RATE, FX_LIMITS, tr("Tasa COP/USD")) : null;
     const totalUsd = fxRate ? amount.div(fxRate).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) : amount;
     if (totalUsd.lt(1)) throw new DistributionError("La distribución debe sumar al menos 1 USD.");
     const totalCents = totalUsd.mul(100).toNumber();
@@ -174,7 +182,12 @@ export async function declareDistribution(input: DistributionInput): Promise<Act
             createdAt: now,
           },
         });
-        return `Distribución ${period} declarada · ${totalUsd.toFixed(2)} USD entre ${built.allocations.length} tenedor(es) · anchorDistributionRoot() en cola`;
+        return tr("Distribución {period} declarada · {amount} USD entre {holders} tenedor(es) · anchorDistributionRoot() en cola", {
+          period,
+          amount: totalUsd.toFixed(2),
+          holders: built.allocations.length,
+          count: built.allocations.length,
+        });
       },
       TX_OPTIONS,
     );
@@ -182,6 +195,6 @@ export async function declareDistribution(input: DistributionInput): Promise<Act
     refresh();
     return { ok: true, message };
   } catch (e) {
-    return failure(e);
+    return failure(e, tr);
   }
 }

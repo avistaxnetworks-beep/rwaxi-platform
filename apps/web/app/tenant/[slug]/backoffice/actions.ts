@@ -10,8 +10,11 @@
  */
 import { revalidatePath } from "next/cache";
 import { withTenant, type KycStatus } from "@rwaxi/database";
+import { LocalizedError, msg } from "@/app/_i18n/marks";
+import { render, requestTranslate } from "@/app/_i18n/server";
+import type { Translate } from "@/app/_i18n/translate";
 import { REJECT_REASONS } from "@/app/_lib/data/kyc";
-import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
+import { requestMeta } from "@/app/_lib/server/tenant-context";
 import { requireBackofficeSession } from "./_lib/session";
 import type { ActionResult } from "./_lib/types";
 
@@ -23,18 +26,18 @@ const GRANT_TTL_MS = 24 * 3600 * 1000;
 const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
 
 const STATUS_LABEL: Record<KycStatus, string> = {
-  NOT_STARTED: "sin iniciar",
-  PENDING: "pendiente",
-  APPROVED: "aprobado",
-  REJECTED: "rechazado",
+  NOT_STARTED: msg("sin iniciar"),
+  PENDING: msg("pendiente"),
+  APPROVED: msg("aprobado"),
+  REJECTED: msg("rechazado"),
 };
 
-class DecisionError extends Error {}
+class DecisionError extends LocalizedError {}
 
-function failure(e: unknown): ActionResult {
-  if (e instanceof DecisionError || e instanceof TenantAccessError) return { ok: false, error: e.message };
+function failure(e: unknown, tr: Translate): ActionResult {
+  if (e instanceof LocalizedError) return { ok: false, error: render(tr, e.reason) };
   console.error("[backoffice] compliance decision failed", e);
-  return { ok: false, error: "No se pudo registrar la decisión. Inténtalo de nuevo." };
+  return { ok: false, error: tr("No se pudo registrar la decisión. Inténtalo de nuevo.") };
 }
 
 // The investor portal reflects compliance decisions too (status, Data Room grant).
@@ -45,6 +48,7 @@ const refresh = () => {
 
 /** Approve a pending KYC case: APPROVED + whitelist queued on-chain + Data Room grant + audit event. */
 export async function approveInvestor(kycCaseId: string): Promise<ActionResult> {
+  const tr = await requestTranslate("tenant");
   try {
     if (typeof kycCaseId !== "string" || !CUID.test(kycCaseId)) throw new DecisionError("Expediente inválido.");
     const session = await requireBackofficeSession();
@@ -60,7 +64,7 @@ export async function approveInvestor(kycCaseId: string): Promise<ActionResult> 
         });
         if (!kyc) throw new DecisionError("Expediente no encontrado en este tenant.");
         if (kyc.status !== "PENDING") {
-          throw new DecisionError(`El expediente ya está ${STATUS_LABEL[kyc.status]}; recarga la bandeja.`);
+          throw new DecisionError("El expediente ya está {status}; recarga la bandeja.", { status: STATUS_LABEL[kyc.status] });
         }
         if (!kyc.dossierHash || !BYTES32.test(kyc.dossierHash)) {
           throw new DecisionError("El expediente no tiene un hash SHA-256 válido.");
@@ -138,7 +142,7 @@ export async function approveInvestor(kycCaseId: string): Promise<ActionResult> 
             createdAt: now,
           },
         });
-        return `${kyc.investor.fullName} aprobado · whitelist on-chain en cola`;
+        return tr("{name} aprobado · whitelist on-chain en cola", { name: kyc.investor.fullName });
       },
       TX_OPTIONS,
     );
@@ -146,12 +150,13 @@ export async function approveInvestor(kycCaseId: string): Promise<ActionResult> 
     refresh();
     return { ok: true, message };
   } catch (e) {
-    return failure(e);
+    return failure(e, tr);
   }
 }
 
 /** Reject a pending KYC case with one of the predefined reasons: REJECTED + audit event. */
 export async function rejectInvestor(kycCaseId: string, reasonIndex: number): Promise<ActionResult> {
+  const tr = await requestTranslate("tenant");
   try {
     if (typeof kycCaseId !== "string" || !CUID.test(kycCaseId)) throw new DecisionError("Expediente inválido.");
     const reason = Number.isInteger(reasonIndex) ? (REJECT_REASONS as string[])[reasonIndex] : undefined;
@@ -166,7 +171,7 @@ export async function rejectInvestor(kycCaseId: string, reasonIndex: number): Pr
         const kyc = await tx.kycCase.findUnique({ where: { id: kycCaseId }, include: { investor: true } });
         if (!kyc) throw new DecisionError("Expediente no encontrado en este tenant.");
         if (kyc.status !== "PENDING") {
-          throw new DecisionError(`El expediente ya está ${STATUS_LABEL[kyc.status]}; recarga la bandeja.`);
+          throw new DecisionError("El expediente ya está {status}; recarga la bandeja.", { status: STATUS_LABEL[kyc.status] });
         }
 
         const now = new Date();
@@ -196,7 +201,7 @@ export async function rejectInvestor(kycCaseId: string, reasonIndex: number): Pr
             createdAt: now,
           },
         });
-        return `Solicitud de ${kyc.investor.fullName} rechazada con motivo`;
+        return tr("Solicitud de {name} rechazada con motivo", { name: kyc.investor.fullName });
       },
       TX_OPTIONS,
     );
@@ -204,6 +209,6 @@ export async function rejectInvestor(kycCaseId: string, reasonIndex: number): Pr
     refresh();
     return { ok: true, message };
   } catch (e) {
-    return failure(e);
+    return failure(e, tr);
   }
 }

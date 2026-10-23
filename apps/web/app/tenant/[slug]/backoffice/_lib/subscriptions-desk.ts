@@ -1,8 +1,11 @@
 import "server-only";
 import { withTenant, type ChainTransaction } from "@rwaxi/database";
+import { msg } from "@/app/_i18n/marks";
+import { render, requestTranslate } from "@/app/_i18n/server";
+import type { Translate } from "@/app/_i18n/translate";
 import { TenantAccessError } from "@/app/_lib/server/tenant-context";
 import { executionMode, operatorAddress } from "@/app/_lib/server/chain-executor";
-import { blockerFor, loadChainState } from "@/app/_lib/server/chain-invariants";
+import { blockerReason, loadChainState } from "@/app/_lib/server/chain-invariants";
 import { toQueueItem } from "@/app/_lib/server/chain-queue";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { toAuditEntry } from "./audit";
@@ -14,13 +17,13 @@ const RECENT_CONFIRMED = 6;
 const DESK_AUDIT = ["SUBSCRIPTION_CREATED", "PAYMENT_CONFIRMED", "CHAIN_TX_CONFIRMED", "SUBSCRIPTION_MINTED"] as const;
 
 const TOKEN_BLOCKER: Record<string, string> = {
-  NOT_DEPLOYED: "El token de la oferta no está desplegado: la suscripción sigue como reserva.",
-  DEPLOYING: "El token de la oferta se está desplegando.",
-  PAUSED: "El emisor pausó el token: reanúdalo antes de conciliar pagos.",
+  NOT_DEPLOYED: msg("El token de la oferta no está desplegado: la suscripción sigue como reserva."),
+  DEPLOYING: msg("El token de la oferta se está desplegando."),
+  PAUSED: msg("El emisor pausó el token: reanúdalo antes de conciliar pagos."),
 };
 
 /** One snapshot (one RLS-bound transaction): subscriptions, queue order and blockers agree. */
-async function readDesk(session: BackofficeSession): Promise<SubscriptionsDeskData> {
+async function readDesk(session: BackofficeSession, tr: Translate): Promise<SubscriptionsDeskData> {
   return withTenant(
     session.tenant.id,
     async (db) => {
@@ -56,11 +59,16 @@ async function readDesk(session: BackofficeSession): Promise<SubscriptionsDeskDa
 
       const codeById = new Map(offerings.map((o) => [o.id, o.code]));
       const byWallet = new Map(investors.map((i) => [i.walletAddress!.toLowerCase(), i.fullName]));
+      const blocked = (t: ChainTransaction) => {
+        const r = t.status === "PENDING" ? blockerReason(t, state) : null;
+        return r ? render(tr, r) : null;
+      };
       const item = (t: ChainTransaction) =>
         toQueueItem(
           { ...t, offering: t.offeringId && codeById.has(t.offeringId) ? { code: codeById.get(t.offeringId)! } : null },
           byWallet,
-          t.status === "PENDING" ? blockerFor(t, state) : null,
+          blocked(t),
+          tr,
         );
 
       const queue = state.txs.filter((t) => t.status === "PENDING").map(item);
@@ -79,7 +87,7 @@ async function readDesk(session: BackofficeSession): Promise<SubscriptionsDeskDa
         return {
           id: s.id,
           investorName: s.investor.fullName,
-          doc: formatDoc(s.investor.docType, s.investor.docNumber),
+          doc: formatDoc(s.investor.docType, s.investor.docNumber, tr),
           wallet: s.investor.walletAddress,
           offeringCode: s.offering.code,
           assetName: s.offering.assetName,
@@ -97,7 +105,8 @@ async function readDesk(session: BackofficeSession): Promise<SubscriptionsDeskDa
           mint: mintTx
             ? { chainTxId: mintTx.id, status: mintTx.status, blockedReason: blockerById.get(mintTx.id) ?? null }
             : null,
-          paymentBlocker: s.status === "PAYMENT_PENDING" && tokenStatus !== "DEPLOYED" ? TOKEN_BLOCKER[tokenStatus] ?? null : null,
+          paymentBlocker:
+            s.status === "PAYMENT_PENDING" && tokenStatus !== "DEPLOYED" && TOKEN_BLOCKER[tokenStatus] ? tr(TOKEN_BLOCKER[tokenStatus]) : null,
         };
       });
 
@@ -109,7 +118,7 @@ async function readDesk(session: BackofficeSession): Promise<SubscriptionsDeskDa
         queue,
         recent,
         fees: { accruedUsd: Number(fees._sum.amountUsd ?? 0), entries: fees._count._all },
-        audit: audit.map(toAuditEntry),
+        audit: audit.map((e) => toAuditEntry(e, tr)),
       };
     },
     { maxWait: 10_000, timeout: 15_000 },
@@ -118,12 +127,13 @@ async function readDesk(session: BackofficeSession): Promise<SubscriptionsDeskDa
 
 /** "Suscripciones y Pagos" desk of the tenant resolved from the host. Never throws: failures become `ok: false`. */
 export async function loadSubscriptionsDesk(): Promise<SubscriptionsDeskResult> {
+  const tr = await requestTranslate("tenant");
   try {
     const session = await requireBackofficeSession("TENANT_ADMIN");
-    return { ok: true, data: await readDesk(session) };
+    return { ok: true, data: await readDesk(session, tr) };
   } catch (e) {
-    if (e instanceof TenantAccessError) return { ok: false, error: e.message };
+    if (e instanceof TenantAccessError) return { ok: false, error: render(tr, e.reason) };
     console.error("[backoffice] subscriptions desk failed", e);
-    return { ok: false, error: "No se pudo leer la mesa de suscripciones desde la base de datos." };
+    return { ok: false, error: tr("No se pudo leer la mesa de suscripciones desde la base de datos.") };
   }
 }

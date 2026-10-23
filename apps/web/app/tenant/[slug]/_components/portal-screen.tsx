@@ -6,9 +6,11 @@ import { useDemo } from "@/app/_components/shell/demo-provider";
 import { Portal } from "@/app/_components/portal/portal";
 import { Icon } from "@/app/_components/ui/icon";
 import { byId } from "@/app/_lib/data/projects";
+import { localizeProject } from "@/app/_lib/offering-view";
+import { useI18n } from "@/app/_i18n/provider";
 import { EMPTY_KYC } from "@/app/_lib/data/kyc";
 import { signNda, submitKyc, subscribe } from "../actions";
-import { toKycSubmission } from "../_lib/kyc-submission";
+import { KycFileError, toKycSubmission } from "../_lib/kyc-submission";
 import { InvestorDistributions } from "./investor-distributions";
 import type {
   NdaSubmission,
@@ -18,7 +20,14 @@ import type {
 } from "../_lib/journey-types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the journey shape comes from the untyped prototype */
-const freshKyc = () => ({ stage: "form", step: 0, data: { ...EMPTY_KYC }, status: null, reason: null, whitelistTx: null });
+const freshKyc = () => ({
+  stage: "form",
+  step: 0,
+  data: { ...EMPTY_KYC },
+  status: null,
+  reason: null,
+  whitelistTx: null,
+});
 
 /**
  * PostgreSQL is the source of truth for lead, NDA, KYC status, Data Room grant, subscriptions
@@ -59,7 +68,13 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
   const [ready, setReady] = useState(false);
   const applied = useRef(false);
   const tenant = d.tenants[d.tenantId];
-  const project = byId(d.tenantId);
+  const { locale, tr } = useI18n();
+  // The developer's commercial copy of the offering in the visitor's language (Spanish original as fallback).
+  const project = localizeProject(
+    byId(d.tenantId),
+    persisted.ok ? persisted.data.offering?.translations : null,
+    locale,
+  );
   const journey = d.journeys[d.tenantId];
 
   // Hydrate before the portal mounts, so it never renders the prototype's demo journey.
@@ -98,7 +113,11 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
     try {
       return await submitKyc(await toKycSubmission(data));
     } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : "No se pudo preparar tu expediente." };
+      const error =
+        e instanceof KycFileError
+          ? tr(e.reason.source, e.reason.vars)
+          : tr("No se pudo preparar tu expediente.");
+      return { ok: false as const, error };
     }
   };
 
@@ -132,11 +151,14 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
           persistNda={persistNda}
           persistKyc={persistKyc}
           distributionsSlot={
-            <InvestorDistributions distributions={persisted.ok ? persisted.data.distributions : []} toast={d.toast} />
+            <InvestorDistributions
+              distributions={persisted.ok ? persisted.data.distributions : []}
+              toast={d.toast}
+            />
           }
         />
       ) : (
-        <div className="boot">RWAXI · CARGANDO TU PROCESO</div>
+        <div className="boot">{tr("RWAXI · CARGANDO TU PROCESO")}</div>
       )}
     </EnvironmentFrame>
   );

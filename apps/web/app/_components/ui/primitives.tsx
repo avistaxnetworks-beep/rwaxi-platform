@@ -2,6 +2,7 @@
 "use client";
 import { useState } from "react";
 import { Icon } from "@/app/_components/ui/icon";
+import { useI18n } from "@/app/_i18n/provider";
 import { copyText } from "@/app/_lib/format";
 
 export function LayerTag({ n: e, children: a }) {
@@ -48,13 +49,14 @@ export function Progress({ value: e }) {
 }
 
 export function CopyChip({ text: e, display: a, toast: t, className: o = "" }) {
+  const { tr } = useI18n();
   const [n, l] = useState(false);
   return (
     <button
       onClick={() =>
         copyText(e, (r) => {
           l(true),
-            t(r ? "Copiado al portapapeles" : "Selecciona el texto para copiarlo"),
+            t(r ? tr("Copiado al portapapeles") : tr("Selecciona el texto para copiarlo")),
             setTimeout(() => l(false), 1500);
         })
       }
@@ -68,10 +70,11 @@ export function CopyChip({ text: e, display: a, toast: t, className: o = "" }) {
 }
 
 export function TrustNote() {
+  const { tr } = useI18n();
   return (
     <p className="flex gap-2 items-start text-[12px] text-muted leading-[1.55]">
       <Icon name="ShieldCheck" size={16} className="text-rxBlue shrink-0 mt-0.5" />
-      Plataforma protegida bajo estándares de debida diligencia y cumplimiento normativo (KYC/AML).
+      {tr("Plataforma protegida bajo estándares de debida diligencia y cumplimiento normativo (KYC/AML).")}
     </p>
   );
 }

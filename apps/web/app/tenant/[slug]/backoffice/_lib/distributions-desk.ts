@@ -1,16 +1,18 @@
 import "server-only";
 import { withTenant } from "@rwaxi/database";
+import { render, requestTranslate } from "@/app/_i18n/server";
+import type { Translate } from "@/app/_i18n/translate";
 import { TRM } from "@/app/_lib/data/projects";
 import { TenantAccessError } from "@/app/_lib/server/tenant-context";
 import { executionMode, operatorAddress } from "@/app/_lib/server/chain-executor";
-import { blockerFor, loadChainState } from "@/app/_lib/server/chain-invariants";
+import { blockerReason, loadChainState } from "@/app/_lib/server/chain-invariants";
 import { toAuditEntry } from "./audit";
 import { mintedHoldings } from "./holdings";
 import { requireBackofficeSession, type BackofficeSession } from "./session";
 import type { DistributionOfferingRow, DistributionsDeskData, DistributionsDeskResult } from "./types";
 
 /** One snapshot (one RLS-bound transaction): holders, distributions and their anchoring agree. */
-async function readDesk(session: BackofficeSession): Promise<DistributionsDeskData> {
+async function readDesk(session: BackofficeSession, tr: Translate): Promise<DistributionsDeskData> {
   return withTenant(
     session.tenant.id,
     async (db) => {
@@ -59,6 +61,7 @@ async function readDesk(session: BackofficeSession): Promise<DistributionsDeskDa
           mintedUnits: holders.reduce((s, h) => s + h.units, 0),
           distributions: o.distributions.map((d) => {
             const anchor = anchorTxs.filter((t) => (t.args as { distributionId?: string }).distributionId === d.onchainId).at(-1);
+            const blocker = anchor?.status === "PENDING" ? blockerReason(anchor, state) : null;
             return {
               id: d.id,
               onchainId: d.onchainId,
@@ -79,7 +82,7 @@ async function readDesk(session: BackofficeSession): Promise<DistributionsDeskDa
                     chainTxId: anchor.id,
                     status: anchor.status,
                     mode: anchor.executionMode,
-                    blockedReason: anchor.status === "PENDING" ? blockerFor(anchor, state) : null,
+                    blockedReason: blocker ? render(tr, blocker) : null,
                   }
                 : null,
               allocations: d.allocations.map((a) => ({
@@ -101,7 +104,7 @@ async function readDesk(session: BackofficeSession): Promise<DistributionsDeskDa
         execution: { mode: executionMode(), operator: operatorAddress() },
         fxRate: TRM,
         offerings: rows,
-        audit: audit.map(toAuditEntry),
+        audit: audit.map((e) => toAuditEntry(e, tr)),
       };
     },
     { maxWait: 10_000, timeout: 15_000 },
@@ -110,12 +113,13 @@ async function readDesk(session: BackofficeSession): Promise<DistributionsDeskDa
 
 /** "Distribuciones y Rendimientos" desk of the tenant resolved from the host. Never throws: failures become `ok: false`. */
 export async function loadDistributionsDesk(): Promise<DistributionsDeskResult> {
+  const tr = await requestTranslate("tenant");
   try {
     const session = await requireBackofficeSession("TENANT_ADMIN");
-    return { ok: true, data: await readDesk(session) };
+    return { ok: true, data: await readDesk(session, tr) };
   } catch (e) {
-    if (e instanceof TenantAccessError) return { ok: false, error: e.message };
+    if (e instanceof TenantAccessError) return { ok: false, error: render(tr, e.reason) };
     console.error("[backoffice] distributions desk failed", e);
-    return { ok: false, error: "No se pudo leer la mesa de distribuciones desde la base de datos." };
+    return { ok: false, error: tr("No se pudo leer la mesa de distribuciones desde la base de datos.") };
   }
 }

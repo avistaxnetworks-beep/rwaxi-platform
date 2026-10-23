@@ -1,6 +1,17 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "./client";
 
+/** The developer's commercial copy of an offering in one language (each field falls back to the Spanish column). */
+export interface OfferingCopy {
+  city?: string;
+  region?: string;
+  assetType?: string;
+  economicRight?: string;
+  legalWrapperNote?: string;
+}
+/** Offering.translations: copy per language code (en, pt, fr, de, ru, ar, zh, ja, ko). */
+export type OfferingTranslations = Partial<Record<string, OfferingCopy>>;
+
 /** One published offering as the public vitrina may show it (no investor data). */
 export interface PublicOffering {
   tenant: { slug: string; displayName: string; legalName: string; brandColor: string; portalStatus: string };
@@ -31,6 +42,7 @@ export interface PublicOffering {
   token: { status: string; symbol: string; address: string | null } | null;
   /** capital raising paused by the platform (off-chain): shown, but no new subscriptions */
   capturePaused: boolean;
+  translations: OfferingTranslations;
 }
 
 interface Row {
@@ -67,6 +79,7 @@ interface Row {
   token_symbol: string | null;
   token_address: string | null;
   capture_paused: boolean;
+  translations: unknown;
 }
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -112,5 +125,24 @@ export async function listPublicOfferings(base: PrismaClient = prisma): Promise<
     dataRoomRoot: r.data_room_root,
     token: r.token_status ? { status: r.token_status, symbol: r.token_symbol ?? "", address: r.token_address } : null,
     capturePaused: r.capture_paused === true,
+    translations: offeringTranslations(r.translations),
   }));
+}
+
+const COPY_FIELDS = ["city", "region", "assetType", "economicRight", "legalWrapperNote"] as const;
+
+/** Offering.translations as stored (jsonb) → only string fields of known keys; anything else is dropped. */
+export function offeringTranslations(raw: unknown): OfferingTranslations {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: OfferingTranslations = {};
+  for (const [locale, copy] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^[a-z]{2}$/.test(locale) || !copy || typeof copy !== "object") continue;
+    const clean: OfferingCopy = {};
+    for (const field of COPY_FIELDS) {
+      const value = (copy as Record<string, unknown>)[field];
+      if (typeof value === "string" && value.trim()) clean[field] = value;
+    }
+    out[locale] = clean;
+  }
+  return out;
 }

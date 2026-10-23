@@ -6,6 +6,7 @@ import { Modal } from "@/app/_components/ui/modal";
 import { fieldCls } from "@/app/_components/ui/form";
 import { INCOME, KYC_LABEL, REGIMES, REJECT_REASONS, RISK, incomeLabel } from "@/app/_lib/data/kyc";
 import { onColor, shortHash } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 import { approveInvestor, rejectInvestor } from "../actions";
 import type { ComplianceInboxData, ComplianceInboxResult, ComplianceRow } from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
@@ -29,6 +30,7 @@ export function ComplianceInbox({ inbox, currency, toast }: { inbox: ComplianceI
 }
 
 function InboxView({ data, currency, toast }: { data: ComplianceInboxData; currency: Currency; toast: Toast }) {
+  const { tr } = useI18n();
   const { organization: org, rows, audit, reviewer } = data;
   const regime = REGIMES[org.regime];
   const [openId, setOpenId] = useState<string | null>(null);
@@ -55,11 +57,11 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
   };
 
   const kpis: [string, number][] = [
-    ["Leads totales", rows.length],
-    ["Referidos por RWAXI", rows.filter((r) => r.source === "RWAXI").length],
-    ["NDA firmados", rows.filter((r) => r.nda).length],
-    ["KYC pendientes", rows.filter((r) => r.kyc === "pendiente").length],
-    ["En whitelist", rows.filter((r) => r.kyc === "aprobado").length],
+    [tr("Leads totales"), rows.length],
+    [tr("Referidos por RWAXI"), rows.filter((r) => r.source === "RWAXI").length],
+    [tr("NDA firmados"), rows.filter((r) => r.nda).length],
+    [tr("KYC pendientes"), rows.filter((r) => r.kyc === "pendiente").length],
+    [tr("En whitelist"), rows.filter((r) => r.kyc === "aprobado").length],
   ];
   const open = openId ? rows.find((r) => r.investorId === openId) : undefined;
   const approving = (r: ComplianceRow) => busy?.investorId === r.investorId && busy.kind === "approve";
@@ -73,7 +75,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
       }`}
     >
       <Icon name={approving(row) ? "Loader2" : "BadgeCheck"} size={large ? 15 : 13} className={approving(row) ? "spin" : ""} />
-      Aprobar Inversionista y Añadir a Whitelist On-Chain
+      {tr("Aprobar Inversionista y Añadir a Whitelist On-Chain")}
     </button>
   );
 
@@ -97,24 +99,25 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
       <div className="bg-white border border-line">
         <div className="px-5 py-3.5 border-b border-line flex flex-wrap justify-between gap-3 items-center">
           <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
-            {"Bandeja de cumplimiento · "}
+            {tr("Bandeja de cumplimiento")}
+            {" · "}
             {org.legalName}
           </p>
           <p className="text-[11.5px] text-muted inline-flex items-center gap-1.5">
             <Icon name="Database" size={13} className="tc-text" />
-            {`PostgreSQL · RLS tnt_${org.slug} · sesión demo: ${reviewer.email}`}
+            {tr("PostgreSQL · RLS tnt_{slug} · sesión demo: {email}", { slug: org.slug, email: reviewer.email })}
           </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-[12.5px]">
             <thead>
               <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-                <th className="font-semibold px-5 py-3">Inversionista</th>
+                <th className="font-semibold px-5 py-3">{tr("Inversionista")}</th>
                 <th className="font-semibold px-3 py-3">LeadReferral</th>
                 <th className="font-semibold px-3 py-3">NDA</th>
                 <th className="font-semibold px-3 py-3">{regime.short}</th>
-                <th className="font-semibold px-3 py-3">Listas restrictivas</th>
-                <th className="font-semibold px-5 py-3">Acciones</th>
+                <th className="font-semibold px-3 py-3">{tr("Listas restrictivas")}</th>
+                <th className="font-semibold px-5 py-3">{tr("Acciones")}</th>
               </tr>
             </thead>
             <tbody>
@@ -130,7 +133,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                   </td>
                   <td className="px-3 py-3.5">
                     <p className={`text-[11px] font-semibold ${r.source === "RWAXI" ? "text-aquaInk" : "text-muted"}`}>
-                      {r.source === "RWAXI" ? "Vitrina RWAXI" : "Directo"}
+                      {r.source === "RWAXI" ? tr("Vitrina RWAXI") : tr("Directo")}
                     </p>
                     <p className="font-mono text-[10.5px] text-muted">{r.token ? r.token.slice(0, 16) + "…" : "—"}</p>
                   </td>
@@ -138,25 +141,25 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                     {r.nda ? (
                       <span className="inline-flex items-center gap-1 text-aquaInk">
                         <Icon name="CheckCircle2" size={14} />
-                        Firmado
+                        {tr("Firmado")}
                       </span>
                     ) : (
-                      <span className="text-muted">Pendiente</span>
+                      <span className="text-muted">{tr("Pendiente")}</span>
                     )}
                   </td>
                   <td className="px-3 py-3.5">
                     <span data-kyc={r.kyc} className={`text-[10.5px] font-semibold px-2 py-0.5 ${KYC_LABEL[r.kyc][1]}`}>
-                      {KYC_LABEL[r.kyc][0]}
+                      {tr(KYC_LABEL[r.kyc][0])}
                     </span>
-                    {r.ptee && <p className="text-[10.5px] text-muted mt-1">PTEE aceptado</p>}
+                    {r.ptee && <p className="text-[10.5px] text-muted mt-1">{tr("PTEE aceptado")}</p>}
                     {r.whitelist?.status === "PENDING" && (
-                      <p className="text-[10.5px] text-goldInk mt-1">Whitelist on-chain en cola</p>
+                      <p className="text-[10.5px] text-goldInk mt-1">{tr("Whitelist on-chain en cola")}</p>
                     )}
                   </td>
                   <td
                     className={`px-3 py-3.5 text-[11.5px] ${/revisar/.test(r.lists) ? "text-goldInk font-semibold" : "text-inkBody"}`}
                   >
-                    {r.lists}
+                    {tr(r.lists)}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex flex-wrap gap-2">
@@ -169,7 +172,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                         }}
                         className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue disabled:opacity-40 focus-ring"
                       >
-                        Revisar formulario
+                        {tr("Revisar formulario")}
                       </button>
                       {r.kyc === "pendiente" && approveButton(r)}
                     </div>
@@ -184,29 +187,32 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
       <AuditTrail entries={audit} />
 
       {open && (
-        <Modal title={`Formulario ${regime.short} · ${open.name}`} onClose={() => setOpenId(null)} wide={true}>
+        <Modal title={tr("Formulario {regime} · {name}", { regime: regime.short, name: open.name })} onClose={() => setOpenId(null)} wide={true}>
           <div style={brandVars(org.brandColor)} className="flex flex-col gap-4">
             <dl className="grid sm:grid-cols-2 gap-px bg-line border border-line text-[12.5px]">
               {(
                 [
-                  ["Documento", open.doc],
-                  ["Origen", open.source === "RWAXI" && open.token ? `LeadReferral ${open.token.slice(0, 16)}…` : "Directo"],
-                  ["Actividad económica", open.activity || "—"],
+                  [tr("Documento"), open.doc],
+                  [tr("Origen"), open.source === "RWAXI" && open.token ? `LeadReferral ${open.token.slice(0, 16)}…` : tr("Directo")],
+                  [tr("Actividad económica"), open.activity ? tr(open.activity) : "—"],
                   [
-                    "Ingresos anuales",
+                    tr("Ingresos anuales"),
                     open.incomeBracket === null
                       ? "—"
-                      : incomeLabel(INCOME[open.incomeBracket] as [number | null, number | null], currency),
+                      : incomeLabel(INCOME[open.incomeBracket] as [number | null, number | null], currency, tr),
                   ],
-                  ["Perfil de riesgo", (RISK.find((x) => x[0] === open.risk) ?? [null, "—"])[1]],
-                  ["Declaración PEP", open.kyc === "no_iniciado" ? "—" : open.isPep ? "Persona Expuesta Políticamente" : "No es PEP"],
-                  ["PTEE", open.ptee ? "Aceptado" : "—"],
-                  ["Listas restrictivas", open.lists],
-                  ["Wallet declarada", open.wallet ? shortHash(open.wallet, 10, 8) : "—"],
-                  ["SHA-256 del expediente", open.dossierHash ? shortHash(open.dossierHash, 14, 8) : "—"],
-                  ["Prueba de vida", open.liveness ?? "—"],
-                  ["Estado", KYC_LABEL[open.kyc][0]],
-                  ["Revisado por", open.reviewedBy && open.reviewedAt ? `${open.reviewedBy} · ${utc(open.reviewedAt)}` : "—"],
+                  [tr("Perfil de riesgo"), tr(String((RISK.find((x) => x[0] === open.risk) ?? [null, "—"])[1]))],
+                  [
+                    tr("Declaración PEP"),
+                    open.kyc === "no_iniciado" ? "—" : open.isPep ? tr("Persona Expuesta Políticamente") : tr("No es PEP"),
+                  ],
+                  ["PTEE", open.ptee ? tr("Aceptado") : "—"],
+                  [tr("Listas restrictivas"), tr(open.lists)],
+                  [tr("Wallet declarada"), open.wallet ? shortHash(open.wallet, 10, 8) : "—"],
+                  [tr("SHA-256 del expediente"), open.dossierHash ? shortHash(open.dossierHash, 14, 8) : "—"],
+                  [tr("Prueba de vida"), open.liveness ?? "—"],
+                  [tr("Estado"), tr(KYC_LABEL[open.kyc][0])],
+                  [tr("Revisado por"), open.reviewedBy && open.reviewedAt ? `${open.reviewedBy} · ${utc(open.reviewedAt)}` : "—"],
                 ] as [string, string][]
               ).map(([label, value]) => (
                 <div key={label} className="bg-white px-4 py-2.5">
@@ -218,7 +224,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
             {open.documents.length > 0 && (
               <div className="border border-line">
                 <p className="px-4 py-2 border-b border-line bg-cloud font-mono text-[10.5px] tracking-[0.12em] text-muted uppercase">
-                  Documentos del expediente · SHA-256 calculado en el navegador del inversionista
+                  {tr("Documentos del expediente · SHA-256 calculado en el navegador del inversionista")}
                 </p>
                 <ul>
                   {open.documents.map((doc) => (
@@ -227,7 +233,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                       className="px-4 py-2 border-b border-line last:border-b-0 text-[12px] flex flex-wrap justify-between gap-2"
                     >
                       <span className="text-inkBody">
-                        {doc.kind === "front" ? "Frente · " : doc.kind === "back" ? "Reverso · " : ""}
+                        {doc.kind === "front" ? `${tr("Frente")} · ` : doc.kind === "back" ? `${tr("Reverso")} · ` : ""}
                         {doc.name}
                       </span>
                       <span className="font-mono text-[11px] text-muted">{shortHash(doc.sha256, 14, 8)}</span>
@@ -238,20 +244,21 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
             )}
             {open.rejectionReason && (
               <p className="text-[12px] text-[#B42318]">
-                {"Motivo del rechazo: "}
-                {open.rejectionReason}
+                {tr("Motivo del rechazo:")}{" "}
+                {tr(open.rejectionReason)}
               </p>
             )}
             {open.whitelist?.txHash && (
               <p className="text-[12px] text-muted">
-                {"Tx whitelist: "}
+                {tr("Tx whitelist:")}{" "}
                 <span className="font-mono text-aquaInk">{shortHash(open.whitelist.txHash, 14, 8)}</span>
               </p>
             )}
             {open.whitelist?.status === "PENDING" && (
               <p className="text-[12px] text-goldInk">
-                Whitelist on-chain en cola: ChainTransaction PENDING, a la espera de la firma del Oficial de Cumplimiento
-                en RwaxiComplianceRegistry.approveInvestor().
+                {tr(
+                  "Whitelist on-chain en cola: ChainTransaction PENDING, a la espera de la firma del Oficial de Cumplimiento en RwaxiComplianceRegistry.approveInvestor().",
+                )}
               </p>
             )}
             {error && (
@@ -264,7 +271,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                 {approveButton(open, true)}
                 <div className="flex flex-col sm:flex-row gap-2">
                   <label htmlFor="rej-reason" className="sr-only">
-                    Motivo del rechazo
+                    {tr("Motivo del rechazo")}
                   </label>
                   <select
                     id="rej-reason"
@@ -274,7 +281,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                   >
                     {(REJECT_REASONS as string[]).map((reason, i) => (
                       <option key={i} value={i}>
-                        {reason.slice(0, 80)}…
+                        {tr(reason).slice(0, 80)}…
                       </option>
                     ))}
                   </select>
@@ -284,7 +291,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                     className="shrink-0 border border-[#B42318] text-[#B42318] px-4 py-2.5 text-[12.5px] font-semibold inline-flex items-center justify-center gap-1.5 focus-ring disabled:opacity-60"
                   >
                     {busy?.kind === "reject" && <Icon name="Loader2" size={13} className="spin" />}
-                    Rechazar con motivo
+                    {tr("Rechazar con motivo")}
                   </button>
                 </div>
               </div>

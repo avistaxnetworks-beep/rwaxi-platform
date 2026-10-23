@@ -1,5 +1,7 @@
 // Platform (admin.rwaxi.com) audit events: their actions and a one-line summary of the payload,
-// shown in the Super-Admin console and in the affected tenant's backoffice audit trail.
+// shown in the Super-Admin console (Spanish) and in the affected tenant's backoffice audit trail.
+import { msg } from "@/app/_i18n/marks";
+import { spanish, type Translate } from "@/app/_i18n/translate";
 
 export const PLATFORM_AUDIT_ACTIONS = [
   "PORTAL_STATUS_CHANGED",
@@ -33,36 +35,53 @@ interface PlatformPayload {
   documents?: number;
 }
 
-const STATUS_LABEL: Record<string, string> = { ACTIVE: "ACTIVO", REVIEW: "EN REVISIÓN", SUSPENDED: "SUSPENDIDO" };
+const STATUS_LABEL: Record<string, string> = { ACTIVE: msg("ACTIVO"), REVIEW: msg("EN REVISIÓN"), SUSPENDED: msg("SUSPENDIDO") };
 const TERMS: [key: string, label: string, unit: string][] = [
-  ["setupUsd", "setup", " USD"],
-  ["monthlyUsd", "SaaS mensual", " USD"],
-  ["usagePct", "uso", " %"],
+  ["setupUsd", msg("setup"), " USD"],
+  ["monthlyUsd", msg("SaaS mensual"), " USD"],
+  ["usagePct", msg("uso"), " %"],
 ];
-const withReason = (text: string, reason?: string | null) => (reason ? `${text} · motivo: ${reason}` : text);
 
-export function platformAuditSummary(action: PlatformAuditActionKey, raw: unknown): string {
+export function platformAuditSummary(action: PlatformAuditActionKey, raw: unknown, tr: Translate = spanish): string {
   const p = (raw ?? {}) as PlatformPayload;
+  const status = (v: unknown) => (STATUS_LABEL[String(v)] ? tr(STATUS_LABEL[String(v)]!) : String(v));
+  const withReason = (text: string) => (p.reason ? tr("{text} · motivo: {reason}", { text, reason: p.reason }) : text);
   switch (action) {
     case "PORTAL_STATUS_CHANGED":
-      return withReason(`Portal ${STATUS_LABEL[String(p.from)] ?? p.from} → ${STATUS_LABEL[String(p.to)] ?? p.to}`, p.reason);
+      return withReason(tr("Portal {from} → {to}", { from: status(p.from), to: status(p.to) }));
     case "ORGANIZATION_PUBLICATION_CHANGED":
-      return withReason(p.published ? "Publicado en la vitrina RWAXI" : "Retirado de la vitrina RWAXI", p.reason);
+      return withReason(p.published ? tr("Publicado en la vitrina RWAXI") : tr("Retirado de la vitrina RWAXI"));
     case "OFFERING_CAPTURE_PAUSED":
-      return withReason(`Captación de ${p.offeringCode} pausada (plataforma, off-chain)`, p.reason);
+      return withReason(tr("Captación de {code} pausada (plataforma, off-chain)", { code: String(p.offeringCode) }));
     case "OFFERING_CAPTURE_RESUMED":
-      return withReason(`Captación de ${p.offeringCode} reanudada`, p.reason);
+      return withReason(tr("Captación de {code} reanudada", { code: String(p.offeringCode) }));
     case "FEE_TERMS_UPDATED": {
       const from = (p.from ?? {}) as Record<string, string>;
       const to = (p.to ?? {}) as Record<string, string>;
-      const changes = TERMS.filter(([k]) => from[k] !== to[k]).map(([k, label, unit]) => `${label} ${from[k]}${unit} → ${to[k]}${unit}`);
-      return `Tarifas pactadas: ${changes.join(" · ") || "sin cambios"}`;
+      const changes = TERMS.filter(([k]) => from[k] !== to[k]).map(([k, label, unit]) => `${tr(label)} ${from[k]}${unit} → ${to[k]}${unit}`);
+      return tr("Tarifas pactadas: {changes}", { changes: changes.join(" · ") || tr("sin cambios") });
     }
     case "FEE_INVOICED":
-      return `Factura ${p.invoiceNumber} · ${p.entries?.length ?? 0} asiento(s) · ${p.totalUsd} USD`;
+      return tr("Factura {number} · {entries} asiento(s) · {total} USD", {
+        number: String(p.invoiceNumber),
+        entries: p.entries?.length ?? 0,
+        total: String(p.totalUsd),
+        count: p.entries?.length ?? 0,
+      });
     case "FEE_PAYMENT_RECORDED":
-      return `Pago de la factura ${p.invoiceNumber} · ${p.paidOn} · comprobante ${p.paymentReceipt} · ${p.totalUsd} USD`;
+      return tr("Pago de la factura {number} · {date} · comprobante {receipt} · {total} USD", {
+        number: String(p.invoiceNumber),
+        date: String(p.paidOn),
+        receipt: String(p.paymentReceipt),
+        total: String(p.totalUsd),
+      });
     case "ORGANIZATION_ONBOARDED":
-      return `Alta B2B · ${p.slug}.rwaxi.com · NIT ${p.taxId} · ${p.users?.length ?? 0} usuarios · oferta ${p.offeringCode} · ${p.documents ?? 0} documentos`;
+      return tr("Alta B2B · {slug}.rwaxi.com · NIT {taxId} · {users} usuarios · oferta {code} · {documents} documentos", {
+        slug: String(p.slug),
+        taxId: String(p.taxId),
+        users: p.users?.length ?? 0,
+        code: String(p.offeringCode),
+        documents: p.documents ?? 0,
+      });
   }
 }

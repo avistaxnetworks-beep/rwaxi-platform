@@ -14,6 +14,7 @@ import { envHref, type EnvId } from "@/app/_lib/hosts";
 import { PROJECTS, byId } from "@/app/_lib/data/projects";
 import { initJourneys, initTenants } from "@/app/_lib/data/tenants";
 import { registerDbTenant, type DbTenantView } from "@/app/_lib/data/db-tenants";
+import { useI18n } from "@/app/_i18n/provider";
 import { initFeeRules } from "@/app/_lib/data/fees";
 import { DEMO_WALLET, TX, initChainLog, subIdOf, tokenAddrOf, txHash } from "@/app/_lib/chain/simulator";
 import { projectPhotos, renderCache } from "@/app/_lib/renders";
@@ -98,6 +99,7 @@ export function DemoProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const { tr } = useI18n();
   const [boot] = useState(() => {
     if (dbTenant) registerDbTenant(dbTenant);
     const T: Record<string, Tenant> = initTenants();
@@ -132,7 +134,8 @@ export function DemoProvider({
   // Canvas renders use the brand fonts by family name: re-render once they are loaded.
   useEffect(() => {
     document.fonts?.ready?.then(() => {
-      PROJECTS.forEach((p: any) => delete (renderCache as Record<string, unknown>)[p.id + ":3"]);
+      const cache = renderCache as Record<string, unknown>;
+      PROJECTS.forEach((p: any) => Object.keys(cache).filter((k) => k.startsWith(p.id + ":3")).forEach((k) => delete cache[k]));
       forceRender((n) => n + 1);
     });
   }, []);
@@ -204,11 +207,11 @@ export function DemoProvider({
         const id = "h" + Date.now();
         emit(TX.mint(tenant, project, tokenAddrOf(tenant, project), subIdOf(id), DEMO_WALLET, draft.units, txHash("pay" + id)));
         setJourney((j) => ({ ...j, holdings: [...j.holdings, holding(id)] }));
-        toast(`mintSubscription(): ${nf(0).format(draft.units)} tokens ${tenant.mint.symbol}`);
+        toast(tr("mintSubscription(): {n} tokens {symbol}", { n: nf(0).format(draft.units), symbol: tenant.mint.symbol }));
         return;
       }
       setJourney((j) => ({ ...j, holdings: [...j.holdings, holding("h" + Date.now())] }));
-      toast(`Reserva registrada: ${nf(0).format(draft.units)} unidades`);
+      toast(tr("Reserva registrada: {n} unidades", { n: nf(0).format(draft.units), count: draft.units }));
     };
 
     const uploadPhotos = (projectId: string, files: FileList | File[] | null) => {
@@ -232,7 +235,7 @@ export function DemoProvider({
           urls.filter(Boolean).forEach((u, i) => (next[i] = u as string));
           return { ...prev, [projectId]: next };
         });
-        toast("Fotografías cargadas en orden: Fachada, Interior, Zona Común, Ubicación");
+        toast(tr("Fotografías cargadas en orden: Fachada, Interior, Zona Común, Ubicación"));
       });
     };
 
@@ -301,6 +304,7 @@ export function DemoProvider({
     toastMessage,
     photoOverrides,
     router,
+    tr,
   ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

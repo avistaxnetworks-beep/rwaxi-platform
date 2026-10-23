@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withTenant } from "@rwaxi/database";
 import type { ChainQueueResponse } from "@/app/_lib/chain-queue-types";
+import { render, requestTranslate } from "@/app/_i18n/server";
 import { executionMode, operatorAddress } from "@/app/_lib/server/chain-executor";
-import { blockerFor, loadChainState } from "@/app/_lib/server/chain-invariants";
+import { blockerReason, loadChainState } from "@/app/_lib/server/chain-invariants";
 import { toQueueItem, walletOf } from "@/app/_lib/server/chain-queue";
 import { TenantAccessError, demoAccessEnabled, requireHostTenant } from "@/app/_lib/server/tenant-context";
 
@@ -18,10 +19,11 @@ const json = (body: ChainQueueResponse, status = 200) =>
  * lists the most recent first. Used by the On-Chain Inspector.
  */
 export async function GET(req: NextRequest) {
+  const tr = await requestTranslate("tenant");
   try {
     const tenant = await requireHostTenant();
     if (!demoAccessEnabled()) {
-      return json({ ok: false, error: "Inspector deshabilitado en producción hasta configurar autenticación." }, 403);
+      return json({ ok: false, error: tr("Inspector deshabilitado en producción hasta configurar autenticación.") }, 403);
     }
     const scope = req.nextUrl.searchParams.get("scope") === "all" ? "all" : "pending";
 
@@ -53,11 +55,14 @@ export async function GET(req: NextRequest) {
       execution: { mode: executionMode(), operator: operatorAddress() },
       scope,
       counts: { pending, total },
-      items: txs.map((t) => toQueueItem(t, byWallet, t.status === "PENDING" ? blockerFor(t, state) : null)),
+      items: txs.map((t) => {
+        const blocker = t.status === "PENDING" ? blockerReason(t, state) : null;
+        return toQueueItem(t, byWallet, blocker ? render(tr, blocker) : null, tr);
+      }),
     });
   } catch (e) {
-    if (e instanceof TenantAccessError) return json({ ok: false, error: e.message }, 404);
+    if (e instanceof TenantAccessError) return json({ ok: false, error: render(tr, e.reason) }, 404);
     console.error("[inspector] chain transactions failed", e);
-    return json({ ok: false, error: "No se pudo leer ChainTransaction desde la base de datos." }, 500);
+    return json({ ok: false, error: tr("No se pudo leer ChainTransaction desde la base de datos.") }, 500);
   }
 }

@@ -1,6 +1,7 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
 import { Icon } from "@/app/_components/ui/icon";
+import { useI18n } from "@/app/_i18n/provider";
 import { STEPS } from "@/app/_lib/data/kyc";
 
 export const fieldCls = (e) =>
@@ -25,6 +26,7 @@ export function Field({ id: e, label: a, hint: t, error: o, children: n }) {
 }
 
 export function Stepper({ step: e, steps: a = STEPS }) {
+  const { tr } = useI18n();
   return (
     <div>
       <div className="h-[3px] bg-line">
@@ -52,10 +54,7 @@ export function Stepper({ step: e, steps: a = STEPS }) {
         ))}
       </ol>
       <p className="md:hidden text-[12.5px] font-semibold text-rxPurple mt-2">
-        {"Paso "}
-        {e + 1}
-        {" de 4 · "}
-        {a[e]}
+        {tr("Paso {n} de 4 · {step}", { n: e + 1, step: a[e] })}
       </p>
     </div>
   );

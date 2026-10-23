@@ -5,6 +5,8 @@ import { prorataCents } from "@rwaxi/blockchain-sdk/distribution";
 import { Icon } from "@/app/_components/ui/icon";
 import { fieldCls } from "@/app/_components/ui/form";
 import { nf, onColor, shortHash } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
+import type { Translate } from "@/app/_i18n/translate";
 import { executeChainTransaction, registerOfficerTransaction } from "../chain-actions";
 import { declareDistribution } from "../distribution-actions";
 import type { DistributionOfferingRow, DistributionRow, DistributionsDeskData, DistributionsDeskResult } from "../_lib/types";
@@ -19,8 +21,8 @@ const label = "text-[11px] font-semibold tracking-[0.06em] uppercase text-muted"
 const pct = (units: number, total: number) => `${nf(2).format(total ? (units / total) * 100 : 0)} %`;
 /** Distributions are committed in USD cents (Merkle leaves): always shown exactly, never at the demo TRM. */
 const usd = (n: number) => `USD ${nf(2).format(n)}`;
-const declaredCop = (d: { amountDeclared: number; fxRate: number | null }) =>
-  `declarada en COP ${nf(2).format(d.amountDeclared)} a ${nf(2).format(d.fxRate ?? 0)} COP/USD`;
+const declaredCop = (d: { amountDeclared: number; fxRate: number | null }, tr: Translate) =>
+  tr("declarada en COP {amount} a {rate} COP/USD", { amount: nf(2).format(d.amountDeclared), rate: nf(2).format(d.fxRate ?? 0) });
 
 /** Previous calendar quarter, the default period of a new distribution (e.g. 2026-Q3). */
 function lastQuarter(now = new Date()): string {
@@ -42,6 +44,7 @@ export function DistributionsDesk({ desk, toast }: { desk: DistributionsDeskResu
 }
 
 function DeskView({ data, toast }: { data: DistributionsDeskData; toast: Toast }) {
+  const { tr } = useI18n();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -62,10 +65,15 @@ function DeskView({ data, toast }: { data: DistributionsDeskData; toast: Toast }
 
   const all = data.offerings.flatMap((o) => o.distributions);
   const kpis: [string, string, string, string][] = [
-    ["offerings", "Ofertas con token emitido", String(data.offerings.length), data.offerings.map((o) => o.token.symbol).join(" · ") || "—"],
-    ["holders", "Tenedores (MINTED)", String(data.offerings.reduce((s, o) => s + o.holders.length, 0)), `${nf(0).format(data.offerings.reduce((s, o) => s + o.mintedUnits, 0))} tokens`],
-    ["declared", "Distribuido declarado", usd(all.reduce((s, d) => s + d.totalUsd, 0)), `${all.length} distribución(es)`],
-    ["anchored", "Raíces ancladas", `${all.filter((d) => d.status === "ANCHORED").length}/${all.length}`, "anchorDistributionRoot()"],
+    ["offerings", tr("Ofertas con token emitido"), String(data.offerings.length), data.offerings.map((o) => o.token.symbol).join(" · ") || "—"],
+    [
+      "holders",
+      tr("Tenedores (MINTED)"),
+      String(data.offerings.reduce((s, o) => s + o.holders.length, 0)),
+      tr("{n} tokens", { n: nf(0).format(data.offerings.reduce((s, o) => s + o.mintedUnits, 0)) }),
+    ],
+    ["declared", tr("Distribuido declarado"), usd(all.reduce((s, d) => s + d.totalUsd, 0)), tr("{n} distribución(es)", { n: all.length, count: all.length })],
+    ["anchored", tr("Raíces ancladas"), `${all.filter((d) => d.status === "ANCHORED").length}/${all.length}`, "anchorDistributionRoot()"],
   ];
 
   return (
@@ -88,8 +96,9 @@ function DeskView({ data, toast }: { data: DistributionsDeskData; toast: Toast }
 
       {data.offerings.length === 0 ? (
         <div className="bg-white border border-line px-5 py-6 text-[13px] text-muted">
-          Ninguna oferta de este tenant tiene su token emitido todavía: las distribuciones se calculan sobre los tokens MINTED en wallets de
-          inversionistas.
+          {tr(
+            "Ninguna oferta de este tenant tiene su token emitido todavía: las distribuciones se calculan sobre los tokens MINTED en wallets de inversionistas.",
+          )}
         </div>
       ) : (
         data.offerings.map((o) => (
@@ -97,7 +106,7 @@ function DeskView({ data, toast }: { data: DistributionsDeskData; toast: Toast }
         ))
       )}
 
-      <AuditTrail entries={data.audit} empty="Aún no hay distribuciones declaradas para este tenant." />
+      <AuditTrail entries={data.audit} empty={tr("Aún no hay distribuciones declaradas para este tenant.")} />
     </div>
   );
 }
@@ -113,6 +122,7 @@ function OfferingPanel({
   busy: string | null;
   run: (id: string, action: () => Promise<Result>, onOk?: () => void) => void;
 }) {
+  const { tr } = useI18n();
   const [period, setPeriod] = useState(lastQuarter);
   const [declared, setDeclared] = useState<Currency>("USD");
   const [amount, setAmount] = useState("");
@@ -141,37 +151,39 @@ function OfferingPanel({
     <div className="bg-white border border-line" data-distribution-offering={o.code}>
       <div className="px-5 py-3.5 border-b border-line flex flex-wrap justify-between gap-3 items-center">
         <div className="min-w-0">
-          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">{`Distribuciones · ${o.code} · ${o.assetName}`}</p>
+          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">{`${tr("Distribuciones")} · ${o.code} · ${o.assetName}`}</p>
           <p className="text-[11.5px] text-muted mt-0.5 font-mono break-words">
             {`RwaxiPropertyToken ${o.token.symbol} ${shortHash(o.token.address, 8, 6)} · ${o.network}`}
-            {o.token.status === "PAUSED" && " · pausado por el emisor"}
+            {o.token.status === "PAUSED" && ` · ${tr("pausado por el emisor")}`}
           </p>
         </div>
         <p className="text-[11.5px] text-muted inline-flex items-center gap-1.5">
           <Icon name="Database" size={13} className="tc-text" />
-          {`PostgreSQL · RLS tnt_${data.organization.slug} · sesión demo: ${data.admin.email} (Administrador)`}
+          {tr("PostgreSQL · RLS tnt_{slug} · sesión demo: {email} (Administrador)", { slug: data.organization.slug, email: data.admin.email })}
         </p>
       </div>
 
       <div className="grid lg:grid-cols-[1.1fr_1fr] gap-px bg-line">
         <div className="bg-white">
-          <p className="px-5 pt-4 pb-2 text-[12px] font-semibold text-inkBody">{`Snapshot de tenedores · ${nf(0).format(o.mintedUnits)} tokens MINTED`}</p>
+          <p className="px-5 pt-4 pb-2 text-[12px] font-semibold text-inkBody">
+            {tr("Snapshot de tenedores · {n} tokens MINTED", { n: nf(0).format(o.mintedUnits) })}
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[480px] text-[12px]">
               <thead>
                 <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-                  <th className="font-semibold px-5 py-2">Inversionista</th>
+                  <th className="font-semibold px-5 py-2">{tr("Inversionista")}</th>
                   <th className="font-semibold px-3 py-2">Wallet</th>
                   <th className="font-semibold px-3 py-2 text-right">Tokens</th>
-                  <th className="font-semibold px-3 py-2 text-right">Participación</th>
-                  <th className="font-semibold px-5 py-2 text-right">Asignación</th>
+                  <th className="font-semibold px-3 py-2 text-right">{tr("Participación")}</th>
+                  <th className="font-semibold px-5 py-2 text-right">{tr("Asignación")}</th>
                 </tr>
               </thead>
               <tbody>
                 {o.holders.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-5 py-3 text-muted">
-                      Sin tokens MINTED en wallets de inversionistas.
+                      {tr("Sin tokens MINTED en wallets de inversionistas.")}
                     </td>
                   </tr>
                 )}
@@ -197,17 +209,17 @@ function OfferingPanel({
         </div>
 
         <div className="bg-white p-5 flex flex-col gap-3">
-          <p className="text-[12px] font-semibold text-inkBody">Declarar distribución de rendimientos</p>
+          <p className="text-[12px] font-semibold text-inkBody">{tr("Declarar distribución de rendimientos")}</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor={`dist-period-${o.id}`} className={label}>
-                Periodo
+                {tr("Periodo")}
               </label>
               <input id={`dist-period-${o.id}`} value={period} onChange={(e) => setPeriod(e.target.value.toUpperCase())} placeholder="2026-Q3" className={fieldCls(false) + " font-mono"} />
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={`dist-currency-${o.id}`} className={label}>
-                Moneda declarada
+                {tr("Moneda declarada")}
               </label>
               <select id={`dist-currency-${o.id}`} value={declared} onChange={(e) => setDeclared(e.target.value as Currency)} className={fieldCls(false)}>
                 <option value="USD">USD</option>
@@ -216,14 +228,14 @@ function OfferingPanel({
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={`dist-amount-${o.id}`} className={label}>
-                {`Monto total (${declared})`}
+                {tr("Monto total ({currency})", { currency: declared })}
               </label>
               <input id={`dist-amount-${o.id}`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder={declared === "USD" ? "10000" : "41000000"} className={fieldCls(false) + " font-mono"} />
             </div>
             {declared === "COP" && (
               <div className="flex flex-col gap-1.5">
                 <label htmlFor={`dist-fx-${o.id}`} className={label}>
-                  Tasa COP/USD
+                  {tr("Tasa COP/USD")}
                 </label>
                 <input id={`dist-fx-${o.id}`} value={fxRate} onChange={(e) => setFxRate(e.target.value)} inputMode="decimal" className={fieldCls(false) + " font-mono"} />
               </div>
@@ -231,8 +243,19 @@ function OfferingPanel({
           </div>
           <p className="text-[11.5px] text-muted leading-relaxed">
             {preview
-              ? `Se repartirán ${usd(preview.usd)}${declared === "COP" ? ` (COP ${nf(2).format(Number(amount.replace(",", ".")))} a ${nf(2).format(Number(fxRate.replace(",", ".")))})` : ""} entre ${o.holders.length} tenedor(es) en proporción a sus tokens (centavos exactos, método del mayor residuo). Cada asignación será una hoja del árbol de Merkle (SHA-256) y la raíz se anclará con anchorDistributionRoot().`
-              : "Indica el monto: el cálculo prorrata se muestra antes de declarar y el servidor lo recalcula sobre el snapshot de PostgreSQL."}
+              ? tr(
+                  "Se repartirán {amount} entre {holders} tenedor(es) en proporción a sus tokens (centavos exactos, método del mayor residuo). Cada asignación será una hoja del árbol de Merkle (SHA-256) y la raíz se anclará con anchorDistributionRoot().",
+                  {
+                    amount:
+                      usd(preview.usd) +
+                      (declared === "COP"
+                        ? ` (COP ${nf(2).format(Number(amount.replace(",", ".")))} @ ${nf(2).format(Number(fxRate.replace(",", ".")))})`
+                        : ""),
+                    holders: o.holders.length,
+                    count: o.holders.length,
+                  },
+                )
+              : tr("Indica el monto: el cálculo prorrata se muestra antes de declarar y el servidor lo recalcula sobre el snapshot de PostgreSQL.")}
           </p>
           <button
             disabled={!!busy || !preview}
@@ -241,15 +264,15 @@ function OfferingPanel({
             className="tc-btn self-start px-4 py-2.5 text-[12.5px] font-semibold inline-flex items-center gap-2 focus-ring disabled:opacity-50"
           >
             <Icon name={busy === `declare-${o.id}` ? "Loader2" : "Calculator"} size={14} className={busy === `declare-${o.id}` ? "spin" : ""} />
-            Declarar y encolar raíz de Merkle
+            {tr("Declarar y encolar raíz de Merkle")}
           </button>
         </div>
       </div>
 
       <div className="border-t border-line">
-        <p className="px-5 pt-3 pb-1 font-mono text-[10.5px] tracking-[0.12em] text-muted uppercase">Distribuciones declaradas</p>
+        <p className="px-5 pt-3 pb-1 font-mono text-[10.5px] tracking-[0.12em] text-muted uppercase">{tr("Distribuciones declaradas")}</p>
         {o.distributions.length === 0 ? (
-          <p className="px-5 pb-4 text-[12.5px] text-muted">Esta oferta aún no tiene distribuciones.</p>
+          <p className="px-5 pb-4 text-[12.5px] text-muted">{tr("Esta oferta aún no tiene distribuciones.")}</p>
         ) : (
           <ul>
             {o.distributions.map((d) => (
@@ -288,6 +311,7 @@ function DistributionItem({
   onExecute: (chainTxId: string) => void;
   onRegister: (chainTxId: string, txHash: string) => void;
 }) {
+  const { tr } = useI18n();
   const [txHash, setTxHash] = useState("");
   const anchor = d.anchor;
   const pending = anchor?.status === "PENDING";
@@ -298,25 +322,28 @@ function DistributionItem({
           <p className="text-inkBody">
             <span className="font-mono font-semibold text-rxPurple">{d.period}</span>
             {` · ${usd(d.totalUsd)}`}
-            {d.currency === "COP" && <span className="text-muted">{` (${declaredCop(d)})`}</span>}
-            {` · ${d.holders} tenedor(es) · ${nf(0).format(d.totalUnits)} tokens`}
+            {d.currency === "COP" && <span className="text-muted">{` (${declaredCop(d, tr)})`}</span>}
+            {` · ${tr("{n} tenedor(es)", { n: d.holders, count: d.holders })} · ${tr("{n} tokens", { n: nf(0).format(d.totalUnits) })}`}
           </p>
           <p className="font-mono text-[10.5px] text-muted break-all" data-merkle-root={d.merkleRoot}>{`Merkle root ${d.merkleRoot}`}</p>
           <p className="font-mono text-[10.5px] text-muted break-all">{`distributionId ${d.onchainId}`}</p>
           <p className="font-mono text-[10.5px] text-muted">{`${utc(d.declaredAt)} · ${d.declaredBy ?? "—"}`}</p>
           {d.status === "ANCHORED" && d.anchorTxHash ? (
             <p className="text-[11px] text-aquaInk mt-0.5" data-anchor-tx={d.anchorTxHash}>
-              {`Raíz anclada · tx ${shortHash(d.anchorTxHash, 12, 6)} · ${anchor?.mode === "RPC" ? "confirmada en red" : "simulación firmada (sin difundir)"}`}
+              {tr("Raíz anclada · tx {hash} · {mode}", {
+                hash: shortHash(d.anchorTxHash, 12, 6),
+                mode: anchor?.mode === "RPC" ? tr("confirmada en red") : tr("simulación firmada (sin difundir)"),
+              })}
             </p>
           ) : anchor?.blockedReason ? (
             <p className="text-[11px] text-goldInk mt-0.5">{anchor.blockedReason}</p>
           ) : (
-            <p className="text-[11px] text-goldInk mt-0.5">anchorDistributionRoot() en cola · la firma el emisor (DISTRIBUTION_ROLE)</p>
+            <p className="text-[11px] text-goldInk mt-0.5">{tr("anchorDistributionRoot() en cola · la firma el emisor (DISTRIBUTION_ROLE)")}</p>
           )}
         </div>
         <div className="flex flex-col items-end gap-2">
           <span className={`text-[10.5px] font-semibold px-2 py-0.5 ${d.status === "ANCHORED" ? "bg-aquaTint text-aquaInk" : "bg-goldTint text-goldInk"}`}>
-            {d.status === "ANCHORED" ? "Raíz anclada" : "Declarada · raíz en cola"}
+            {d.status === "ANCHORED" ? tr("Raíz anclada") : tr("Declarada · raíz en cola")}
           </span>
           {pending && anchor && mode === "SIMULATION" && (
             <button
@@ -326,19 +353,19 @@ function DistributionItem({
               className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring disabled:opacity-40"
             >
               <Icon name={busy === anchor.chainTxId ? "Loader2" : "Play"} size={13} className={busy === anchor.chainTxId ? "spin" : ""} />
-              Firmar y ejecutar
+              {tr("Firmar y ejecutar")}
             </button>
           )}
           {pending && anchor && mode === "RPC" && (
             <div className="flex flex-wrap items-center gap-2 justify-end" data-issuer-form={anchor.chainTxId}>
               <label htmlFor={`issuer-tx-${anchor.chainTxId}`} className="sr-only">
-                Tx hash firmado por el emisor
+                {tr("Tx hash firmado por el emisor")}
               </label>
               <input
                 id={`issuer-tx-${anchor.chainTxId}`}
                 value={txHash}
                 onChange={(e) => setTxHash(e.target.value)}
-                placeholder="tx hash del emisor (0x…)"
+                placeholder={tr("tx hash del emisor (0x…)")}
                 autoComplete="off"
                 className={fieldCls(false) + " font-mono text-[11.5px] w-[300px] max-w-full py-1.5"}
               />
@@ -347,12 +374,12 @@ function DistributionItem({
                 onClick={() => onRegister(anchor.chainTxId, txHash.trim())}
                 className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue focus-ring disabled:opacity-40"
               >
-                Registrar tx del emisor
+                {tr("Registrar tx del emisor")}
               </button>
             </div>
           )}
           <button onClick={toggle} className="text-[11.5px] font-semibold text-rxBlue focus-ring" aria-expanded={open}>
-            {open ? "Ocultar asignaciones" : "Ver asignaciones y pruebas"}
+            {open ? tr("Ocultar asignaciones") : tr("Ver asignaciones y pruebas")}
           </button>
         </div>
       </div>
@@ -361,12 +388,12 @@ function DistributionItem({
           <table className="w-full min-w-[640px] text-[11.5px]">
             <thead>
               <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-                <th className="font-semibold px-3 py-2">Inversionista</th>
+                <th className="font-semibold px-3 py-2">{tr("Inversionista")}</th>
                 <th className="font-semibold px-3 py-2">Wallet</th>
                 <th className="font-semibold px-3 py-2 text-right">Tokens</th>
-                <th className="font-semibold px-3 py-2 text-right">Monto</th>
-                <th className="font-semibold px-3 py-2">Hoja (SHA-256)</th>
-                <th className="font-semibold px-3 py-2 text-right">Prueba</th>
+                <th className="font-semibold px-3 py-2 text-right">{tr("Monto")}</th>
+                <th className="font-semibold px-3 py-2">{tr("Hoja (SHA-256)")}</th>
+                <th className="font-semibold px-3 py-2 text-right">{tr("Prueba")}</th>
               </tr>
             </thead>
             <tbody>
@@ -381,7 +408,7 @@ function DistributionItem({
                     <td className="px-3 py-2 font-mono text-muted" title={a.leafHash}>
                       {shortHash(a.leafHash, 10, 6)}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-muted">{`${a.proofLength} hash(es)`}</td>
+                    <td className="px-3 py-2 text-right font-mono text-muted">{tr("{n} hash(es)", { n: a.proofLength, count: a.proofLength })}</td>
                   </tr>
               ))}
             </tbody>

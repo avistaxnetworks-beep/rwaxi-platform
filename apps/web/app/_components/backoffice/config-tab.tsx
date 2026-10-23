@@ -10,8 +10,11 @@ import { REGIMES } from "@/app/_lib/data/kyc";
 import { LEGAL_COMPLIANCE, LEGAL_NDA, legalVars } from "@/app/_lib/data/legal";
 import { contrast, nf, onColor } from "@/app/_lib/format";
 import { portalHost } from "@/app/_lib/hosts";
+import { videoTitle } from "@/app/_lib/data/video";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, photos: l }) {
+  const { tr } = useI18n();
   const r = useRef(),
     [i, s] = useState(false),
     c = (u) => (v) =>
@@ -22,21 +25,25 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
     d = ["#0E5A4F", "#A4461F", "#0B4F7A", "#7A00AE", "#1F2937", "#B77A1E"],
     p = contrast(e.color, onColor(e.color)),
     m = () => {
-      s(true),
+      (s(true),
         setTimeout(() => {
-          s(false),
+          (s(false),
             t((u) => ({
               ...u,
               domainStatus: u.domain ? "verificado" : "sin_configurar",
             })),
-            n(e.domain ? `Dominio ${e.domain} verificado` : "Escribe un dominio primero");
-        }, 1100);
+            n(
+              e.domain
+                ? tr("Dominio {domain} verificado", { domain: e.domain })
+                : tr("Escribe un dominio primero"),
+            ));
+        }, 1100));
     };
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-8 items-start">
       <div className="bg-white border border-line p-6 flex flex-col gap-6 min-w-0">
         <div className="grid sm:grid-cols-2 gap-4">
-          <Field id="cfg-name" label="Nombre comercial">
+          <Field id="cfg-name" label={tr("Nombre comercial")}>
             <input
               id="cfg-name"
               value={e.displayName}
@@ -44,7 +51,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
               className={fieldCls()}
             />
           </Field>
-          <Field id="cfg-nit" label="NIT" hint="Validado contra el RUES al crear el tenant.">
+          <Field id="cfg-nit" label="NIT" hint={tr("Validado contra el RUES al crear el tenant.")}>
             <input
               id="cfg-nit"
               value={e.nit}
@@ -55,31 +62,33 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
         </div>
         <Field
           id="cfg-regime"
-          label="Régimen de Cumplimiento del Oferente"
-          hint={`Define las etiquetas y declaraciones del Paso 2 del portal. Autoridad: ${REGIMES[e.regime].authority}.`}
+          label={tr("Régimen de Cumplimiento del Oferente")}
+          hint={tr("Define las etiquetas y declaraciones del Paso 2 del portal. Autoridad: {authority}.", {
+            authority: tr(REGIMES[e.regime].authority),
+          })}
         >
           <select
             id="cfg-regime"
             value={e.regime}
             onChange={(u) => {
               const v = u.target.value;
-              t((h) => ({
+              (t((h) => ({
                 ...h,
                 regime: v,
               })),
-                n(`Régimen actualizado: ${REGIMES[v].short}`);
+                n(tr("Régimen actualizado: {regime}", { regime: REGIMES[v].short })));
             }}
             className={fieldCls()}
           >
             {Object.entries(REGIMES).map(([u, v]) => (
               <option key={u} value={u}>
-                {v.full}
+                {tr(v.full)}
               </option>
             ))}
           </select>
         </Field>
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-[12px] font-semibold text-inkBody mb-1.5">Color de marca</legend>
+          <legend className="text-[12px] font-semibold text-inkBody mb-1.5">{tr("Color de marca")}</legend>
           <div className="flex flex-wrap items-center gap-2">
             <input
               id="cfg-color"
@@ -87,10 +96,10 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
               value={e.color}
               onChange={(u) => c("color")(u.target.value.toUpperCase())}
               className="w-11 h-11 p-0.5 border border-line bg-white cursor-pointer"
-              aria-label="Seleccionar color"
+              aria-label={tr("Seleccionar color")}
             />
             <input
-              aria-label="Código hexadecimal"
+              aria-label={tr("Código hexadecimal")}
               value={e.color}
               onChange={(u) =>
                 /^#[0-9a-fA-F]{0,6}$/.test(u.target.value) && c("color")(u.target.value.toUpperCase())
@@ -101,7 +110,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
               <button
                 key={u}
                 onClick={() => c("color")(u)}
-                aria-label={`Usar ${u}`}
+                aria-label={tr("Usar {color}", { color: u })}
                 className={`w-8 h-8 focus-ring ${e.color === u ? "ring-2 ring-offset-2 ring-[#2F145F]" : ""}`}
                 style={{
                   background: u,
@@ -110,14 +119,12 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
             ))}
           </div>
           <p className={`text-[11.5px] ${p >= 4.5 ? "text-aquaInk" : "text-[#B42318]"}`}>
-            {"Contraste del texto sobre el color: "}
-            {nf(1).format(p)}
-            {":1 "}
-            {p >= 4.5 ? "· cumple AA" : "· no cumple AA, elige un tono más oscuro"}
+            {tr("Contraste del texto sobre el color: {ratio}:1", { ratio: nf(1).format(p) })}{" "}
+            {p >= 4.5 ? tr("· cumple AA") : tr("· no cumple AA, elige un tono más oscuro")}
           </p>
         </fieldset>
         <div className="flex flex-col gap-2">
-          <span className="text-[12px] font-semibold text-inkBody">Logo</span>
+          <span className="text-[12px] font-semibold text-inkBody">{tr("Logo")}</span>
           <div className="flex flex-wrap items-center gap-3">
             <span className="border border-line bg-cloud p-2 grid place-items-center min-w-[64px] h-[56px]">
               <TenantLogo t={e} size={40} />
@@ -132,7 +139,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
                 const v = u.target.files[0];
                 if (!v) return;
                 const h = new FileReader();
-                (h.onload = () => c("logo")(h.result)), h.readAsDataURL(v), (u.target.value = "");
+                ((h.onload = () => c("logo")(h.result)), h.readAsDataURL(v), (u.target.value = ""));
               }}
             />
             <button
@@ -140,11 +147,11 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
               className="border border-line bg-white px-3 py-2 text-[12.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring"
             >
               <Icon name="Upload" size={14} />
-              Cargar logo (SVG o PNG)
+              {tr("Cargar logo (SVG o PNG)")}
             </button>
             {e.logo && (
               <button onClick={() => c("logo")(null)} className="text-[12px] text-muted underline focus-ring">
-                Usar monograma
+                {tr("Usar monograma")}
               </button>
             )}
           </div>
@@ -152,8 +159,11 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
         <div className="flex flex-col gap-2">
           <Field
             id="cfg-domain"
-            label="Dominio personalizado"
-            hint={`Crea un registro CNAME de ${e.domain || "tu dominio"} hacia tenants.rwaxi.com. El portal siempre responde también en ${portalHost(e)}.`}
+            label={tr("Dominio personalizado")}
+            hint={tr(
+              "Crea un registro CNAME de {domain} hacia tenants.rwaxi.com. El portal siempre responde también en {host}.",
+              { domain: e.domain || tr("tu dominio"), host: portalHost(e) },
+            )}
           >
             <div className="flex gap-2">
               <input
@@ -174,7 +184,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
                 className="shrink-0 border border-line bg-white px-3 text-[12.5px] font-semibold text-rxBlue focus-ring inline-flex items-center gap-1.5"
               >
                 <Icon name={i ? "Loader2" : "Globe"} size={14} className={i ? "spin" : ""} />
-                Verificar DNS
+                {tr("Verificar DNS")}
               </button>
             </div>
           </Field>
@@ -182,16 +192,16 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
             className={`self-start text-[10.5px] font-semibold tracking-[0.08em] uppercase px-2 py-1 ${e.domainStatus === "verificado" ? "bg-aquaTint text-aquaInk" : "bg-goldTint text-goldInk"}`}
           >
             {e.domainStatus === "verificado"
-              ? "Verificado · SSL activo"
+              ? tr("Verificado · SSL activo")
               : e.domainStatus === "sin_verificar"
-                ? "Pendiente de verificación"
-                : "Sin configurar"}
+                ? tr("Pendiente de verificación")
+                : tr("Sin configurar")}
           </span>
         </div>
         <VideoPitchCard t={e} p={a} setTenant={t} photos={l} toast={n} />
         <LegalEditor
           id="cfg-nda"
-          label="NDA · Paso 1 (Ley 527 de 1999)"
+          label={tr("NDA · Paso 1 (Ley 527 de 1999)")}
           value={e.ndaText}
           onChange={(u) => c("ndaText")(u)}
           onReset={() => c("ndaText")(LEGAL_NDA)}
@@ -200,7 +210,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
         />
         <LegalEditor
           id="cfg-sarlaft"
-          label={`Debida diligencia · Paso 2 (${REGIMES[e.regime].short})`}
+          label={tr("Debida diligencia · Paso 2 ({regime})", { regime: REGIMES[e.regime].short })}
           value={e.complianceTpl[e.regime]}
           onChange={(u) =>
             t((v) => ({
@@ -224,12 +234,15 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
           vars={legalVars(e, a)}
         />
         <p className="text-[11.5px] text-muted border-l-2 border-rxGold pl-3">
-          Plantillas parametrizadas para revisión del área legal del desarrollador antes de publicar. Las
-          variables entre llaves se reemplazan con los datos del tenant y del proyecto.
+          {tr(
+            "Plantillas parametrizadas para revisión del área legal del desarrollador antes de publicar. Las variables entre llaves se reemplazan con los datos del tenant y del proyecto.",
+          )}
         </p>
       </div>
       <aside className="lg:sticky lg:top-6 flex flex-col gap-3">
-        <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">Vista previa en vivo</p>
+        <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
+          {tr("Vista previa en vivo")}
+        </p>
         <div
           className="bg-white border border-line"
           style={{
@@ -256,7 +269,8 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
           <div className="p-4 flex flex-col gap-3">
             <p className="font-mono text-[10px] tracking-[0.12em] tc-text">
               {a.code}
-              {" · PORTAL OFICIAL"}
+              {" · "}
+              {tr("PORTAL OFICIAL")}
             </p>
             <p className="font-display font-semibold text-[22px] text-rxPurple leading-tight">{a.asset}</p>
             <div className="relative overflow-hidden rounded-[10px] aspect-[16/9] bg-[#0B0518]">
@@ -271,7 +285,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
               </span>
               <span className="absolute left-2.5 bottom-2 right-2.5 text-white">
                 <span className="block text-[12.5px] font-semibold leading-tight truncate">
-                  {e.video.title}
+                  {videoTitle(e.video, a, tr)}
                 </span>
                 <span className="block text-[10.5px] text-white/80 truncate">
                   {e.video.presenter}
@@ -286,13 +300,13 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
               ))}
             </div>
             <span className="tc-btn text-[12px] font-semibold py-2.5 text-center">
-              Firmar NDA con un clic
+              {tr("Firmar NDA con un clic")}
             </span>
             <PoweredSeal />
           </div>
         </div>
         <p className="text-[11.5px] text-muted">
-          {"Dominio activo: "}
+          {tr("Dominio activo:")}{" "}
           <span className="font-mono">
             {e.domainStatus === "verificado" && e.domain ? e.domain : portalHost(e)}
           </span>
@@ -301,8 +315,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
           onClick={o}
           className="tc-btn text-[12.5px] font-semibold py-2.5 inline-flex items-center justify-center gap-1.5 focus-ring"
         >
-          {"Abrir portal con esta configuración "}
-          <Icon name="ArrowUpRight" size={14} />
+          {tr("Abrir portal con esta configuración")} <Icon name="ArrowUpRight" size={14} />
         </button>
       </aside>
     </div>

@@ -11,8 +11,11 @@
  */
 import { revalidatePath } from "next/cache";
 import { isUniqueViolation, withTenant, type SubscriptionStatus } from "@rwaxi/database";
+import { LocalizedError, msg } from "@/app/_i18n/marks";
+import { render, requestTranslate } from "@/app/_i18n/server";
+import type { Translate } from "@/app/_i18n/translate";
 import { paymentCodeOf, paymentEvidenceRef } from "@/app/_lib/server/subscriptions";
-import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
+import { requestMeta } from "@/app/_lib/server/tenant-context";
 import { requireBackofficeSession } from "./_lib/session";
 import type { ActionResult } from "./_lib/types";
 
@@ -25,22 +28,22 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
 const MINT_METHOD = "mintSubscription(bytes32,address,uint256,bytes32)";
 
 const STATUS_LABEL: Record<SubscriptionStatus, string> = {
-  RESERVED: "reservada (pre-venta, sin token)",
-  PAYMENT_PENDING: "pendiente de pago",
-  MINT_PENDING: "con el pago ya conciliado",
-  MINTED: "emitida",
-  CANCELLED: "cancelada",
+  RESERVED: msg("reservada (pre-venta, sin token)"),
+  PAYMENT_PENDING: msg("pendiente de pago"),
+  MINT_PENDING: msg("con el pago ya conciliado"),
+  MINTED: msg("emitida"),
+  CANCELLED: msg("cancelada"),
 };
 
-class PaymentError extends Error {}
+class PaymentError extends LocalizedError {}
 
-function failure(e: unknown): ActionResult {
-  if (e instanceof PaymentError || e instanceof TenantAccessError) return { ok: false, error: e.message };
+function failure(e: unknown, tr: Translate): ActionResult {
+  if (e instanceof LocalizedError) return { ok: false, error: render(tr, e.reason) };
   if (isUniqueViolation(e)) {
-    return { ok: false, error: "Esa referencia de pago ya se usó para otra suscripción de este tenant." };
+    return { ok: false, error: tr("Esa referencia de pago ya se usó para otra suscripción de este tenant.") };
   }
   console.error("[backoffice] payment confirmation failed", e);
-  return { ok: false, error: "No se pudo conciliar el pago. Inténtalo de nuevo." };
+  return { ok: false, error: tr("No se pudo conciliar el pago. Inténtalo de nuevo.") };
 }
 
 const refresh = () => {
@@ -52,6 +55,7 @@ const normalizeReference = (raw: string) => raw.trim().replace(/\s+/g, " ").toUp
 
 /** "Confirmar Pago Fiduciario": PAYMENT_PENDING → MINT_PENDING + mintSubscription() queued + fee accrued. */
 export async function confirmPayment(subscriptionId: string, paymentReference: string): Promise<ActionResult> {
+  const tr = await requestTranslate("tenant");
   try {
     if (typeof subscriptionId !== "string" || !CUID.test(subscriptionId)) throw new PaymentError("Suscripción inválida.");
     const reference = typeof paymentReference === "string" ? normalizeReference(paymentReference) : "";
@@ -74,7 +78,7 @@ export async function confirmPayment(subscriptionId: string, paymentReference: s
         });
         if (!sub) throw new PaymentError("Suscripción no encontrada en este tenant.");
         if (sub.status !== "PAYMENT_PENDING") {
-          throw new PaymentError(`La suscripción está ${STATUS_LABEL[sub.status]}; recarga la bandeja.`);
+          throw new PaymentError("La suscripción está {status}; recarga la bandeja.", { status: STATUS_LABEL[sub.status] });
         }
         if (!sub.onchainId || !sub.agreementHash || !BYTES32.test(sub.agreementHash)) {
           throw new PaymentError("La suscripción no tiene el hash del contrato firmado.");
@@ -168,7 +172,11 @@ export async function confirmPayment(subscriptionId: string, paymentReference: s
             createdAt: now,
           },
         });
-        return `Pago conciliado (${reference}) · ${sub.units} unidades de ${sub.investor.fullName}: mintSubscription() en cola`;
+        return tr("Pago conciliado ({reference}) · {units} unidades de {name}: mintSubscription() en cola", {
+          reference,
+          units: sub.units,
+          name: sub.investor.fullName,
+        });
       },
       TX_OPTIONS,
     );
@@ -176,6 +184,6 @@ export async function confirmPayment(subscriptionId: string, paymentReference: s
     refresh();
     return { ok: true, message };
   } catch (e) {
-    return failure(e);
+    return failure(e, tr);
   }
 }

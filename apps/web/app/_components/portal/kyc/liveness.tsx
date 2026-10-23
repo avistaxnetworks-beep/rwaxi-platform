@@ -2,13 +2,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/app/_components/ui/icon";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function Liveness({ state: e, onChange: a, error: t }) {
+  const { tr } = useI18n();
   const o = [
-      "Centra tu rostro en el óvalo",
-      "Gira la cabeza a la izquierda",
-      "Parpadea dos veces",
-      "Analizando correspondencia con el documento",
+      tr("Centra tu rostro en el óvalo"),
+      tr("Gira la cabeza a la izquierda"),
+      tr("Parpadea dos veces"),
+      tr("Analizando correspondencia con el documento"),
     ],
     [n, l] = useState(0),
     r = useRef([]);
@@ -16,7 +18,7 @@ export function Liveness({ state: e, onChange: a, error: t }) {
     useEffect(() => () => r.current.forEach(clearTimeout), []),
     (
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12px] font-semibold text-inkBody">Prueba biométrica facial</span>
+        <span className="text-[12px] font-semibold text-inkBody">{tr("Prueba biométrica facial")}</span>
         <div
           className={`border ${t ? "border-[#B42318]" : "border-line"} bg-rxDeep text-white p-5 grid sm:grid-cols-[160px_minmax(0,1fr)] gap-5 items-center`}
         >
@@ -36,14 +38,12 @@ export function Liveness({ state: e, onChange: a, error: t }) {
           <div className="min-w-0 flex flex-col gap-3">
             {e === "done" ? (
               <p className="text-[14px] font-semibold text-rxAqua" role="status">
-                Verificación de vida completada con éxito ✓
+                {tr("Verificación de vida completada con éxito ✓")}
               </p>
             ) : e === "running" ? (
               <>
                 <p className="font-mono text-[11px] tracking-[0.12em] text-[#A79FC0]">
-                  {"PASO "}
-                  {n + 1}
-                  {" / 4"}
+                  {tr("PASO {n} / 4", { n: n + 1 })}
                 </p>
                 <p className="text-[15px] font-semibold" role="status">
                   {o[n]}
@@ -60,8 +60,7 @@ export function Liveness({ state: e, onChange: a, error: t }) {
             ) : (
               <>
                 <p className="text-[13.5px] text-[#C9C1E3] leading-[1.6]">
-                  Comparamos tu rostro con la foto del documento y confirmamos que eres una persona real
-                  frente a la cámara.
+                  {tr("Comparamos tu rostro con la foto del documento y confirmamos que eres una persona real frente a la cámara.")}
                 </p>
                 <button
                   type="button"
@@ -74,7 +73,7 @@ export function Liveness({ state: e, onChange: a, error: t }) {
                   className="self-start bg-white text-rxDeep font-semibold text-[12.5px] px-4 py-2.5 inline-flex items-center gap-2 focus-ring"
                 >
                   <Icon name="Camera" size={15} />
-                  Iniciar prueba de vida (simulada)
+                  {tr("Iniciar prueba de vida (simulada)")}
                 </button>
               </>
             )}

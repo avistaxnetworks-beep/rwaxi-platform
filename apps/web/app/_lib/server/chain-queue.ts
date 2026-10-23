@@ -12,6 +12,8 @@ import {
 import { rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi, rwaxiTenantFactoryAbi } from "@rwaxi/blockchain-sdk/abi";
 import type { ChainTransaction, ChainTxKind } from "@rwaxi/database";
 import type { ChainQueueItem, RwaxiContract } from "@/app/_lib/chain-queue-types";
+import { msg } from "@/app/_i18n/marks";
+import { spanish, type Translate } from "@/app/_i18n/translate";
 
 const CONTRACT: Record<ChainTxKind, RwaxiContract> = {
   TENANT_REGISTRY_DEPLOYED: "RwaxiTenantFactory",
@@ -29,17 +31,17 @@ const CONTRACT: Record<ChainTxKind, RwaxiContract> = {
 
 /** Who signs, per the contracts' AccessControl (RWAXI never holds the issuer's roles). */
 const SIGNER: Record<ChainTxKind, string> = {
-  TENANT_REGISTRY_DEPLOYED: "RWAXI_OPERATOR_ROLE · operador RWAXI",
-  OFFERING_TOKEN_DEPLOYED: "RWAXI_OPERATOR_ROLE · operador RWAXI",
-  INVESTOR_WHITELISTED: "COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant",
-  INVESTOR_REVOKED: "COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant",
-  INVESTOR_FREEZE_UPDATED: "COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant",
-  SUBSCRIPTION_MINTED: "MINTER_ROLE · adaptador RWAXI, tras verificar el pago",
-  DATA_ROOM_ROOT_ANCHORED: "DATA_ROOM_ROLE · emisor",
-  DISTRIBUTION_ROOT_ANCHORED: "DISTRIBUTION_ROLE · emisor (desarrollador)",
-  FORCED_RECOVERY: "LEGAL_ENFORCEMENT_ROLE · emisor",
-  TOKEN_PAUSED: "ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor",
-  TOKEN_UNPAUSED: "ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor",
+  TENANT_REGISTRY_DEPLOYED: msg("RWAXI_OPERATOR_ROLE · operador RWAXI"),
+  OFFERING_TOKEN_DEPLOYED: msg("RWAXI_OPERATOR_ROLE · operador RWAXI"),
+  INVESTOR_WHITELISTED: msg("COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant"),
+  INVESTOR_REVOKED: msg("COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant"),
+  INVESTOR_FREEZE_UPDATED: msg("COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant"),
+  SUBSCRIPTION_MINTED: msg("MINTER_ROLE · adaptador RWAXI, tras verificar el pago"),
+  DATA_ROOM_ROOT_ANCHORED: msg("DATA_ROOM_ROLE · emisor"),
+  DISTRIBUTION_ROOT_ANCHORED: msg("DISTRIBUTION_ROLE · emisor (desarrollador)"),
+  FORCED_RECOVERY: msg("LEGAL_ENFORCEMENT_ROLE · emisor"),
+  TOKEN_PAUSED: msg("ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor"),
+  TOKEN_UNPAUSED: msg("ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor"),
 };
 
 interface CallSpec {
@@ -55,7 +57,7 @@ const CALLS: Partial<Record<ChainTxKind, CallSpec>> = {
     abi: rwaxiTenantFactoryAbi,
     fn: "deployTenantRegistry",
     event: "TenantRegistryDeployed",
-    note: "La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma; sin registro el tenant no puede aprobar inversionistas.",
+    note: msg("La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma; sin registro el tenant no puede aprobar inversionistas."),
   },
   INVESTOR_WHITELISTED: { abi: rwaxiComplianceRegistryAbi, fn: "approveInvestor", event: "InvestorWhitelisted" },
   INVESTOR_REVOKED: { abi: rwaxiComplianceRegistryAbi, fn: "revokeInvestor", event: "InvestorRevoked" },
@@ -64,14 +66,14 @@ const CALLS: Partial<Record<ChainTxKind, CallSpec>> = {
     abi: rwaxiPropertyTokenAbi,
     fn: "mintSubscription",
     event: "SubscriptionTokensMinted",
-    note: "El hook _update del token exige que el receptor esté en la whitelist: su approveInvestor() debe confirmarse antes.",
+    note: msg("El hook _update del token exige que el receptor esté en la whitelist: su approveInvestor() debe confirmarse antes."),
   },
   DATA_ROOM_ROOT_ANCHORED: { abi: rwaxiPropertyTokenAbi, fn: "updateDataRoomMerkleRoot", event: "DataRoomMerkleRootAnchored" },
   DISTRIBUTION_ROOT_ANCHORED: {
     abi: rwaxiPropertyTokenAbi,
     fn: "anchorDistributionRoot",
     event: "DistributionRootAnchored",
-    note: "Ancla la raíz de Merkle de las asignaciones; la firma el emisor (DISTRIBUTION_ROLE), RWAXI no custodia ese rol.",
+    note: msg("Ancla la raíz de Merkle de las asignaciones; la firma el emisor (DISTRIBUTION_ROLE), RWAXI no custodia ese rol."),
   },
   TOKEN_PAUSED: { abi: rwaxiPropertyTokenAbi, fn: "pause", event: "Paused" },
   TOKEN_UNPAUSED: { abi: rwaxiPropertyTokenAbi, fn: "unpause", event: "Unpaused" },
@@ -152,6 +154,7 @@ export function toQueueItem(
   tx: ChainTransaction & { offering: { code: string } | null },
   investorByWallet: Map<string, string>,
   blockedReason: string | null = null,
+  tr: Translate = spanish,
 ): ChainQueueItem {
   const args = argsOf(tx.args);
   const spec = CALLS[tx.kind];
@@ -167,8 +170,8 @@ export function toQueueItem(
     signature: tx.method,
     args: argsView(spec, args),
     ...(spec ? encode(spec, args, tx.method) : NOT_ENCODED),
-    signerRole: SIGNER[tx.kind],
-    note: tx.status === "PENDING" ? (spec?.note ?? null) : null,
+    signerRole: tr(SIGNER[tx.kind]),
+    note: tx.status === "PENDING" && spec?.note ? tr(spec.note) : null,
     blockedReason: tx.status === "PENDING" ? blockedReason : null,
     execution: tx.executionMode
       ? {

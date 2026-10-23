@@ -3,6 +3,12 @@
 import { Icon } from "@/app/_components/ui/icon";
 import { REGIMES } from "@/app/_lib/data/kyc";
 import { shortHash } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
+import type { Translate } from "@/app/_i18n/translate";
+
+/** "01 Jurídico y Tradición" → its number and the folder name in the visitor's language. */
+export const folderLabel = (folder: string, tr: Translate) =>
+  folder.replace(/^(\d+\s+)?(.*)$/, (_, n = "", name) => `${n}${tr(name)}`);
 
 export function LockedNote({ text: e }) {
   return (
@@ -14,6 +20,7 @@ export function LockedNote({ text: e }) {
 }
 
 export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
+  const { tr } = useI18n();
   const n = t.grant,
     l = [...new Set(e.docs.map((r) => r.folder))];
   return (
@@ -22,9 +29,9 @@ export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
         <div className="grid sm:grid-cols-4 gap-px bg-line border border-line text-[12px]">
           {[
             ["AccessGrant", n.id],
-            ["Alcance", `Data Room · ${a.code}`],
-            ["Emitido (UTC)", n.at],
-            ["Vigencia", `${n.ttlH} h · Signed URLs de 15 min`],
+            [tr("Alcance"), `Data Room · ${a.code}`],
+            [tr("Emitido (UTC)"), n.at],
+            [tr("Vigencia"), tr("{hours} h · Signed URLs de 15 min", { hours: n.ttlH })],
           ].map(([r, i]) => (
             <div key={r} className="bg-aquaTint p-3 min-w-0">
               <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-aquaInk">{r}</p>
@@ -35,8 +42,8 @@ export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">
           {[
-            ["NDA firmado", !!t.nda],
-            [`KYC/${REGIMES[e.regime].sys} aprobado`, t.kyc.status === "aprobado"],
+            [tr("NDA firmado"), !!t.nda],
+            [tr("KYC/{sys} aprobado", { sys: REGIMES[e.regime].sys }), t.kyc.status === "aprobado"],
           ].map(([r, i]) => (
             <p
               key={r}
@@ -53,7 +60,7 @@ export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
           <div key={r} className="border border-line bg-white">
             <p className="px-4 py-2.5 border-b border-line text-[12.5px] font-semibold text-rxPurple inline-flex items-center gap-2 w-full">
               <Icon name="Folder" size={15} className="tc-text" />
-              {r}
+              {folderLabel(r, tr)}
             </p>
             <ul>
               {e.docs
@@ -74,7 +81,7 @@ export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
                             tenant: e,
                           })
                         }
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-cloud disabled:hover:bg-transparent disabled:cursor-not-allowed focus-ring"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-start hover:bg-cloud disabled:hover:bg-transparent disabled:cursor-not-allowed focus-ring"
                       >
                         <Icon
                           name={s ? "Lock" : "FileText"}
@@ -83,9 +90,11 @@ export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
                         />
                         <span className="flex-1 min-w-0">
                           <span className={`block text-[12.5px] ${s ? "text-muted" : "text-inkBody"}`}>
-                            {i.name}
+                            {tr(i.name)}
                             {i.uploaded && (
-                              <span className="ml-1.5 text-[10px] font-semibold text-goldInk">NUEVO</span>
+                              <span className="ms-1.5 text-[10px] font-semibold text-goldInk">
+                                {tr("NUEVO")}
+                              </span>
                             )}
                           </span>
                           <span className="block font-mono text-[10.5px] text-muted">
@@ -94,7 +103,7 @@ export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
                           </span>
                         </span>
                         <span className="font-mono text-[10px] text-muted">
-                          {i.restricted ? (n ? "Signed URL" : "Restringido") : "Público"}
+                          {i.restricted ? (n ? "Signed URL" : tr("Restringido")) : tr("Público")}
                         </span>
                       </button>
                     </li>
@@ -105,7 +114,7 @@ export function DataRoomPanel({ t: e, p: a, journey: t, openDoc: o }) {
         ))}
       </div>
       <p className="text-[11.5px] text-muted">
-        {"Merkle Root del Data Room: "}
+        {tr("Merkle Root del Data Room:")}{" "}
         <span className="font-mono text-aquaInk">{shortHash(e.merkle, 16, 10)}</span>
       </p>
     </div>

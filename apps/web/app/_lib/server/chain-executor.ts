@@ -13,7 +13,8 @@ import {
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { RWAXI_CHAINS, rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi, rwaxiTenantFactoryAbi } from "@rwaxi/blockchain-sdk";
 import { withTenant, type ChainNetwork, type ChainTransaction, type Prisma } from "@rwaxi/database";
-import { TENANT_SIGNED_KINDS, blockerFor, loadChainState, type ExecutionOrigin } from "./chain-invariants";
+import { LocalizedError, msg } from "@/app/_i18n/marks";
+import { TENANT_SIGNED_KINDS, blockerReason, loadChainState, type ExecutionOrigin } from "./chain-invariants";
 import { calldataOf, walletOf } from "./chain-queue";
 
 /**
@@ -28,7 +29,8 @@ import { calldataOf, walletOf } from "./chain-queue";
  *                         they sign with their own wallet and the hash is registered afterwards
  *                         (confirmExternalTransaction), never signed by RWAXI.
  */
-export class ExecutionError extends Error {}
+/** Expected execution failures (blocked, reverted, misconfigured): shown to the user in their language. */
+export class ExecutionError extends LocalizedError {}
 
 export type ExecutionMode = "SIMULATION" | "RPC";
 export const executionMode = (): ExecutionMode => (process.env.CHAIN_EXECUTION === "rpc" ? "RPC" : "SIMULATION");
@@ -215,14 +217,14 @@ async function prepare(
   if (!row) throw new ExecutionError("Transacción no encontrada en este tenant.");
   if (lockKey) await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(row.network)}))`;
   const tx = await db.chainTransaction.findUniqueOrThrow({ where: { id: chainTxId } });
-  const blocker = blockerFor(tx, await loadChainState(db), origin);
-  if (blocker) throw new ExecutionError(blocker);
+  const blocker = blockerReason(tx, await loadChainState(db), origin);
+  if (blocker) throw new ExecutionError(blocker.source, blocker.vars);
   return { tx, encoded: calldataOf(tx)! };
 }
 
 function rpcClients(network: ChainNetwork, account?: PrivateKeyAccount) {
   const rpcUrl = process.env[`RPC_URL_${network}`];
-  if (!rpcUrl) throw new ExecutionError(`Modo RPC: falta RPC_URL_${network}.`);
+  if (!rpcUrl) throw new ExecutionError("Modo RPC: falta RPC_URL_{network}.", { network });
   const chain = RWAXI_CHAINS[network];
   return {
     chain,
@@ -304,7 +306,7 @@ async function settle(
   const receipt = await (
     wait ? publicClient.waitForTransactionReceipt({ hash, timeout: RECEIPT_TIMEOUT_MS }) : publicClient.getTransactionReceipt({ hash })
   ).catch(() => null);
-  if (!receipt) throw new ExecutionError(`Envío RPC en curso (${hash}): aún sin recibo; «Procesar cola en orden» lo concilia.`);
+  if (!receipt) throw new ExecutionError("Envío RPC en curso ({hash}): aún sin recibo; «Procesar cola en orden» lo concilia.", { hash });
   if (receipt.status !== "success") {
     await withTenant(organizationId, (db) =>
       db.chainTransaction.updateMany({
@@ -312,7 +314,7 @@ async function settle(
         data: { status: "REVERTED", blockNumber: receipt.blockNumber, executedAt: new Date(), error: "reverted on-chain" },
       }),
     );
-    throw new ExecutionError(`La transacción revirtió en la red (${hash}).`);
+    throw new ExecutionError("La transacción revirtió en la red ({hash}).", { hash });
   }
   const sent = await publicClient.getTransaction({ hash });
   const deployed =
@@ -361,8 +363,8 @@ async function broadcast(
       if (TENANT_SIGNED_KINDS.has(prepared.tx.kind)) {
         throw new ExecutionError(
           prepared.tx.kind === "DISTRIBUTION_ROOT_ANCHORED"
-            ? "Modo RPC: el emisor firma anchorDistributionRoot con su propia wallet (RWAXI no custodia DISTRIBUTION_ROLE); registra luego su tx hash."
-            : "Modo RPC: esta operación la firma el Oficial de Cumplimiento con su propia wallet (RWAXI no custodia COMPLIANCE_OFFICER_ROLE); registra luego su tx hash.",
+            ? msg("Modo RPC: el emisor firma anchorDistributionRoot con su propia wallet (RWAXI no custodia DISTRIBUTION_ROLE); registra luego su tx hash.")
+            : msg("Modo RPC: esta operación la firma el Oficial de Cumplimiento con su propia wallet (RWAXI no custodia COMPLIANCE_OFFICER_ROLE); registra luego su tx hash."),
         );
       }
       const clients = rpcClients(prepared.tx.network, account); // a missing RPC_URL fails before claiming
@@ -387,7 +389,7 @@ async function broadcast(
   } catch (e) {
     await update({ executionMode: null, signerAddress: null }); // nothing was broadcast: release the claim
     if (e instanceof ExecutionError) throw e;
-    throw new ExecutionError(`Modo RPC: el nodo rechazó la transacción (${e instanceof Error ? e.message.split("\n")[0] : "error"}).`);
+    throw new ExecutionError("Modo RPC: el nodo rechazó la transacción ({detail}).", { detail: e instanceof Error ? e.message.split("\n")[0]! : "error" });
   }
   await update({ txHash: hash });
   return settle(organizationId, tx, hash, encoded.fn, actor, meta, publicClient, true);
@@ -453,7 +455,7 @@ export async function confirmExternalTransaction(
         );
   if (!match) {
     const eventName = tx.kind === "INVESTOR_WHITELISTED" ? "InvestorWhitelisted" : "DistributionRootAnchored";
-    throw new ExecutionError(`La transacción no emitió ${eventName} con los argumentos en cola.`);
+    throw new ExecutionError("La transacción no emitió {event} con los argumentos en cola.", { event: eventName });
   }
   const sent = await publicClient.getTransaction({ hash: txHash as Hex });
   const ex: Execution = {

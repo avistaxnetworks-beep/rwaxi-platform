@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Mono, Pill } from "@/app/_components/ui/primitives";
 import { shortAddr } from "@/app/_lib/chain/simulator";
 import { copyText, nf, shortHash } from "@/app/_lib/format";
+import { useI18n } from "@/app/_i18n/provider";
 
 export function TxCard({ tx: e, tenants: a, fresh: t, toast: o }) {
+  const { tr } = useI18n();
   const [n, l] = useState(false),
     r = e.tenantId ? a[e.tenantId].displayName : "RWAXI",
     i = (s) =>
@@ -97,11 +99,13 @@ export function TxCard({ tx: e, tenants: a, fresh: t, toast: o }) {
             </pre>
             <button
               onClick={() =>
-                copyText(e.calldata, (s) => o(s ? "Calldata copiado" : "Selecciona el texto para copiarlo"))
+                copyText(e.calldata, (s) =>
+                  o(s ? tr("Calldata copiado") : tr("Selecciona el texto para copiarlo")),
+                )
               }
               className="self-start font-mono text-[11px] text-rxAqua border border-white/15 px-2 py-1 focus-ring"
             >
-              Copiar calldata
+              {tr("Copiar calldata")}
             </button>
           </div>
         )}
