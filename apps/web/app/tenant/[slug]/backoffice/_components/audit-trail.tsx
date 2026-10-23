@@ -12,6 +12,13 @@ const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   PAYMENT_CONFIRMED: "Pago fiduciario conciliado",
   CHAIN_TX_CONFIRMED: "Transacción on-chain confirmada",
   SUBSCRIPTION_MINTED: "Tokens emitidos",
+  PORTAL_STATUS_CHANGED: "Gobierno RWAXI · estado del portal",
+  ORGANIZATION_PUBLICATION_CHANGED: "Gobierno RWAXI · publicación en vitrina",
+  OFFERING_CAPTURE_PAUSED: "Gobierno RWAXI · captación pausada",
+  OFFERING_CAPTURE_RESUMED: "Gobierno RWAXI · captación reanudada",
+  FEE_TERMS_UPDATED: "Tarifas RWAXI actualizadas",
+  FEE_INVOICED: "Factura RWAXI emitida",
+  FEE_PAYMENT_RECORDED: "Pago a RWAXI registrado",
 };
 const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "text-aquaInk",
@@ -20,6 +27,13 @@ const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   PAYMENT_CONFIRMED: "text-goldInk",
   CHAIN_TX_CONFIRMED: "text-rxBlue",
   SUBSCRIPTION_MINTED: "text-aquaInk",
+  PORTAL_STATUS_CHANGED: "text-[#B42318]",
+  ORGANIZATION_PUBLICATION_CHANGED: "text-rxPurple",
+  OFFERING_CAPTURE_PAUSED: "text-[#B42318]",
+  OFFERING_CAPTURE_RESUMED: "text-aquaInk",
+  FEE_TERMS_UPDATED: "text-goldInk",
+  FEE_INVOICED: "text-goldInk",
+  FEE_PAYMENT_RECORDED: "text-aquaInk",
 };
 const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "SHA-256 expediente",
@@ -28,6 +42,13 @@ const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   PAYMENT_CONFIRMED: "paymentEvidenceRef",
   CHAIN_TX_CONFIRMED: "tx hash",
   SUBSCRIPTION_MINTED: "tx hash mint",
+  PORTAL_STATUS_CHANGED: "SHA-256 decisión",
+  ORGANIZATION_PUBLICATION_CHANGED: "SHA-256 decisión",
+  OFFERING_CAPTURE_PAUSED: "SHA-256 decisión",
+  OFFERING_CAPTURE_RESUMED: "SHA-256 decisión",
+  FEE_TERMS_UPDATED: "SHA-256 decisión",
+  FEE_INVOICED: "SHA-256 factura",
+  FEE_PAYMENT_RECORDED: "SHA-256 pago",
 };
 
 export function AuditTrail({ entries, empty }: { entries: AuditEntry[]; empty?: string }) {

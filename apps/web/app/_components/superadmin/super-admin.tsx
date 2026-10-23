@@ -25,6 +25,7 @@ export function SuperAdmin({
   openTenant: b,
   // PostgreSQL-backed panels (app/superadmin/_components/platform-panels.tsx).
   overviewSlot: O,
+  governanceSlot: G,
   attributionSlot: Q,
   feesSlot: R,
 }) {
@@ -113,7 +114,8 @@ export function SuperAdmin({
       </header>
       <main className="gutter max-w-[1240px] mx-auto py-8 w-full flex-1">
         {O}
-        {u === "gobierno" && (
+        {u === "gobierno" && G}
+        {u === "gobierno" && !G && (
           <Governance
             emit={e}
             tenants={t}

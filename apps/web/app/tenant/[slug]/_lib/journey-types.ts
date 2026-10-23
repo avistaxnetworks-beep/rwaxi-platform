@@ -55,9 +55,13 @@ export interface PortalOfferingState {
   minTicketUsd: number;
   tokenDeployed: boolean;
   tokenPaused: boolean;
+  /** capital raising paused by the platform (off-chain): no new subscriptions */
+  capturePaused: boolean;
 }
 
 export interface PersistedJourney {
+  /** governance status of this portal (Super-Admin): SUSPENDED blocks new NDA, KYC and subscriptions */
+  portalStatus: "ACTIVE" | "REVIEW" | "SUSPENDED";
   /** null for an anonymous visitor (no investor session on this host) */
   investor: { name: string; email: string | null } | null;
   /** persisted Lead, or the verified pending referral of an anonymous visitor */

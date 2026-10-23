@@ -1,9 +1,11 @@
 import "server-only";
 import type { AuditEvent } from "@rwaxi/database";
+import { isPlatformAction, platformAuditSummary } from "@/app/_lib/server/platform-audit";
 import type { AuditEntry } from "./types";
 
 interface AuditPayload {
   investorName?: string;
+  tenant?: string;
   reason?: string;
   chainStatus?: string | null;
   units?: number;
@@ -20,6 +22,7 @@ interface AuditPayload {
 const amount = (p: AuditPayload) => `${p.units ?? "?"} unidades · ${p.capitalUsd ?? "?"} USD`;
 
 function detailOf(action: AuditEvent["action"], p: AuditPayload): string | null {
+  if (isPlatformAction(action)) return platformAuditSummary(action, p);
   switch (action) {
     case "SUBSCRIPTION_CREATED": {
       const state =
@@ -63,7 +66,7 @@ export function toAuditEntry(e: AuditEvent): AuditEntry {
     at: e.createdAt.toISOString(),
     action: e.action,
     actorEmail: e.actorEmail,
-    investorName: p.investorName ?? e.entityId,
+    investorName: p.investorName ?? (isPlatformAction(e.action) ? `RWAXI · ${p.tenant ?? e.entityType}` : e.entityId),
     subjectHash: e.subjectHash,
     detail: detailOf(e.action, p),
   };

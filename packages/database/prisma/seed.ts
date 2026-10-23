@@ -20,10 +20,11 @@ const db = new PrismaClient({ datasourceUrl: process.env.DIRECT_URL ?? process.e
 const demoHash = (label: string) => sha256Document(`rwaxi-demo:${label}`);
 const demoAddress = (label: string) => `0x${demoHash(label).slice(2, 42)}`;
 const LEDGER_MONTHS = ["2026-08", "2026-09", "2026-10"];
+const DAY = 86_400_000;
 
 async function reset() {
   await db.$executeRawUnsafe(`
-    TRUNCATE TABLE "audit_events", "fee_ledger_entries", "chain_transactions", "subscriptions", "data_room_access_grants",
+    TRUNCATE TABLE "audit_events", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
       "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments",
       "offerings", "users", "organizations" CASCADE`);
 }
@@ -319,7 +320,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
   }
   await db.chainTransaction.createMany({ data: chainTxs });
 
-  // 13 · RWAXI fees: setup + monthly SaaS (last month invoiced)
+  // 13 · RWAXI fees: setup + monthly SaaS (current month accrued, previous one invoiced, older ones paid)
   fees.push({
     organizationId: orgId,
     kind: "ONBOARDING_SETUP",
@@ -337,9 +338,28 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       period,
       accruedOn: new Date(`${period}-01`),
       evidence: `Suscripción ${period} · infraestructura, Data Room y nodo`,
-      status: idx === months.length - 1 ? "INVOICED" : "PAID",
+      status: idx === months.length - 1 ? "ACCRUED" : idx === months.length - 2 ? "INVOICED" : "PAID",
     }),
   );
+
+  // 14 · RWAXI invoices: each INVOICED or PAID entry was billed; PAID ones carry payment date + receipt
+  const prefix = dev.slug.slice(0, 3).toUpperCase();
+  let seq = 0;
+  for (const fee of fees.filter((f) => f.status === "INVOICED" || f.status === "PAID")) {
+    const number = `${prefix}-${String(++seq).padStart(4, "0")}`;
+    const accrued = new Date(fee.accruedOn).getTime();
+    const invoice = await db.feeInvoice.create({
+      data: {
+        organizationId: orgId,
+        number: `RWX-${number}`,
+        issuedAt: new Date(Math.min(accrued + 2 * DAY, Date.now())),
+        totalUsd: fee.amountUsd,
+        paidOn: fee.status === "PAID" ? new Date(Math.min(accrued + 15 * DAY, Date.now())) : null,
+        paymentReceipt: fee.status === "PAID" ? `TRF-${number}` : null,
+      },
+    });
+    fee.invoiceId = invoice.id;
+  }
   await db.feeLedgerEntry.createMany({ data: fees });
 
   return { slug: dev.slug, documents: documents.length, dataRoomRoot, chainTxs: chainTxs.length, fees: fees.length };

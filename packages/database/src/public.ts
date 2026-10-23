@@ -29,6 +29,8 @@ export interface PublicOffering {
   pipeline: string[];
   dataRoomRoot: string | null;
   token: { status: string; symbol: string; address: string | null } | null;
+  /** capital raising paused by the platform (off-chain): shown, but no new subscriptions */
+  capturePaused: boolean;
 }
 
 interface Row {
@@ -64,6 +66,7 @@ interface Row {
   token_status: string | null;
   token_symbol: string | null;
   token_address: string | null;
+  capture_paused: boolean;
 }
 
 const n = (v: unknown) => Number(v ?? 0);
@@ -108,5 +111,6 @@ export async function listPublicOfferings(base: PrismaClient = prisma): Promise<
     pipeline: Array.isArray(r.pipeline) ? (r.pipeline as string[]) : [],
     dataRoomRoot: r.data_room_root,
     token: r.token_status ? { status: r.token_status, symbol: r.token_symbol ?? "", address: r.token_address } : null,
+    capturePaused: r.capture_paused === true,
   }));
 }

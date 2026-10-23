@@ -7,6 +7,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./canonical": "./src/canonical.ts",
     "./merkle": "./src/merkle.ts",
     "./evm-adapter": "./src/evm-adapter.ts",
     "./abi": "./src/abi/index.ts"

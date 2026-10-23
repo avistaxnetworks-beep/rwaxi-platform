@@ -384,6 +384,8 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
 
 // ───────────────────────────────────────────────────────────── Paso 4 · Suscripción
 
+const CAPTURE_PAUSED = "La captación de esta oferta está pausada temporalmente por la plataforma: no se reciben nuevas suscripciones.";
+
 /** Ceiling of the prototype's amount slider (SubscriptionPanel), enforced server-side. */
 const MAX_SUBSCRIPTION_USD = 250_000;
 const usd = (n: Prisma.Decimal | number) =>
@@ -433,16 +435,20 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         if (!wallet || !ADDRESS.test(wallet)) throw new OnboardingError("No tienes una wallet registrada.");
         const state = offeringState(offering);
         if (state.tokenPaused) throw new OnboardingError("El emisor pausó el token: no se pueden emitir nuevas unidades.");
+        if (state.capturePaused) throw new OnboardingError(CAPTURE_PAUSED);
 
         const capital = offering.unitPriceUsd.mul(units);
         if (capital.lt(offering.minTicketUsd)) throw new OnboardingError(`El ticket mínimo es ${usd(offering.minTicketUsd)}.`);
         if (capital.gt(MAX_SUBSCRIPTION_USD)) throw new OnboardingError(`El máximo por suscripción es ${usd(MAX_SUBSCRIPTION_USD)}.`);
 
-        // Atomic availability check (backed by the offerings_units_subscribed_range CHECK).
+        // Atomic availability check (backed by the offerings_units_subscribed_range CHECK); a pause
+        // decided by the platform in the meantime also makes it match no row.
         const committed = await tx.$executeRaw`
           UPDATE offerings SET units_subscribed = units_subscribed + ${units}::int
-          WHERE id = ${offering.id} AND units_subscribed + ${units}::int <= total_units`;
+          WHERE id = ${offering.id} AND capture_paused_at IS NULL AND units_subscribed + ${units}::int <= total_units`;
         if (committed !== 1) {
+          const current = await tx.offering.findUniqueOrThrow({ where: { id: offering.id }, select: { capturePausedAt: true } });
+          if (current.capturePausedAt) throw new OnboardingError(CAPTURE_PAUSED);
           throw new OnboardingError(`No hay unidades suficientes: quedan ${state.totalUnits - state.unitsSubscribed}.`);
         }
 

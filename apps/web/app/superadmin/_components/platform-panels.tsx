@@ -3,19 +3,11 @@
 import { useState } from "react";
 import { Icon } from "@/app/_components/ui/icon";
 import { KYC_LABEL } from "@/app/_lib/data/kyc";
-import { FEE_STATUS, PORTAL_STATUS } from "@/app/_lib/data/fees";
-import { money, nf, pct, shortHash } from "@/app/_lib/format";
-import type { FeeKindKey, FeeStatusKey, PlatformMetrics, PlatformMetricsResult } from "../_lib/types";
+import { PORTAL_STATUS } from "@/app/_lib/data/fees";
+import { money, nf, pct } from "@/app/_lib/format";
+import type { PlatformMetrics, PlatformMetricsResult } from "../_lib/types";
 
 type Currency = "COP" | "USD";
-
-const KIND_LABEL: Record<FeeKindKey, string> = {
-  ONBOARDING_SETUP: "Setup / Onboarding",
-  MONTHLY_SAAS: "Suscripción SaaS mensual",
-  INFRASTRUCTURE_USAGE: "Uso de infraestructura",
-};
-const KINDS = Object.keys(KIND_LABEL) as FeeKindKey[];
-const STATUSES: FeeStatusKey[] = ["ACCRUED", "INVOICED", "PAID"];
 
 const utc = (iso: string) => `${iso.slice(0, 16).replace("T", " ")} UTC`;
 const share = (a: number, b: number) => (a + b ? (a / (a + b)) * 100 : 0);
@@ -38,7 +30,9 @@ function SourceNote({ data }: { data: PlatformMetrics }) {
       </p>
       <p className="font-mono text-[10.5px] text-muted text-right">
         {`generado ${utc(data.generatedAt)}`}
-        <span className="block">Módulos B y C: PostgreSQL · Módulo A: controles del prototipo (estado demo)</span>
+        <span className="block">
+          {`Módulos A, B y C: PostgreSQL · alta de desarrolladores: demo${data.admin ? ` · sesión ${data.admin.email}` : ""}`}
+        </span>
       </p>
     </div>
   );
@@ -244,157 +238,6 @@ export function PlatformAttribution({ metrics, currency }: { metrics: PlatformMe
               <tr>
                 <td colSpan={7} className="px-5 py-6 text-center text-muted">
                   Sin leads referidos para este filtro.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/** Module C: RWAXI B2B fee ledger (FeeLedgerEntry) by kind and status, plus each tenant's rules. */
-export function PlatformLedger({ metrics, currency }: { metrics: PlatformMetricsResult; currency: Currency }) {
-  const [kind, setKind] = useState<"todos" | FeeKindKey>("todos");
-  const [tenant, setTenant] = useState("todos");
-  if (!metrics.ok) return <Unavailable error={metrics.error} />;
-  const { totals, tenants, ledger } = metrics.data;
-  const rows = ledger.filter((e) => (kind === "todos" || e.kind === kind) && (tenant === "todos" || e.tenant.slug === tenant));
-  return (
-    <div className="flex flex-col gap-6" data-platform-ledger>
-      <div className="bg-white border border-line overflow-x-auto">
-        <table className="w-full min-w-[720px] text-[12.5px] tnum">
-          <thead>
-            <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-              <th className="font-semibold px-5 py-3">Tipo de comisión</th>
-              {STATUSES.map((s) => (
-                <th key={s} className="font-semibold px-3 py-3 text-right">
-                  {FEE_STATUS[s][2]}
-                </th>
-              ))}
-              <th className="font-semibold px-5 py-3 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {KINDS.map((k) => (
-              <tr key={k} data-fee-kind={k} data-total={totals.fees[k].total} className="border-b border-line">
-                <td className="px-5 py-3">
-                  <p className="font-semibold text-rxPurple">{KIND_LABEL[k]}</p>
-                  <p className="font-mono text-[10.5px] text-muted">{k}</p>
-                </td>
-                {STATUSES.map((s) => (
-                  <td key={s} className="px-3 py-3 text-right font-mono">
-                    {money(totals.fees[k][s], currency, false)}
-                  </td>
-                ))}
-                <td className="px-5 py-3 text-right font-mono font-semibold">{money(totals.fees[k].total, currency, false)}</td>
-              </tr>
-            ))}
-            <tr className="bg-cloud">
-              <td className="px-5 py-3 font-semibold">Total RWAXI</td>
-              {STATUSES.map((s) => (
-                <td key={s} className="px-3 py-3 text-right font-mono">
-                  {money(totals.feesAll[s], currency, false)}
-                </td>
-              ))}
-              <td className="px-5 py-3 text-right font-mono font-semibold">{money(totals.feesAll.total, currency, false)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="bg-white border border-line overflow-x-auto">
-        <div className="px-5 py-3.5 border-b border-line">
-          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">Reglas de tarifa por tenant · Organization</p>
-        </div>
-        <table className="w-full min-w-[640px] text-[12.5px] tnum">
-          <thead>
-            <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-              <th className="font-semibold px-5 py-3">Desarrollador</th>
-              <th className="font-semibold px-3 py-3 text-right">Setup</th>
-              <th className="font-semibold px-3 py-3 text-right">SaaS mensual</th>
-              <th className="font-semibold px-5 py-3 text-right">Uso de infraestructura</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tenants.map((t) => (
-              <tr key={t.slug} className="border-b border-line last:border-b-0">
-                <td className="px-5 py-3">{t.legalName}</td>
-                <td className="px-3 py-3 text-right font-mono">{money(t.feeRules.setupUsd, currency, false)}</td>
-                <td className="px-3 py-3 text-right font-mono">{money(t.feeRules.monthlyUsd, currency, false)}</td>
-                <td className="px-5 py-3 text-right font-mono">{`${pct(t.feeRules.usagePct, 2)} del capital emitido`}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="bg-white border border-line overflow-x-auto">
-        <div className="px-5 py-3.5 border-b border-line flex flex-wrap items-center gap-2">
-          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase mr-auto">Libro mayor · FeeLedgerEntry</p>
-          <select
-            aria-label="Tipo de comisión"
-            value={kind}
-            onChange={(ev) => setKind(ev.target.value as "todos" | FeeKindKey)}
-            className="border border-line bg-white px-2 py-1.5 text-[12px] focus-ring"
-          >
-            <option value="todos">Todos los tipos</option>
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Tenant"
-            value={tenant}
-            onChange={(ev) => setTenant(ev.target.value)}
-            className="border border-line bg-white px-2 py-1.5 text-[12px] focus-ring"
-          >
-            <option value="todos">Todos los tenants</option>
-            {tenants.map((t) => (
-              <option key={t.slug} value={t.slug}>
-                {t.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
-        <table className="w-full min-w-[980px] text-[12.5px] tnum">
-          <thead>
-            <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-              <th className="font-semibold px-5 py-3">Fecha</th>
-              <th className="font-semibold px-3 py-3">Tenant</th>
-              <th className="font-semibold px-3 py-3">Tipo</th>
-              <th className="font-semibold px-3 py-3 text-right">Base</th>
-              <th className="font-semibold px-3 py-3 text-right">Importe</th>
-              <th className="font-semibold px-3 py-3">Estado</th>
-              <th className="font-semibold px-5 py-3">Evidencia</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr key={e.id} data-ledger-row={e.kind} className="border-b border-line last:border-b-0 align-top">
-                <td className="px-5 py-3 font-mono text-[11.5px]">{e.period ?? e.accruedOn}</td>
-                <td className="px-3 py-3">{e.tenant.displayName}</td>
-                <td className="px-3 py-3">
-                  <p>{KIND_LABEL[e.kind]}</p>
-                  <p className="font-mono text-[10px] text-muted">{e.kind}</p>
-                </td>
-                <td className="px-3 py-3 text-right font-mono">{e.baseUsd === null ? "—" : money(e.baseUsd, currency, false)}</td>
-                <td className="px-3 py-3 text-right font-mono font-semibold">{money(e.amountUsd, currency, false)}</td>
-                <td className="px-3 py-3">
-                  <span className={`text-[10.5px] font-semibold px-2 py-0.5 ${FEE_STATUS[e.status][1]}`}>{FEE_STATUS[e.status][2]}</span>
-                </td>
-                <td className="px-5 py-3 font-mono text-[10.5px] text-muted break-all max-w-[320px]">
-                  {/^0x[0-9a-f]{64}$/i.test(e.evidence) ? shortHash(e.evidence, 12, 8) : e.evidence}
-                </td>
-              </tr>
-            ))}
-            {!rows.length && (
-              <tr>
-                <td colSpan={7} className="px-5 py-6 text-center text-muted">
-                  Sin asientos para este filtro.
                 </td>
               </tr>
             )}

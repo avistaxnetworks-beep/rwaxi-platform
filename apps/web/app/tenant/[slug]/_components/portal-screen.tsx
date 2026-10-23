@@ -64,6 +64,8 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
   // Hydrate before the portal mounts, so it never renders the prototype's demo journey.
   useEffect(() => {
     d.setJourney((j: any) => applyPersisted(j, persisted.ok ? persisted.data : null, !applied.current));
+    // Governance status from the database (Super-Admin): the ported portal renders its notices and locks.
+    if (persisted.ok) d.setTenant((t: any) => ({ ...t, portalStatus: persisted.data.portalStatus }));
     applied.current = true;
     setReady(true);
     // The referral is now held by the rwaxi_ref cookie (middleware.ts): tidy the address bar.

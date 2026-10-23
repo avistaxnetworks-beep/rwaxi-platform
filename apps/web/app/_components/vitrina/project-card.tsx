@@ -28,6 +28,8 @@ export function ProjectCard({ p: e, currency: a, onOpen: t, photos: o, dev: n })
       data-total-units={e.totalUnits}
       data-min-ticket={e.ticket}
       data-stage={e.stage}
+      data-portal-status={n.portalStatus}
+      data-capture={e.capturePaused ? "paused" : "open"}
       className="bg-white border border-line flex flex-col min-w-0 hover:border-[#B9B2CC] transition-colors"
     >
       <CardGallery p={e} photos={o} st={l} />
@@ -120,6 +122,11 @@ export function ProjectCard({ p: e, currency: a, onOpen: t, photos: o, dev: n })
             {n.portalStatus === "SUSPENDED"
               ? "Portal suspendido temporalmente"
               : "Portal del desarrollador en revisión"}
+          </p>
+        ) : e.capturePaused ? (
+          <p className="mt-auto text-center text-[12.5px] font-semibold py-3 border border-line bg-goldTint text-goldInk inline-flex items-center justify-center gap-2">
+            <Icon name="Pause" size={15} />
+            Captación pausada temporalmente
           </p>
         ) : (
           <button

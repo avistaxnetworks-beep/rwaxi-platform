@@ -43,7 +43,15 @@ export interface AuditEntry {
     | "SUBSCRIPTION_CREATED"
     | "PAYMENT_CONFIRMED"
     | "CHAIN_TX_CONFIRMED"
-    | "SUBSCRIPTION_MINTED";
+    | "SUBSCRIPTION_MINTED"
+    // decisions of the RWAXI platform (admin.rwaxi.com) on this organization
+    | "PORTAL_STATUS_CHANGED"
+    | "ORGANIZATION_PUBLICATION_CHANGED"
+    | "OFFERING_CAPTURE_PAUSED"
+    | "OFFERING_CAPTURE_RESUMED"
+    | "FEE_TERMS_UPDATED"
+    | "FEE_INVOICED"
+    | "FEE_PAYMENT_RECORDED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;

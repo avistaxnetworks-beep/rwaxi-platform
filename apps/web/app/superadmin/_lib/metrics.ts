@@ -1,12 +1,15 @@
 import "server-only";
 import { platformPrisma, type Prisma } from "@rwaxi/database";
+import { PLATFORM_AUDIT_ACTIONS, platformAuditSummary } from "@/app/_lib/server/platform-audit";
 import { TenantAccessError, requirePlatformAccess } from "@/app/_lib/server/tenant-context";
+import { requirePlatformSession } from "./session";
 import type {
   FeeKindKey,
   FeeStatusKey,
   FeeTotals,
   KycKey,
   PlatformMetrics,
+  PlatformAuditRow,
   PlatformMetricsResult,
   PlatformTenantRow,
   SubscribedVolume,
@@ -40,8 +43,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
   try {
     await requirePlatformAccess();
+    const session = await requirePlatformSession().catch(() => null); // actions need it; reading does not
     const db = platformPrisma();
-    const [orgs, leadGroups, ndaGroups, kycGroups, investorGroups, subGroups, feeGroups, referralLeads, ledger] =
+    const [orgs, leadGroups, ndaGroups, kycGroups, investorGroups, subGroups, feeGroups, referralLeads, ledger, invoices, audit] =
       await Promise.all([
         db.organization.findMany({
           orderBy: { onboardedAt: "asc" },
@@ -50,6 +54,10 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
             slug: true,
             displayName: true,
             legalName: true,
+            taxId: true,
+            complianceRegime: true,
+            customDomain: true,
+            domainStatus: true,
             portalStatus: true,
             published: true,
             onboardedAt: true,
@@ -57,10 +65,17 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
             feeMonthlyUsd: true,
             feeUsagePct: true,
             offerings: {
-              where: { published: true },
               orderBy: { code: "asc" },
-              take: 1,
-              select: { code: true, assetName: true, totalUnits: true, unitsSubscribed: true },
+              select: {
+                id: true,
+                code: true,
+                assetName: true,
+                totalUnits: true,
+                unitsSubscribed: true,
+                published: true,
+                capturePausedAt: true,
+                token: { select: { status: true, symbol: true } },
+              },
             },
           },
         }),
@@ -94,7 +109,24 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         db.feeLedgerEntry.findMany({
           orderBy: [{ accruedOn: "desc" }, { createdAt: "desc" }],
           take: 200,
-          include: { organization: { select: { slug: true, displayName: true, legalName: true } } },
+          include: {
+            organization: { select: { slug: true, displayName: true, legalName: true } },
+            invoice: { select: { id: true, number: true, paidOn: true } },
+          },
+        }),
+        db.feeInvoice.findMany({
+          orderBy: [{ issuedAt: "desc" }, { number: "desc" }],
+          take: 100,
+          include: {
+            organization: { select: { slug: true, displayName: true, legalName: true } },
+            _count: { select: { entries: true } },
+          },
+        }),
+        db.auditEvent.findMany({
+          where: { action: { in: [...PLATFORM_AUDIT_ACTIONS] } },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: { organization: { select: { displayName: true } } },
         }),
       ]);
 
@@ -129,14 +161,27 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
     };
 
     const tenants: PlatformTenantRow[] = orgs.map((o) => {
-      const offering = o.offerings[0];
+      const offering = o.offerings.find((f) => f.published);
       return {
+        id: o.id,
         slug: o.slug,
         displayName: o.displayName,
         legalName: o.legalName,
+        taxId: o.taxId,
+        regime: o.complianceRegime,
+        customDomain: o.domainStatus === "VERIFIED" ? o.customDomain : null,
         portalStatus: o.portalStatus,
         published: o.published,
         onboardedAt: o.onboardedAt.toISOString().slice(0, 10),
+        offerings: o.offerings.map((f) => ({
+          id: f.id,
+          code: f.code,
+          assetName: f.assetName,
+          published: f.published,
+          capturePausedAt: f.capturePausedAt?.toISOString() ?? null,
+          tokenStatus: f.token?.status ?? null,
+          tokenSymbol: f.token?.symbol ?? null,
+        })),
         leads: {
           referral: count(leadGroups, o.id, (r) => r.source === "REFERRAL"),
           direct: count(leadGroups, o.id, (r) => r.source === "DIRECT"),
@@ -169,6 +214,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         subscribed: volumeOf(),
         fees: totalsFees,
         feesAll,
+        mrrUsd: round2(orgs.filter((o) => o.portalStatus !== "SUSPENDED").reduce((s, o) => s + num(o.feeMonthlyUsd), 0)),
       },
       tenants,
       referrals: referralLeads.map((l) => ({
@@ -183,6 +229,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
       })),
       ledger: ledger.map((e) => ({
         id: e.id,
+        organizationId: e.organizationId,
         tenant: e.organization,
         kind: e.kind as FeeKindKey,
         status: e.status as FeeStatusKey,
@@ -191,7 +238,29 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         period: e.period,
         accruedOn: e.accruedOn.toISOString().slice(0, 10),
         evidence: e.evidence,
+        invoice: e.invoice ? { id: e.invoice.id, number: e.invoice.number, paid: !!e.invoice.paidOn } : null,
       })),
+      invoices: invoices.map((i) => ({
+        id: i.id,
+        number: i.number,
+        organizationId: i.organizationId,
+        tenant: i.organization,
+        issuedOn: i.issuedAt.toISOString().slice(0, 10),
+        totalUsd: num(i.totalUsd),
+        entries: i._count.entries,
+        paidOn: i.paidOn?.toISOString().slice(0, 10) ?? null,
+        paymentReceipt: i.paymentReceipt,
+      })),
+      audit: audit.map((e) => ({
+        id: e.id,
+        at: e.createdAt.toISOString(),
+        action: e.action as PlatformAuditRow["action"],
+        tenant: e.organization.displayName,
+        actorEmail: e.actorEmail,
+        summary: platformAuditSummary(e.action as PlatformAuditRow["action"], e.payload),
+        subjectHash: e.subjectHash,
+      })),
+      admin: session ? { name: session.admin.fullName, email: session.admin.email } : null,
     };
     return { ok: true, data };
   } catch (e) {

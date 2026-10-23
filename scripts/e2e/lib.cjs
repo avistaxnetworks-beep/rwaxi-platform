@@ -129,6 +129,17 @@ async function clickIn(page, selector, label) {
   );
   if (!done) throw new Error(`button "${label}" not found in ${selector}`);
 }
+/** Sets a React-controlled input/textarea (native setter + input event), e.g. a date the keyboard can't type. */
+const fill = (page, selector, value) =>
+  page.$eval(
+    selector,
+    (el, v) => {
+      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, "value").set.call(el, v);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    },
+    value,
+  );
 const toastText = (page) => page.$eval(".toast-wrap", (n) => n.textContent.trim()).catch(() => "");
 const alertText = (page) => page.$$eval('[role="alert"]', (n) => n.map((x) => x.textContent.trim()).join(" | "));
 const waitAlert = (page, re, timeout = 90000) =>
@@ -158,6 +169,30 @@ const replayAction = (page, actionId, args) =>
     },
     actionId,
     args,
+  );
+
+/**
+ * Like replayAction, for requests the server may never answer (an action id posted to a route of
+ * another host is not routed by Next): "timeout" | "<status> <body>".
+ */
+const tryAction = (page, actionId, args, timeoutMs = 20000) =>
+  page.evaluate(
+    async (actionId, args, timeoutMs) => {
+      try {
+        const r = await fetch(location.pathname, {
+          method: "POST",
+          headers: { "Next-Action": actionId, "Content-Type": "text/plain;charset=UTF-8", Accept: "text/x-component" },
+          body: JSON.stringify(args),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        return `${r.status} ${await r.text()}`;
+      } catch {
+        return "timeout";
+      }
+    },
+    actionId,
+    args,
+    timeoutMs,
   );
 
 // ── investor journey (portal + backoffice), shared by the payment suites ──
@@ -240,11 +275,13 @@ module.exports = {
   waitText,
   clickText,
   clickIn,
+  fill,
   toastText,
   alertText,
   waitAlert,
   openBackofficeTab,
   replayAction,
+  tryAction,
   onboardInvestor,
   approveInvestor,
   subscribe,

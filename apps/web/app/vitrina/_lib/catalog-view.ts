@@ -55,6 +55,8 @@ export function toVitrinaProject(o: PublicOffering): any {
     chain: CHAIN[o.network] ?? o.network,
     contract: address ? `${address.slice(0, 5)}...${address.slice(-3)}` : null,
     tokenStatus: o.token?.status ?? "NOT_DEPLOYED",
+    // platform pause of capital raising (Super-Admin, module A): listed without a link to subscribe
+    capturePaused: o.capturePaused,
     rentStart: o.rentStartMonths,
     pipeline: o.pipeline,
     merkle: (o.dataRoomRoot ?? "").replace(/^0x/, "") || "0".repeat(64),

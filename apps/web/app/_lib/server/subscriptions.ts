@@ -1,5 +1,6 @@
 import "server-only";
-import { evidenceHash, type Bytes32 } from "@rwaxi/blockchain-sdk";
+import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
+import type { Bytes32 } from "@rwaxi/blockchain-sdk/merkle";
 
 /**
  * paymentEvidenceRef passed to RwaxiPropertyToken.mintSubscription(): binds the signed agreement

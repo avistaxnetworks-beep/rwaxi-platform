@@ -81,6 +81,8 @@ export function SubscriptionPanel({
         </dl>
         {c ? (
           <LockedNote text="Nuevas suscripciones suspendidas temporalmente." />
+        ) : t.offering?.capturePaused ? (
+          <LockedNote text="La captación de esta oferta está pausada temporalmente por la plataforma: no se reciben nuevas suscripciones. Las ya firmadas siguen su curso." />
         ) : f ? (
           <LockedNote
             text={`El emisor pausó el token ${e.mint.symbol} on-chain: no se pueden emitir nuevas unidades hasta que lo reanude.`}

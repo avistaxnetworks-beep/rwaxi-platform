@@ -35,6 +35,7 @@ export const OFFERING_STATE_SELECT = {
   unitsSubscribed: true,
   unitPriceUsd: true,
   minTicketUsd: true,
+  capturePausedAt: true,
   token: { select: { status: true, contractAddress: true, symbol: true } },
 } satisfies Prisma.OfferingSelect;
 
@@ -49,6 +50,7 @@ export function offeringState(o: OfferingStateRow): PortalOfferingState {
     minTicketUsd: Number(o.minTicketUsd),
     tokenDeployed: !!o.token?.contractAddress && (o.token.status === "DEPLOYED" || o.token.status === "PAUSED"),
     tokenPaused: o.token?.status === "PAUSED",
+    capturePaused: !!o.capturePausedAt,
   };
 }
 
@@ -103,6 +105,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
 
     const offering = await db.offering.findFirst({ ...PORTAL_OFFERING, select: OFFERING_STATE_SELECT });
     const anonymous: PersistedJourney = {
+      portalStatus: tenant.portalStatus,
       investor: null,
       lead: referral,
       nda: null,
@@ -153,6 +156,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
     return {
       ok: true,
       data: {
+        portalStatus: tenant.portalStatus,
         investor: { name: investor.fullName, email: investor.email },
         lead: lead
           ? { token: lead.referralToken, at: isoSeconds(lead.landedAt), source: lead.source === "REFERRAL" ? "RWAXI" : "DIRECT" }

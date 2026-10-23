@@ -1,0 +1,357 @@
+"use server";
+
+/**
+ * Operational actions of the Super-Admin console (admin.rwaxi.com), with the platform role
+ * (platformPrisma, BYPASSRLS) and only on the admin host (requirePlatformSession).
+ *
+ *   Module A · governance: portal status, publication in the vitrina and the pause of an offering's
+ *   capital raising. All are off-chain platform controls: RWAXI never pauses the issuer's token.
+ *   Module C · B2B billing: agreed fee terms, invoices over ACCRUED ledger entries, payments.
+ *
+ * Each action is one transaction with a conditional state transition and an AuditEvent on the
+ * affected organization, whose subjectHash is the SHA-256 (canonical JSON) of the recorded decision.
+ */
+import { revalidatePath } from "next/cache";
+import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
+import { isUniqueViolation, platformPrisma, type AuditAction, type PortalStatus, type Prisma } from "@rwaxi/database";
+import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
+import { requirePlatformSession, type PlatformSession } from "./_lib/session";
+import type { PlatformActionResult } from "./_lib/types";
+
+// Record ids: cuid() by default, fixed ids for seeded organizations (org_avista…). Looked up under the platform role.
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const INVOICE_NUMBER = /^[A-Z0-9](?:[A-Z0-9./-]{2,38})[A-Z0-9]$/;
+const RECEIPT = /^[A-Z0-9](?:[A-Z0-9 ._/#-]{2,62})[A-Z0-9]$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
+const PORTAL_STATUSES: PortalStatus[] = ["ACTIVE", "REVIEW", "SUSPENDED"];
+const STATUS_LABEL: Record<PortalStatus, string> = { ACTIVE: "activo", REVIEW: "en revisión", SUSPENDED: "suspendido" };
+const MAX_INVOICE_ENTRIES = 50;
+
+class PlatformError extends Error {}
+
+function failure(e: unknown, unique = "Ese registro ya existe."): PlatformActionResult {
+  if (e instanceof PlatformError || e instanceof TenantAccessError) return { ok: false, error: e.message };
+  if (isUniqueViolation(e)) return { ok: false, error: unique };
+  console.error("[superadmin] platform action failed", e);
+  return { ok: false, error: "No se pudo registrar la acción. Inténtalo de nuevo." };
+}
+
+// Governance changes are visible at once in the vitrina, the tenant's portal and its backoffice.
+function refresh() {
+  revalidatePath("/superadmin", "page");
+  revalidatePath("/vitrina", "page");
+  revalidatePath("/tenant/[slug]", "page");
+  revalidatePath("/tenant/[slug]/backoffice", "page");
+}
+
+const clean = (raw: unknown) => (typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "");
+
+/** Restrictive decisions need a motive (10–300 chars); lifting them may carry one. */
+function reasonOf(raw: unknown, required: boolean): string | null {
+  const reason = clean(raw);
+  if (required && reason.length < 10) throw new PlatformError("Indica el motivo de la decisión (mínimo 10 caracteres).");
+  if (reason.length > 300) throw new PlatformError("El motivo no puede superar 300 caracteres.");
+  return reason || null;
+}
+
+async function audit(
+  tx: Prisma.TransactionClient,
+  session: PlatformSession,
+  meta: Awaited<ReturnType<typeof requestMeta>>,
+  event: { organizationId: string; action: AuditAction; entityType: string; entityId: string; payload: Record<string, unknown> },
+) {
+  await tx.auditEvent.create({
+    data: {
+      organizationId: event.organizationId,
+      action: event.action,
+      actorUserId: session.admin.id,
+      actorEmail: session.admin.email,
+      entityType: event.entityType,
+      entityId: event.entityId,
+      subjectHash: evidenceHash({ action: event.action, organizationId: event.organizationId, entityId: event.entityId, ...event.payload }),
+      payload: event.payload as Prisma.InputJsonValue,
+      ...meta,
+    },
+  });
+}
+
+const platformTx = <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => platformPrisma().$transaction(fn, TX_OPTIONS);
+
+// ───────────────────────────────────────────────────────── Module A · governance
+
+/** ACTIVE ⇄ REVIEW ⇄ SUSPENDED. SUSPENDED blocks new NDA, KYC and subscriptions in the portal. */
+export async function setPortalStatus(organizationId: string, status: PortalStatus, reason: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof organizationId !== "string" || !ID.test(organizationId)) throw new PlatformError("Organización inválida.");
+    if (!PORTAL_STATUSES.includes(status)) throw new PlatformError("Estado de portal inválido.");
+    const motive = reasonOf(reason, status !== "ACTIVE");
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const message = await platformTx(async (tx) => {
+      const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { displayName: true, portalStatus: true } });
+      if (!org) throw new PlatformError("Organización no encontrada.");
+      if (org.portalStatus === status) throw new PlatformError(`El portal de ${org.displayName} ya está ${STATUS_LABEL[status]}.`);
+      const { count } = await tx.organization.updateMany({
+        where: { id: organizationId, portalStatus: org.portalStatus },
+        data: { portalStatus: status },
+      });
+      if (count !== 1) throw new PlatformError("Otro administrador cambió el estado del portal; recarga la consola.");
+      await audit(tx, session, meta, {
+        organizationId,
+        action: "PORTAL_STATUS_CHANGED",
+        entityType: "Organization",
+        entityId: organizationId,
+        payload: { tenant: org.displayName, from: org.portalStatus, to: status, reason: motive },
+      });
+      return `${org.displayName}: portal ${STATUS_LABEL[status]} (control off-chain; el contrato del emisor no se modifica)`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** isPublishedInRwaxi: whether the developer's projects are listed in the public vitrina. */
+export async function setOrganizationPublished(organizationId: string, published: boolean, reason: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof organizationId !== "string" || !ID.test(organizationId)) throw new PlatformError("Organización inválida.");
+    if (typeof published !== "boolean") throw new PlatformError("Valor de publicación inválido.");
+    const motive = reasonOf(reason, !published);
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const message = await platformTx(async (tx) => {
+      const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { displayName: true, published: true } });
+      if (!org) throw new PlatformError("Organización no encontrada.");
+      if (org.published === published) throw new PlatformError(`${org.displayName} ya está ${published ? "publicado" : "fuera de la vitrina"}.`);
+      const { count } = await tx.organization.updateMany({ where: { id: organizationId, published: !published }, data: { published } });
+      if (count !== 1) throw new PlatformError("Otro administrador cambió la publicación; recarga la consola.");
+      await audit(tx, session, meta, {
+        organizationId,
+        action: "ORGANIZATION_PUBLICATION_CHANGED",
+        entityType: "Organization",
+        entityId: organizationId,
+        payload: { tenant: org.displayName, published, reason: motive },
+      });
+      return `${org.displayName} ${published ? "publicado en" : "retirado de"} la vitrina pública`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** Pauses or resumes an offering's capital raising: no new subscriptions while paused (off-chain). */
+export async function setOfferingCapture(offeringId: string, paused: boolean, reason: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof offeringId !== "string" || !ID.test(offeringId)) throw new PlatformError("Oferta inválida.");
+    if (typeof paused !== "boolean") throw new PlatformError("Valor de pausa inválido.");
+    const motive = reasonOf(reason, paused);
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const message = await platformTx(async (tx) => {
+      const offering = await tx.offering.findUnique({
+        where: { id: offeringId },
+        select: { organizationId: true, code: true, assetName: true, capturePausedAt: true },
+      });
+      if (!offering) throw new PlatformError("Oferta no encontrada.");
+      if (!!offering.capturePausedAt === paused) {
+        throw new PlatformError(`La captación de ${offering.code} ya está ${paused ? "pausada" : "abierta"}.`);
+      }
+      const now = new Date();
+      const { count } = await tx.offering.updateMany({
+        where: { id: offeringId, capturePausedAt: paused ? null : { not: null } },
+        data: { capturePausedAt: paused ? now : null },
+      });
+      if (count !== 1) throw new PlatformError("Otro administrador cambió la captación; recarga la consola.");
+      await audit(tx, session, meta, {
+        organizationId: offering.organizationId,
+        action: paused ? "OFFERING_CAPTURE_PAUSED" : "OFFERING_CAPTURE_RESUMED",
+        entityType: "Offering",
+        entityId: offeringId,
+        payload: {
+          offeringCode: offering.code,
+          assetName: offering.assetName,
+          reason: motive,
+          ...(paused ? { pausedAt: now.toISOString() } : { pausedSince: offering.capturePausedAt?.toISOString() ?? null }),
+        },
+      });
+      return `${offering.code} · ${offering.assetName}: captación ${paused ? "pausada (sin nuevas suscripciones)" : "reanudada"}`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+// ───────────────────────────────────────────────────────── Module C · billing
+
+const MONEY = /^\d{1,7}(?:\.\d{1,2})?$/;
+const PCT = /^\d{1,2}(?:\.\d{1,3})?$/;
+
+function amountOf(raw: unknown, label: string, max: number): string {
+  const v = clean(String(raw ?? "")).replace(",", ".");
+  if (!MONEY.test(v) || Number(v) > max) throw new PlatformError(`${label}: importe en USD entre 0 y ${max.toLocaleString("es-CO")} (2 decimales).`);
+  return Number(v).toFixed(2);
+}
+
+/** Agreed terms of a developer: setup fee, monthly SaaS and % of infrastructure usage (future accruals). */
+export async function updateFeeTerms(
+  organizationId: string,
+  terms: { setupUsd: unknown; monthlyUsd: unknown; usagePct: unknown },
+): Promise<PlatformActionResult> {
+  try {
+    if (typeof organizationId !== "string" || !ID.test(organizationId)) throw new PlatformError("Organización inválida.");
+    const setupUsd = amountOf(terms?.setupUsd, "Setup", 1_000_000);
+    const monthlyUsd = amountOf(terms?.monthlyUsd, "SaaS mensual", 100_000);
+    const pct = clean(String(terms?.usagePct ?? "")).replace(",", ".");
+    if (!PCT.test(pct) || Number(pct) > 10) throw new PlatformError("Uso de infraestructura: porcentaje entre 0 y 10 (hasta 3 decimales).");
+    const usagePct = Number(pct).toFixed(3);
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const message = await platformTx(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE`;
+      const org = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: { displayName: true, feeSetupUsd: true, feeMonthlyUsd: true, feeUsagePct: true },
+      });
+      if (!org) throw new PlatformError("Organización no encontrada.");
+      const from = { setupUsd: org.feeSetupUsd.toFixed(2), monthlyUsd: org.feeMonthlyUsd.toFixed(2), usagePct: org.feeUsagePct.toFixed(3) };
+      const to = { setupUsd, monthlyUsd, usagePct };
+      if (from.setupUsd === to.setupUsd && from.monthlyUsd === to.monthlyUsd && from.usagePct === to.usagePct) {
+        throw new PlatformError("Las tarifas no cambiaron.");
+      }
+      await tx.organization.update({
+        where: { id: organizationId },
+        data: { feeSetupUsd: setupUsd, feeMonthlyUsd: monthlyUsd, feeUsagePct: usagePct },
+      });
+      await audit(tx, session, meta, {
+        organizationId,
+        action: "FEE_TERMS_UPDATED",
+        entityType: "Organization",
+        entityId: organizationId,
+        payload: { tenant: org.displayName, from, to, appliesTo: "devengos futuros; los asientos existentes no cambian" },
+      });
+      return `${org.displayName}: tarifas actualizadas (aplican a los próximos devengos)`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** Issues an invoice over ACCRUED entries of one developer: they become INVOICED. */
+export async function issueInvoice(entryIds: string[], invoiceNumber: string): Promise<PlatformActionResult> {
+  try {
+    const ids = Array.isArray(entryIds) ? [...new Set(entryIds)] : [];
+    if (!ids.length || ids.length > MAX_INVOICE_ENTRIES || !ids.every((id) => typeof id === "string" && ID.test(id))) {
+      throw new PlatformError(`Selecciona entre 1 y ${MAX_INVOICE_ENTRIES} asientos.`);
+    }
+    const number = clean(invoiceNumber).toUpperCase();
+    if (!INVOICE_NUMBER.test(number)) throw new PlatformError("Número de factura inválido: 4 a 40 caracteres (letras, números, . / -).");
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const message = await platformTx(async (tx) => {
+      const entries = await tx.feeLedgerEntry.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, organizationId: true, status: true, kind: true, period: true, amountUsd: true, organization: { select: { displayName: true } } },
+      });
+      if (entries.length !== ids.length) throw new PlatformError("Algún asiento seleccionado no existe.");
+      const [first] = entries;
+      if (!first || entries.some((e) => e.organizationId !== first.organizationId)) {
+        throw new PlatformError("Una factura agrupa asientos de un solo desarrollador.");
+      }
+      const billed = entries.filter((e) => e.status !== "ACCRUED");
+      if (billed.length) throw new PlatformError(`Sólo se facturan asientos ACCRUED (${billed.length} ya están ${billed[0]!.status}).`);
+      const total = entries.slice(1).reduce((s, e) => s.add(e.amountUsd), first.amountUsd);
+
+      const invoice = await tx.feeInvoice.create({
+        data: { organizationId: first.organizationId, number, issuedAt: new Date(), totalUsd: total },
+      });
+      const { count } = await tx.feeLedgerEntry.updateMany({
+        where: { id: { in: ids }, status: "ACCRUED", invoiceId: null },
+        data: { status: "INVOICED", invoiceId: invoice.id },
+      });
+      if (count !== ids.length) throw new PlatformError("Otro administrador facturó alguno de estos asientos; recarga la consola.");
+      await audit(tx, session, meta, {
+        organizationId: first.organizationId,
+        action: "FEE_INVOICED",
+        entityType: "FeeInvoice",
+        entityId: invoice.id,
+        payload: {
+          tenant: first.organization.displayName,
+          invoiceNumber: number,
+          totalUsd: total.toFixed(2),
+          entries: entries.map((e) => ({ id: e.id, kind: e.kind, period: e.period, amountUsd: e.amountUsd.toFixed(2) })),
+        },
+      });
+      return `Factura ${number} emitida a ${first.organization.displayName} · ${entries.length} asiento(s) · ${total.toFixed(2)} USD`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
+    return failure(e, "Ese número de factura ya existe.");
+  }
+}
+
+/** Records the payment of an invoice (date on the receipt + receipt reference): its entries become PAID. */
+export async function recordInvoicePayment(invoiceId: string, paidOn: string, receipt: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof invoiceId !== "string" || !ID.test(invoiceId)) throw new PlatformError("Factura inválida.");
+    if (typeof paidOn !== "string" || !DATE.test(paidOn) || Number.isNaN(Date.parse(`${paidOn}T00:00:00Z`))) {
+      throw new PlatformError("Fecha de pago inválida (AAAA-MM-DD).");
+    }
+    const paidDate = new Date(`${paidOn}T00:00:00Z`);
+    if (paidDate.toISOString().slice(0, 10) !== paidOn) throw new PlatformError("Fecha de pago inválida.");
+    if (paidOn > new Date().toISOString().slice(0, 10)) throw new PlatformError("La fecha de pago no puede ser futura.");
+    const reference = clean(receipt).toUpperCase();
+    if (!RECEIPT.test(reference)) throw new PlatformError("Comprobante inválido: 4 a 64 caracteres (letras, números, espacio y . _ / # -).");
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const message = await platformTx(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM fee_invoices WHERE id = ${invoiceId} FOR UPDATE`;
+      const invoice = await tx.feeInvoice.findUnique({
+        where: { id: invoiceId },
+        include: { entries: { select: { id: true, status: true } }, organization: { select: { displayName: true } } },
+      });
+      if (!invoice) throw new PlatformError("Factura no encontrada.");
+      if (invoice.paidOn) throw new PlatformError(`La factura ${invoice.number} ya tiene un pago registrado.`);
+      if (paidOn < invoice.issuedAt.toISOString().slice(0, 10)) {
+        throw new PlatformError("La fecha de pago no puede ser anterior a la emisión de la factura.");
+      }
+      const { count } = await tx.feeLedgerEntry.updateMany({ where: { invoiceId, status: "INVOICED" }, data: { status: "PAID" } });
+      if (count !== invoice.entries.length) throw new PlatformError("Hay asientos de la factura que no están INVOICED.");
+      const paid = await tx.feeInvoice.updateMany({ where: { id: invoiceId, paidOn: null }, data: { paidOn: paidDate, paymentReceipt: reference } });
+      if (paid.count !== 1) throw new PlatformError("Otro administrador registró el pago; recarga la consola.");
+      await audit(tx, session, meta, {
+        organizationId: invoice.organizationId,
+        action: "FEE_PAYMENT_RECORDED",
+        entityType: "FeeInvoice",
+        entityId: invoiceId,
+        payload: {
+          tenant: invoice.organization.displayName,
+          invoiceNumber: invoice.number,
+          paidOn,
+          paymentReceipt: reference,
+          totalUsd: invoice.totalUsd.toFixed(2),
+          entries: invoice.entries.map((e) => e.id),
+        },
+      });
+      return `Pago de la factura ${invoice.number} registrado (${paidOn} · ${reference})`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
+    return failure(e);
+  }
+}

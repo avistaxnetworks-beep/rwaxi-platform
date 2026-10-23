@@ -147,6 +147,14 @@ enum AuditAction {
   PAYMENT_CONFIRMED
   CHAIN_TX_CONFIRMED
   SUBSCRIPTION_MINTED
+  // platform governance and B2B billing (admin.rwaxi.com)
+  PORTAL_STATUS_CHANGED
+  ORGANIZATION_PUBLICATION_CHANGED
+  OFFERING_CAPTURE_PAUSED
+  OFFERING_CAPTURE_RESUMED
+  FEE_TERMS_UPDATED
+  FEE_INVOICED
+  FEE_PAYMENT_RECORDED
 }
 
 // ─────────────────────────────────────────────────────────────── 1. tenant
@@ -189,6 +197,7 @@ model Organization {
   subscriptions    Subscription[]
   chainTxs         ChainTransaction[]
   feeEntries       FeeLedgerEntry[]
+  feeInvoices      FeeInvoice[]
   auditEvents      AuditEvent[]
 
   @@map("organizations")
@@ -251,6 +260,8 @@ model Offering {
   /// current Data Room Merkle root (bytes32 hex) — see @rwaxi/blockchain-sdk/merkle
   dataRoomRoot         String?          @map("data_room_root")
   published            Boolean          @default(false)
+  /// platform (off-chain) pause of capital raising: no new subscriptions while set; never touches the token
+  capturePausedAt      DateTime?        @map("capture_paused_at")
   createdAt            DateTime         @default(now()) @map("created_at")
   updatedAt            DateTime         @updatedAt @map("updated_at")
 
@@ -527,14 +538,40 @@ model FeeLedgerEntry {
   accruedOn      DateTime  @map("accrued_on") @db.Date
   evidence       String // contract ref or tx hash
   status         FeeStatus @default(ACCRUED)
+  /// RWAXI invoice that billed it: set exactly when status is INVOICED or PAID (CHECK)
+  invoiceId      String?   @map("invoice_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  invoice      FeeInvoice?   @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, status])
+  @@index([invoiceId])
   @@map("fee_ledger_entries")
+}
+
+/// RWAXI B2B invoice to a developer: groups ACCRUED ledger entries of one organization.
+/// Issued → its entries are INVOICED; payment recorded (date + receipt) → they are PAID.
+model FeeInvoice {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  /// RWAXI invoice number, unique across the platform
+  number         String    @unique
+  issuedAt       DateTime  @map("issued_at")
+  totalUsd       Decimal   @map("total_usd") @db.Decimal(18, 2)
+  /// payment date stated on the receipt; set together with paymentReceipt (CHECK)
+  paidOn         DateTime? @map("paid_on") @db.Date
+  paymentReceipt String?   @map("payment_receipt")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      FeeLedgerEntry[]
+
+  @@index([organizationId])
+  @@map("fee_invoices")
 }
 
 // ─────────────────────────────────────────────────────────────── 14. audit trail
