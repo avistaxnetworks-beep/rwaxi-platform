@@ -56,12 +56,13 @@ export function EnvironmentFrame({
         tab={d.inspector.tab}
         setTab={d.setInspectorTab}
         toast={d.toast}
+        canExecute={env === "backoffice"}
       />
       {d.leadOverlay && (
         <LeadOverlay
           lead={d.leadOverlay.lead}
-          tenant={d.tenants[d.leadOverlay.id]}
-          project={byId(d.leadOverlay.id)}
+          tenant={d.leadOverlay.tenant ?? d.tenants[d.leadOverlay.id]}
+          project={d.leadOverlay.project ?? byId(d.leadOverlay.id)}
         />
       )}
       {d.modal?.type === "subscribe" && (

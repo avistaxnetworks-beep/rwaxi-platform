@@ -22,10 +22,13 @@ export function Backoffice({
   openInspector: m,
   // Persisted compliance inbox (app/tenant/[slug]/backoffice/_components/compliance-inbox.tsx).
   complianceSlot: g,
+  // Persisted payments desk and chain queue (app/tenant/[slug]/backoffice/_components/subscriptions-desk.tsx).
+  subscriptionsSlot: q,
 }) {
   const u = [
     ["config", "Settings2", "Configuración White Label"],
     ["cumplimiento", "ShieldCheck", "Cumplimiento y Leads"],
+    ["suscripciones", "Coins", "Suscripciones y Pagos"],
     ["dataroom", "Database", "Data Room y Minting"],
   ];
   return (
@@ -84,6 +87,7 @@ export function Backoffice({
       <main className="gutter max-w-[1240px] mx-auto py-8">
         {s === "config" && <ConfigTab t={e} p={a} setTenant={t} toPortal={r} toast={i} photos={d} />}
         {s === "cumplimiento" && g}
+        {s === "suscripciones" && q}
         {s === "dataroom" && (
           <DataMintTab emit={p} t={e} p={a} setTenant={t} setJourney={n} journey={o} toast={i} />
         )}

@@ -18,7 +18,9 @@
     "db:provision-app-role": "pnpm --filter @rwaxi/database db:provision-app-role",
     "contracts:compile": "pnpm --filter @rwaxi/contracts compile",
     "contracts:test": "pnpm --filter @rwaxi/contracts test",
-    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
+    "e2e": "pnpm --filter @rwaxi/e2e e2e",
+    "e2e:rpc": "pnpm --filter @rwaxi/e2e e2e:rpc"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

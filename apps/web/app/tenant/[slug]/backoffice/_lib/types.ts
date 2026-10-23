@@ -1,4 +1,5 @@
 // View models shared by the backoffice server code and its client components (no runtime imports).
+import type { ChainQueueItem } from "@/app/_lib/chain-queue-types";
 
 /** KYC status keys used by the prototype UI (KYC_LABEL). */
 export type KycView = "no_iniciado" | "pendiente" | "aprobado" | "rechazado";
@@ -36,7 +37,13 @@ export interface ComplianceRow {
 export interface AuditEntry {
   id: string;
   at: string;
-  action: "KYC_APPROVED" | "KYC_REJECTED" | "SUBSCRIPTION_CREATED";
+  action:
+    | "KYC_APPROVED"
+    | "KYC_REJECTED"
+    | "SUBSCRIPTION_CREATED"
+    | "PAYMENT_CONFIRMED"
+    | "CHAIN_TX_CONFIRMED"
+    | "SUBSCRIPTION_MINTED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;
@@ -53,3 +60,50 @@ export interface ComplianceInboxData {
 export type ComplianceInboxResult = { ok: true; data: ComplianceInboxData } | { ok: false; error: string };
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
+
+export type QueueRunResult =
+  | { ok: true; message: string; executed: number; skipped: { id: string; kind: string; reason: string }[] }
+  | { ok: false; error: string };
+
+export type SubscriptionView = "RESERVED" | "PAYMENT_PENDING" | "MINT_PENDING" | "MINTED" | "CANCELLED";
+
+export interface SubscriptionRow {
+  id: string;
+  investorName: string;
+  doc: string;
+  wallet: string | null;
+  offeringCode: string;
+  assetName: string;
+  units: number;
+  capitalUsd: number;
+  status: SubscriptionView;
+  createdAt: string;
+  /** reference the investor was asked to put on the fiduciary transfer (SUB-XXXXXXXX) */
+  paymentCode: string | null;
+  /** SHA-256 of the canonical subscription agreement signed in the portal */
+  agreementHash: string | null;
+  paymentReference: string | null;
+  paymentConfirmedAt: string | null;
+  paymentConfirmedBy: string | null;
+  paymentEvidenceRef: string | null;
+  mintTxHash: string | null;
+  /** the queued mintSubscription() of this subscription, when there is one */
+  mint: { chainTxId: string; status: "PENDING" | "CONFIRMED" | "REVERTED"; blockedReason: string | null } | null;
+  /** why the payment cannot be confirmed yet (token not deployed or paused) */
+  paymentBlocker: string | null;
+}
+
+export interface SubscriptionsDeskData {
+  organization: { slug: string; legalName: string; brandColor: string; feeUsagePct: number };
+  admin: { name: string; email: string };
+  execution: { mode: "SIMULATION" | "RPC"; operator: string | null };
+  subscriptions: SubscriptionRow[];
+  /** PENDING ChainTransaction rows in execution order (oldest first) */
+  queue: ChainQueueItem[];
+  /** latest confirmed rows, newest first */
+  recent: ChainQueueItem[];
+  fees: { accruedUsd: number; entries: number };
+  audit: AuditEntry[];
+}
+
+export type SubscriptionsDeskResult = { ok: true; data: SubscriptionsDeskData } | { ok: false; error: string };

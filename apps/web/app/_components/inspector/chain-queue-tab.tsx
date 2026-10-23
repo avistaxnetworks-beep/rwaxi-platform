@@ -1,10 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { Icon } from "@/app/_components/ui/icon";
 import { Mono } from "@/app/_components/ui/primitives";
 import { copyText, shortHash } from "@/app/_lib/format";
 import type { ChainQueueItem, ChainQueueResponse } from "@/app/_lib/chain-queue-types";
+import {
+  executeChainTransaction,
+  processChainQueue,
+  registerOfficerTransaction,
+} from "@/app/tenant/[slug]/backoffice/chain-actions";
 
 const POLL_MS = 10_000;
 
@@ -17,19 +22,31 @@ const STATUS: Record<ChainQueueItem["status"], [string, string]> = {
   REVERTED: ["✗ REVERTED", "bg-[#3a1018] text-[#FF8A80]"],
 };
 
-/** Inspector tab 4: ChainTransaction rows of the host tenant, read from PostgreSQL (RLS). */
+const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
+
+type Run = (busyId: string, action: () => Promise<{ ok: true; message: string } | { ok: false; error: string }>) => void;
+
+/**
+ * Inspector tab 4: ChainTransaction rows of the host tenant, read from PostgreSQL (RLS).
+ * From the backoffice (canExecute) PENDING rows can be signed and executed, one by one or in order.
+ */
 export function ChainQueueTab({
   selectedSlug,
   selectedName,
   toast,
+  canExecute,
 }: {
   selectedSlug: string;
   selectedName: string;
   toast: (message: string) => void;
+  canExecute: boolean;
 }) {
   const [scope, setScope] = useState<"pending" | "all">("pending");
   const [res, setRes] = useState<ChainQueueResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +65,25 @@ export function ChainQueueTab({
     const timer = setInterval(load, POLL_MS);
     return () => clearInterval(timer);
   }, [load]);
+
+  const run: Run = (busyId, action) => {
+    if (busy) return;
+    setBusy(busyId);
+    setError(null);
+    startTransition(async () => {
+      const result = await action();
+      setBusy(null);
+      if (result.ok) toast(result.message);
+      else setError(result.error);
+      await load();
+    });
+  };
+  // RPC mode: registry calls are signed by the compliance officer, so the queue run never sends them.
+  const runnable = res?.ok
+    ? res.items.filter(
+        (t) => t.status === "PENDING" && !t.blockedReason && !(res.execution.mode === "RPC" && REGISTRY_KINDS.has(t.kind)),
+      ).length
+    : 0;
 
   return (
     <div className="flex flex-col gap-3" data-chain-queue>
@@ -82,8 +118,44 @@ export function ChainQueueTab({
 
       {res?.ok && (
         <Mono className="text-[11px] text-[#A79FC0]">
-          {`PostgreSQL · ChainTransaction · RLS ${res.tenant.displayName} · ${res.items.length} transacción(es) · más reciente primero`}
+          {`PostgreSQL · ChainTransaction · RLS ${res.tenant.displayName} · ${res.items.length} transacción(es) · ${
+            res.scope === "pending" ? "orden de ejecución (más antigua primero)" : "más reciente primero"
+          }`}
         </Mono>
+      )}
+      {res?.ok && (
+        <div
+          className="border border-white/15 px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-2"
+          data-execution-mode={res.execution.mode}
+        >
+          <span
+            className={`font-mono text-[10.5px] px-2 py-0.5 ${
+              res.execution.mode === "SIMULATION" ? "bg-[#2a1f4a] text-[#C4B5FD]" : "bg-[#0c3a2c] text-[#6EE7B7]"
+            }`}
+          >
+            {res.execution.mode === "SIMULATION" ? "SIMULACIÓN · firmada, sin difundir" : "RPC · nodo configurado"}
+          </span>
+          <Mono className="text-[11px] text-[#A79FC0]">
+            {res.execution.operator ? `operador ${short(res.execution.operator)}` : "OPERATOR_PRIVATE_KEY no configurada"}
+          </Mono>
+          {canExecute ? (
+            <button
+              disabled={!!busy || res.counts.pending === 0}
+              onClick={() => run("queue", processChainQueue)}
+              className="ml-auto font-mono text-[11px] bg-rxAqua text-rxDeep px-2.5 py-1.5 inline-flex items-center gap-1.5 focus-ring disabled:opacity-50"
+            >
+              <Icon name={busy === "queue" ? "Loader2" : "Play"} size={13} className={busy === "queue" ? "spin" : ""} />
+              {`Procesar cola en orden${scope === "pending" ? ` (${runnable}/${res.counts.pending})` : ""}`}
+            </button>
+          ) : (
+            <Mono className="ml-auto text-[10.5px] text-[#A79FC0]">La ejecución se autoriza desde el Backoffice del tenant.</Mono>
+          )}
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="font-mono text-[11.5px] text-[#FF8A80] border border-[#FF8A80]/40 px-3 py-2">
+          {error}
+        </p>
       )}
       {res?.ok && res.tenant.slug !== selectedSlug && (
         <p className="font-mono text-[11.5px] text-[#D9A24A] border border-[#D9A24A]/40 px-3 py-2">
@@ -100,7 +172,18 @@ export function ChainQueueTab({
           </span>
         </p>
       )}
-      {res?.ok && res.items.map((tx) => <QueueCard key={tx.id} tx={tx} toast={toast} />)}
+      {res?.ok &&
+        res.items.map((tx) => (
+          <QueueCard
+            key={tx.id}
+            tx={tx}
+            toast={toast}
+            mode={res.execution.mode}
+            canExecute={canExecute}
+            busy={busy}
+            run={run}
+          />
+        ))}
       {res?.ok && !res.items.length && (
         <p className="font-mono text-[12px] text-[#A79FC0] border border-white/15 px-4 py-6 text-center">
           {scope === "pending" ? "No hay transacciones pendientes para este tenant." : "Sin transacciones para este tenant."}
@@ -110,9 +193,26 @@ export function ChainQueueTab({
   );
 }
 
-function QueueCard({ tx, toast }: { tx: ChainQueueItem; toast: (message: string) => void }) {
+function QueueCard({
+  tx,
+  toast,
+  mode,
+  canExecute,
+  busy,
+  run,
+}: {
+  tx: ChainQueueItem;
+  toast: (message: string) => void;
+  mode: "RPC" | "SIMULATION";
+  canExecute: boolean;
+  busy: string | null;
+  run: Run;
+}) {
   const [open, setOpen] = useState(false);
+  const [officerHash, setOfficerHash] = useState("");
   const [label, cls] = STATUS[tx.status];
+  // RPC mode: RWAXI never signs registry calls; the officer's own signed tx is registered by hash.
+  const officerSigned = mode === "RPC" && REGISTRY_KINDS.has(tx.kind);
   return (
     <article data-chain-tx={tx.status} className="border border-white/15 bg-[#120726]">
       <header className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-white/10">
@@ -148,6 +248,52 @@ function QueueCard({ tx, toast }: { tx: ChainQueueItem; toast: (message: string)
           {`firma requerida: ${tx.signerRole} → ${tx.contract} @ ${short(tx.contractAddress)}`}
         </p>
         {tx.note && <p className="font-mono text-[10.5px] text-[#D9A24A] break-words">{`⚠ ${tx.note}`}</p>}
+        {tx.status === "PENDING" && (
+          <p
+            data-blocked={tx.blockedReason ? "true" : "false"}
+            className={`font-mono text-[10.5px] break-words ${tx.blockedReason ? "text-[#FF8A80]" : "text-[#6EE7B7]"}`}
+          >
+            {tx.blockedReason ? `⛔ ${tx.blockedReason}` : "✓ ejecutable: prelación e invariantes del contrato verificadas"}
+          </p>
+        )}
+        {tx.execution && (
+          <p className="font-mono text-[10.5px] text-[#A79FC0] break-words" data-execution={tx.execution.mode}>
+            {`${tx.execution.mode === "SIMULATION" ? "simulación determinista · firmada sin difundir" : "RPC"} · signer ${
+              tx.execution.signer ? short(tx.execution.signer) : "—"
+            } · nonce ${tx.execution.nonce ?? "—"}${tx.execution.executedAt ? ` · ${utc(tx.execution.executedAt)}` : ""}`}
+          </p>
+        )}
+        {canExecute && tx.status === "PENDING" && !officerSigned && (
+          <button
+            disabled={!!busy || !!tx.blockedReason}
+            onClick={() => run(tx.id, () => executeChainTransaction(tx.id))}
+            className="self-start font-mono text-[11px] bg-white text-rxDeep px-2.5 py-1.5 inline-flex items-center gap-1.5 focus-ring disabled:opacity-40"
+          >
+            <Icon name={busy === tx.id ? "Loader2" : "Play"} size={13} className={busy === tx.id ? "spin" : ""} />
+            Firmar y ejecutar
+          </button>
+        )}
+        {canExecute && tx.status === "PENDING" && officerSigned && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <label htmlFor={`officer-${tx.id}`} className="font-mono text-[10.5px] text-[#A79FC0]">
+              tx hash firmado por el Oficial de Cumplimiento
+            </label>
+            <input
+              id={`officer-${tx.id}`}
+              value={officerHash}
+              onChange={(ev) => setOfficerHash(ev.target.value)}
+              placeholder="0x…"
+              className="flex-1 min-w-[220px] bg-[#0B0518] border border-white/15 text-white font-mono text-[11px] px-2 py-1.5"
+            />
+            <button
+              disabled={!!busy || !!tx.blockedReason || !/^0x[0-9a-fA-F]{64}$/.test(officerHash.trim())}
+              onClick={() => run(tx.id, () => registerOfficerTransaction(tx.id, officerHash))}
+              className="font-mono text-[11px] bg-white text-rxDeep px-2.5 py-1.5 focus-ring disabled:opacity-40"
+            >
+              Registrar tx
+            </button>
+          </div>
+        )}
         {tx.expectedEvent && (
           <div className="border-l-2 border-[#D9A24A] pl-3">
             <p className="font-mono text-[11.5px]">

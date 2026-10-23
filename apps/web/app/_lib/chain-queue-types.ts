@@ -22,6 +22,10 @@ export interface ChainQueueItem {
   signerRole: string;
   /** ordering / precondition the signer must respect (PENDING rows only) */
   note: string | null;
+  /** why this PENDING row cannot be executed yet (contract invariant or queue precedence) */
+  blockedReason: string | null;
+  /** how a confirmed row was executed — SIMULATION rows were signed but never broadcast */
+  execution: { mode: "RPC" | "SIMULATION"; signer: string | null; nonce: number | null; executedAt: string | null } | null;
   investorName: string | null;
   offeringCode: string | null;
   txHash: string | null;
@@ -33,6 +37,8 @@ export type ChainQueueResponse =
   | {
       ok: true;
       tenant: { slug: string; displayName: string };
+      /** how "Firmar y ejecutar" confirms rows on this deployment */
+      execution: { mode: "RPC" | "SIMULATION"; operator: string | null };
       scope: "pending" | "all";
       counts: { pending: number; total: number };
       items: ChainQueueItem[];

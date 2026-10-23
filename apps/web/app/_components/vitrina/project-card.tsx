@@ -8,7 +8,9 @@ import { alt, initials, money, nf, onColor, pct, shortHash } from "@/app/_lib/fo
 
 export function ProjectCard({ p: e, currency: a, onOpen: t, photos: o, dev: n }) {
   const l = STAGES[e.stage],
-    r = Math.round(e.totalUnits * (1 - e.subscribed)),
+    // committed units: live catalogue (rwaxi_public_offerings) or the prototype's subscribed share
+    u = e.unitsSubscribed ?? Math.round(e.totalUnits * e.subscribed),
+    r = e.totalUnits - u,
     i = [
       ["TIR Estimada", "Escenario base · E.A.", pct(e.tir)],
       [
@@ -20,7 +22,14 @@ export function ProjectCard({ p: e, currency: a, onOpen: t, photos: o, dev: n })
       ["Ticket Mínimo", alt(e.ticket, a), money(e.ticket, a)],
     ];
   return (
-    <article className="bg-white border border-line flex flex-col min-w-0 hover:border-[#B9B2CC] transition-colors">
+    <article
+      data-offering={e.code ?? e.id}
+      data-units-subscribed={u}
+      data-total-units={e.totalUnits}
+      data-min-ticket={e.ticket}
+      data-stage={e.stage}
+      className="bg-white border border-line flex flex-col min-w-0 hover:border-[#B9B2CC] transition-colors"
+    >
       <CardGallery p={e} photos={o} st={l} />
       <div className="p-6 flex flex-col gap-5 flex-1">
         <div>
@@ -92,12 +101,18 @@ export function ProjectCard({ p: e, currency: a, onOpen: t, photos: o, dev: n })
               {pct(e.subscribed * 100, 0)}
               {" suscrito"}
             </span>
-            <span className="font-mono text-muted tnum">
-              {nf(0).format(r)}
-              {" unidades disp."}
+            <span className="font-mono text-muted tnum" data-units-label>
+              {nf(0).format(u)}
+              {" / "}
+              {nf(0).format(e.totalUnits)}
+              {" unidades"}
             </span>
           </div>
           <Progress value={e.subscribed} />
+          <p className="mt-1.5 text-[10.5px] text-muted tnum">
+            {nf(0).format(r)}
+            {" unidades disponibles"}
+          </p>
         </div>
         {n.portalStatus !== "ACTIVE" ? (
           <p className="mt-auto text-center text-[12.5px] font-semibold py-3 border border-line bg-cloud text-muted inline-flex items-center justify-center gap-2">

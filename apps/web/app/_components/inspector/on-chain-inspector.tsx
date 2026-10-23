@@ -24,6 +24,8 @@ export function OnChainInspector({
   tab: d,
   setTab: p,
   toast: m,
+  // Executing the persisted queue is a backoffice decision (environment-frame passes env === "backoffice").
+  canExecute: x,
 }) {
   if (
     (useEffect(() => {
@@ -110,11 +112,13 @@ export function OnChainInspector({
           {d === "state" && <StateTab s={v} toast={m} />}
           {d === "log" && <LogTab log={r} tenants={t} tenantId={s} toast={m} />}
           {d === "sim" && <SimTab s={v} emit={i} setChainX={l} toast={m} />}
-          {d === "db" && <ChainQueueTab selectedSlug={t[s].slug} selectedName={t[s].displayName} toast={m} />}
+          {d === "db" && (
+            <ChainQueueTab selectedSlug={t[s].slug} selectedName={t[s].displayName} toast={m} canExecute={!!x} />
+          )}
         </div>
         <footer className="px-5 py-2.5 border-t border-white/10 font-mono text-[10.5px] text-[#A79FC0]">
           {d === "db"
-            ? "Datos reales de PostgreSQL (ChainTransaction, aislado por RLS). Las operaciones PENDING aún no se han enviado a la red: el calldata se codifica con los ABI compilados de RwaxiComplianceRegistry y RwaxiPropertyToken y espera la firma del rol indicado."
+            ? "Datos reales de PostgreSQL (ChainTransaction, aislado por RLS). El calldata se codifica con los ABI compilados de RwaxiComplianceRegistry y RwaxiPropertyToken. «Firmar y ejecutar» respeta la prelación (approveInvestor antes del mint) y las invariantes de los contratos; en modo simulación firma con OPERATOR_PRIVATE_KEY sin difundir a la red."
             : "Simulación determinista del estado de los contratos; el código fuente es real y compila con solc 0.8.24. Direcciones y hashes de transacción son de demostración; los hashes SHA-256 de documentos, NDA y KYC se calculan en tu navegador."}
         </footer>
       </aside>

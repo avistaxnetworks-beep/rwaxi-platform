@@ -14,8 +14,10 @@ export function Catalog({
   onOpen: n,
   photosFor: l,
   tenants: r,
+  // Live catalogue from PostgreSQL (rwaxi_public_offerings); the prototype list is the fallback.
+  projects: P,
 }) {
-  const i = PROJECTS.filter((d) => r[d.id].published),
+  const i = (P || PROJECTS).filter((d) => r[d.id] && r[d.id].published),
     s = i.filter((d) => e === "todos" || d.stage === e),
     c = [
       ["todos", "Todos"],

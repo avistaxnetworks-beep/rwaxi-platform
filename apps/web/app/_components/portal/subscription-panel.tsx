@@ -133,12 +133,22 @@ export function SubscriptionPanel({
                         data-holding={u.status}
                         className={`text-[10.5px] font-semibold px-2 py-0.5 ${u.status === "en_wallet" ? "bg-aquaTint text-aquaInk" : "bg-goldTint text-goldInk"}`}
                       >
-                        {u.status === "en_wallet" ? "En wallet" : u.status === "mint_pendiente" ? "Mint en cola" : "Reservado"}
+                        {u.status === "en_wallet"
+                          ? "En wallet"
+                          : u.status === "mint_pendiente"
+                            ? "Mint en cola"
+                            : u.status === "pago_pendiente"
+                              ? "Pago pendiente"
+                              : "Reservado"}
                       </span>
                     </td>
                     <td className="px-3 py-3">
                       {u.tx ? (
                         <CopyChip text={u.tx} display={shortHash(u.tx, 8, 4)} toast={s} className="text-[11.5px]" />
+                      ) : u.paymentCode ? (
+                        <span className="text-[11px] text-goldInk font-mono" title="Referencia para la transferencia fiduciaria">
+                          {`Ref. ${u.paymentCode}`}
+                        </span>
                       ) : (
                         <span className="text-[11px] text-muted">{u.status === "mint_pendiente" ? "en cola" : "—"}</span>
                       )}

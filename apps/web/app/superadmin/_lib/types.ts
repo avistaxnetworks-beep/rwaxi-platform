@@ -13,7 +13,10 @@ export interface SubscribedVolume {
   /** all non-cancelled subscriptions, USD */
   capitalUsd: number;
   mintedUsd: number;
+  /** payment reconciled, mintSubscription() queued (MINT_PENDING) */
   pendingUsd: number;
+  /** agreement signed, fiduciary payment not reconciled yet (PAYMENT_PENDING) */
+  paymentPendingUsd: number;
   reservedUsd: number;
 }
 

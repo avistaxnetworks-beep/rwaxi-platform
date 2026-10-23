@@ -6,15 +6,17 @@ import { Icon } from "@/app/_components/ui/icon";
 import { PROJECTS } from "@/app/_lib/data/projects";
 import { alt, money } from "@/app/_lib/format";
 
-export function Hero({ view: e, go: a, currency: t, setCurrency: o }) {
+export function Hero({ view: e, go: a, currency: t, setCurrency: o, projects: P }) {
+  // Live catalogue when provided (raise × committed share = capital committed).
+  const L = P && P.length ? P : PROJECTS;
   const n = useMemo(() => {
-      const i = PROJECTS.reduce((c, d) => c + d.raise, 0),
-        s = PROJECTS.reduce((c, d) => c + d.raise * d.subscribed, 0);
+      const i = L.reduce((c, d) => c + d.raise, 0),
+        s = L.reduce((c, d) => c + d.raise * d.subscribed, 0);
       return {
         raise: i,
         sub: s,
       };
-    }, []),
+    }, [L]),
     l = [
       ["catalogo", "01", "Oportunidades estructuradas"],
       ["simulador", "02", "Simulador y estructura de 4 capas"],
@@ -91,7 +93,7 @@ export function Hero({ view: e, go: a, currency: t, setCurrency: o }) {
                 <dt className="text-[#A79FC0] tracking-[0.08em] uppercase text-[10.5px] font-semibold">
                   Vehículos
                 </dt>
-                <dd className="font-mono text-[22px] mt-1 tnum">{PROJECTS.length}</dd>
+                <dd className="font-mono text-[22px] mt-1 tnum">{L.length}</dd>
               </div>
               <div className="bg-rxDeep p-4">
                 <dt className="text-[#A79FC0] tracking-[0.08em] uppercase text-[10.5px] font-semibold">
@@ -116,9 +118,9 @@ export function Hero({ view: e, go: a, currency: t, setCurrency: o }) {
                   Ticket desde
                 </dt>
                 <dd className="font-mono text-[15px] tnum text-right">
-                  {money(Math.min(...PROJECTS.map((i) => i.ticket)), t)}
+                  {money(Math.min(...L.map((i) => i.ticket)), t)}
                   <span className="block text-[11px] text-[#A79FC0]">
-                    {alt(Math.min(...PROJECTS.map((i) => i.ticket)), t)}
+                    {alt(Math.min(...L.map((i) => i.ticket)), t)}
                   </span>
                 </dd>
               </div>

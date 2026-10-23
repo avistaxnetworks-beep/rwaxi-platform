@@ -12,12 +12,11 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { evidenceHash, toOnchainId } from "@rwaxi/blockchain-sdk";
-import { encodeFunctionData, type Address, type Hex } from "viem";
-import { rwaxiPropertyTokenAbi } from "@rwaxi/blockchain-sdk/abi";
-import { Prisma, withTenant, type RiskProfile } from "@rwaxi/database";
+import { Prisma, isUniqueViolation, withTenant, type RiskProfile } from "@rwaxi/database";
 import { ACTIVITIES, COUNTRIES, INCOME, REGIMES, RISK, validateStep } from "@/app/_lib/data/kyc";
 import { REF_COOKIE, verifyReferral } from "@/app/_lib/referral";
 import { readInvestorSession, startInvestorSession } from "@/app/_lib/server/investor-session";
+import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
 import { OFFERING_STATE_SELECT, PORTAL_OFFERING, isoSeconds, offeringState, toHolding, toHoldings } from "./_lib/journey";
 import type {
@@ -57,7 +56,7 @@ class OnboardingError extends Error {}
 
 function failure(e: unknown): { ok: false; error: string } {
   if (e instanceof OnboardingError || e instanceof TenantAccessError) return { ok: false, error: e.message };
-  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+  if (isUniqueViolation(e)) {
     return { ok: false, error: "El correo, el documento o la wallet ya están registrados por otro inversionista de este portal." };
   }
   console.error("[portal] onboarding action failed", e);
@@ -391,10 +390,11 @@ const usd = (n: Prisma.Decimal | number) =>
   `${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Number(n))} USD`;
 
 /**
- * Subscribes an approved investor: Subscription + units committed on the Offering, and — when
- * the token is deployed — mintSubscription() queued as ChainTransaction PENDING plus RWAXI's
- * INFRASTRUCTURE_USAGE fee. Pre-sale offerings (no token yet) only reserve units, with no fee,
- * as in the prototype ledger. Always records an AuditEvent.
+ * Signs a subscription for an approved investor and commits its units on the Offering.
+ * Deployed token → PAYMENT_PENDING: the developer reconciles the fiduciary payment in the
+ * backoffice (confirmPayment), which queues mintSubscription() and accrues RWAXI's fee.
+ * Pre-sale (no token yet) → RESERVED: no payment flow, mint or fee until a token exists.
+ * Always records an AuditEvent with the canonical agreement (agreementHash).
  */
 export async function subscribe(input: SubscriptionSubmission): Promise<SubscriptionResult> {
   try {
@@ -417,7 +417,7 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         if (!investor) throw new OnboardingError("Tu sesión ya no es válida; firma de nuevo el NDA.");
         const org = await tx.organization.findUniqueOrThrow({
           where: { id: tenant.id },
-          select: { taxId: true, feeUsagePct: true },
+          select: { taxId: true },
         });
         const offering = await tx.offering.findFirst({ ...PORTAL_OFFERING, select: OFFERING_STATE_SELECT });
         if (!offering) throw new OnboardingError("Este portal no tiene una oferta publicada.");
@@ -447,7 +447,9 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         }
 
         const now = new Date();
-        const tokenAddress = state.tokenDeployed ? (offering.token?.contractAddress ?? null) : null;
+        // Deployed token: the signature reserves units and waits for the developer to reconcile the
+        // fiduciary payment (backoffice), which queues the mint. Pre-sale: a reservation only.
+        const awaitsPayment = state.tokenDeployed;
         const created = await tx.subscription.create({
           data: {
             organizationId: tenant.id,
@@ -455,11 +457,11 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
             investorId: investor.id,
             units,
             capitalUsd: capital,
-            status: tokenAddress ? "MINT_PENDING" : "RESERVED",
+            status: awaitsPayment ? "PAYMENT_PENDING" : "RESERVED",
           },
         });
         const onchainId = toOnchainId(created.id);
-        // The agreement the investor signed: its SHA-256 is the on-chain paymentEvidenceRef.
+        // The agreement the investor signed; its hash is combined with the payment reference later.
         const agreement = {
           version: 1,
           subscription: { id: created.id, onchainId },
@@ -473,44 +475,11 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
           kycDossierHash: kyc.dossierHash,
           createdAt: now.toISOString(),
         };
-        const evidence = evidenceHash(agreement);
-
-        let chainTx: { id: string; status: string } | null = null;
-        let fee: { id: string; amountUsd: Prisma.Decimal } | null = null;
-        if (tokenAddress) {
-          const args = [onchainId, wallet as Address, BigInt(units), evidence as Hex] as const;
-          encodeFunctionData({ abi: rwaxiPropertyTokenAbi, functionName: "mintSubscription", args }); // fail fast on bad args
-          chainTx = await tx.chainTransaction.create({
-            data: {
-              organizationId: tenant.id,
-              offeringId: offering.id,
-              network: offering.network,
-              kind: "SUBSCRIPTION_MINTED",
-              contractAddress: tokenAddress,
-              method: "mintSubscription(bytes32,address,uint256,bytes32)",
-              args: { subscriptionId: onchainId, investor: wallet, amount: units, paymentEvidenceRef: evidence },
-              status: "PENDING",
-            },
-            select: { id: true, status: true },
-          });
-          fee = await tx.feeLedgerEntry.create({
-            data: {
-              organizationId: tenant.id,
-              subscriptionId: created.id,
-              kind: "INFRASTRUCTURE_USAGE",
-              amountUsd: capital.mul(org.feeUsagePct).div(100).toDecimalPlaces(2),
-              baseUsd: capital,
-              accruedOn: now,
-              evidence: `ChainTransaction ${chainTx.id} · mintSubscription ${onchainId}`,
-              status: "ACCRUED",
-            },
-            select: { id: true, amountUsd: true },
-          });
-        }
+        const agreementHash = evidenceHash(agreement);
 
         const subscription = await tx.subscription.update({
           where: { id: created.id },
-          data: { onchainId, paymentEvidenceRef: evidence },
+          data: { onchainId, agreementHash },
         });
         await tx.auditEvent.create({
           data: {
@@ -520,17 +489,14 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
             actorEmail: investor.email ?? "inversionista",
             entityType: "Subscription",
             entityId: created.id,
-            subjectHash: evidence,
+            subjectHash: agreementHash,
             payload: {
               investorId: investor.id,
               investorName: investor.fullName,
               units,
               capitalUsd: capital.toFixed(2),
               status: subscription.status,
-              chainTransactionId: chainTx?.id ?? null,
-              chainStatus: chainTx?.status ?? null,
-              feeLedgerEntryId: fee?.id ?? null,
-              feeUsd: fee ? fee.amountUsd.toFixed(2) : null,
+              paymentCode: awaitsPayment ? paymentCodeOf(onchainId) : null,
               agreement,
             },
             ...meta,
@@ -543,17 +509,22 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
           orderBy: { createdAt: "asc" },
         });
         const fresh = await tx.offering.findUniqueOrThrow({ where: { id: offering.id }, select: OFFERING_STATE_SELECT });
-        return { holding: toHolding(subscription)!, holdings: toHoldings(all), offering: offeringState(fresh), queued: !!chainTx };
+        return {
+          holding: toHolding(subscription)!,
+          holdings: toHoldings(all),
+          offering: offeringState(fresh),
+          paymentCode: awaitsPayment ? paymentCodeOf(onchainId) : null,
+        };
       },
       TX_OPTIONS,
     );
 
     refresh();
-    const { queued, ...data } = out;
+    const { paymentCode, ...data } = out;
     return {
       ok: true,
-      message: queued
-        ? `Suscripción registrada: ${units} unidades · mintSubscription() en cola`
+      message: paymentCode
+        ? `Suscripción firmada: ${units} unidades reservadas · transfiere el pago con la referencia ${paymentCode}`
         : `Reserva registrada: ${units} unidades (el token aún no está emitido)`,
       ...data,
     };

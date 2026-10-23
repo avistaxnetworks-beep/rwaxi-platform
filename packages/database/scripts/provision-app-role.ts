@@ -132,11 +132,13 @@ async function main() {
       SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${opts.role}) AS exists`;
     const exists = existsRow?.exists ?? false;
     const [obj] = await owner.$queryRaw<
-      { migrations: boolean; audit: boolean; curOrg: boolean; resolve: boolean }[]
+      { migrations: boolean; audit: boolean; curOrg: boolean; resolve: boolean; catalog: boolean; nonce: boolean }[]
     >`SELECT to_regclass('public._prisma_migrations') IS NOT NULL AS migrations,
              to_regclass('public.audit_events') IS NOT NULL AS audit,
              to_regprocedure('public.rwaxi_current_org()') IS NOT NULL AS "curOrg",
-             to_regprocedure('public.rwaxi_resolve_tenant(text)') IS NOT NULL AS resolve`;
+             to_regprocedure('public.rwaxi_resolve_tenant(text)') IS NOT NULL AS resolve,
+             to_regprocedure('public.rwaxi_public_offerings()') IS NOT NULL AS catalog,
+             to_regprocedure('public.rwaxi_next_simulated_nonce("ChainNetwork",text)') IS NOT NULL AS nonce`;
 
     if (!exists || opts.rotate) password = newPassword();
     const role = q(opts.role);
@@ -166,6 +168,8 @@ async function main() {
       `ALTER DEFAULT PRIVILEGES FOR ROLE ${q(me.usr)} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${role}`,
       ...(obj?.curOrg ? [`GRANT EXECUTE ON FUNCTION rwaxi_current_org() TO ${role}`] : []),
       ...(obj?.resolve ? [`GRANT EXECUTE ON FUNCTION rwaxi_resolve_tenant(text) TO ${role}`] : []),
+      ...(obj?.catalog ? [`GRANT EXECUTE ON FUNCTION rwaxi_public_offerings() TO ${role}`] : []),
+      ...(obj?.nonce ? [`GRANT EXECUTE ON FUNCTION rwaxi_next_simulated_nonce("ChainNetwork", text) TO ${role}`] : []),
       // the app never touches the migration history, and the audit trail is append-only
       ...(obj?.migrations ? [`REVOKE ALL ON TABLE _prisma_migrations FROM ${role}`] : []),
       ...(obj?.audit ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE audit_events FROM ${role}`] : []),

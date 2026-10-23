@@ -1,4 +1,4 @@
-import "server-only";
+// Pure ABI encoding of outbox rows (no I/O, no secrets): shared by the API, the executor and its tests.
 import {
   encodeFunctionData,
   getAbiItem,
@@ -116,6 +116,17 @@ function argsView(spec: CallSpec | undefined, args: Record<string, unknown>): Ch
   return Object.entries(args).map(([name, value]) => ({ name, type: typeof value, value: show(value) }));
 }
 
+const argsOf = (raw: unknown) =>
+  (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+
+/** ABI calldata for an outbox row, or null when its stored args cannot be encoded. */
+export function calldataOf(tx: Pick<ChainTransaction, "kind" | "args" | "method">): { calldata: `0x${string}`; fn: string } | null {
+  const spec = CALLS[tx.kind];
+  if (!spec) return null;
+  const { calldata } = encode(spec, argsOf(tx.args), tx.method);
+  return calldata ? { calldata: calldata as `0x${string}`, fn: spec.fn } : null;
+}
+
 /** Wallet an outbox row refers to (whitelisting: `wallet`; minting: `investor`). */
 export function walletOf(args: unknown): string | null {
   const a = (args ?? {}) as { wallet?: unknown; investor?: unknown };
@@ -126,8 +137,9 @@ export function walletOf(args: unknown): string | null {
 export function toQueueItem(
   tx: ChainTransaction & { offering: { code: string } | null },
   investorByWallet: Map<string, string>,
+  blockedReason: string | null = null,
 ): ChainQueueItem {
-  const args = (tx.args && typeof tx.args === "object" && !Array.isArray(tx.args) ? tx.args : {}) as Record<string, unknown>;
+  const args = argsOf(tx.args);
   const spec = CALLS[tx.kind];
   const wallet = walletOf(args);
   return {
@@ -143,6 +155,15 @@ export function toQueueItem(
     ...(spec ? encode(spec, args, tx.method) : NOT_ENCODED),
     signerRole: SIGNER[tx.kind],
     note: tx.status === "PENDING" ? (spec?.note ?? null) : null,
+    blockedReason: tx.status === "PENDING" ? blockedReason : null,
+    execution: tx.executionMode
+      ? {
+          mode: tx.executionMode,
+          signer: tx.signerAddress,
+          nonce: tx.nonce,
+          executedAt: tx.executedAt?.toISOString() ?? null,
+        }
+      : null,
     investorName: wallet ? (investorByWallet.get(wallet) ?? null) : null,
     offeringCode: tx.offering?.code ?? null,
     txHash: tx.txHash,

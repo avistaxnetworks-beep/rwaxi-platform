@@ -20,7 +20,9 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
   const b = g
       ? [
           "Firma del contrato y registro en PostgreSQL",
-          v ? "mintSubscription() en cola · ChainTransaction PENDING" : "Reserva de unidades en el registro del vehículo",
+          v
+            ? "Unidades reservadas · pago fiduciario pendiente de conciliación por el desarrollador"
+            : "Reserva de unidades en el registro del vehículo",
           "Certificado con el SHA-256 del contrato",
         ]
       : [

@@ -93,7 +93,7 @@ export function PlatformOverview({ metrics, currency }: { metrics: PlatformMetri
           label="Volumen suscrito"
           value={money(t.subscribed.capitalUsd, currency, true)}
           raw={t.subscribed}
-          sub={`en wallet ${money(t.subscribed.mintedUsd, currency, true)} · mint en cola ${money(t.subscribed.pendingUsd, currency, true)} · reservas ${money(t.subscribed.reservedUsd, currency, true)}`}
+          sub={`en wallet ${money(t.subscribed.mintedUsd, currency, true)} · mint en cola ${money(t.subscribed.pendingUsd, currency, true)} · pago por conciliar ${money(t.subscribed.paymentPendingUsd, currency, true)} · reservas ${money(t.subscribed.reservedUsd, currency, true)}`}
         />
         <Kpi
           id="fees"

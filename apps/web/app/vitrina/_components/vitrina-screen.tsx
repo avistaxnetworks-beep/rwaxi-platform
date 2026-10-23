@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { EnvironmentFrame } from "@/app/_components/shell/environment-frame";
 import { useDemo } from "@/app/_components/shell/demo-provider";
 import { VitrinaNav } from "@/app/_components/vitrina/vitrina-nav";
@@ -7,26 +8,54 @@ import { Hero } from "@/app/_components/vitrina/hero";
 import { Catalog } from "@/app/_components/vitrina/catalog";
 import { HowItWorks } from "@/app/_components/vitrina/how-it-works";
 import { LegalFrontier } from "@/app/_components/vitrina/legal-frontier";
+import { Icon } from "@/app/_components/ui/icon";
+import { PROJECTS } from "@/app/_lib/data/projects";
 import { issueReferral } from "../actions";
+import type { PublicCatalogResult } from "../_lib/catalog";
+import { projectIdOf, toVitrinaDeveloper, toVitrinaProject } from "../_lib/catalog-view";
 
-export function VitrinaScreen() {
+/* eslint-disable @typescript-eslint/no-explicit-any -- the prototype components are untyped */
+export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {
   const d = useDemo();
+
+  // Live catalogue: projects and developers come from rwaxi_public_offerings(); the
+  // prototype data is only a fallback when the database cannot be reached.
+  const { projects, developers } = useMemo(() => {
+    if (!catalog.ok) return { projects: PROJECTS as any[], developers: d.tenants };
+    const live: Record<string, any> = {};
+    for (const o of catalog.offerings) live[projectIdOf(o)] = toVitrinaDeveloper(o, d.tenants[projectIdOf(o)]);
+    return { projects: catalog.offerings.map(toVitrinaProject), developers: { ...d.tenants, ...live } };
+  }, [catalog, d.tenants]);
 
   // Every click to a developer portal carries a referral signed on the server (HMAC-SHA256).
   const openPortal = async (projectId: string) => {
-    const result = await issueReferral(d.tenants[projectId].slug);
+    const developer = developers[projectId];
+    const result = await issueReferral(developer.slug);
     if (!result.ok) {
       d.toast(result.error);
       return;
     }
-    d.openLead(projectId, result);
+    d.openLead(projectId, result, {
+      slug: developer.slug,
+      tenant: developer,
+      project: projects.find((p) => p.id === projectId),
+    });
   };
+
   return (
     <EnvironmentFrame env="vitrina">
       <VitrinaNav currency={d.currency} setCurrency={d.setCurrency} toBackoffice={() => d.navigate("backoffice")} />
-      <Hero view="catalogo" go={() => {}} currency={d.currency} setCurrency={d.setCurrency} />
+      {!catalog.ok && (
+        <div role="alert" className="bg-goldTint text-goldInk border-b border-line">
+          <p className="gutter max-w-[1240px] mx-auto py-3 text-[12.5px] flex gap-2 items-center">
+            <Icon name="AlertTriangle" size={15} />
+            {catalog.error}
+          </p>
+        </div>
+      )}
+      <Hero view="catalogo" go={() => {}} currency={d.currency} setCurrency={d.setCurrency} projects={projects} />
       <main className="flex-1">
-        <div id="oportunidades" className="scroll-mt-20">
+        <div id="oportunidades" className="scroll-mt-20" data-live-catalog={catalog.ok ? "neon" : "prototipo"}>
           <Catalog
             photosFor={d.photosFor}
             filter={d.filter}
@@ -34,7 +63,8 @@ export function VitrinaScreen() {
             currency={d.currency}
             setCurrency={d.setCurrency}
             onOpen={openPortal}
-            tenants={d.tenants}
+            tenants={developers}
+            projects={projects}
           />
         </div>
         <HowItWorks />

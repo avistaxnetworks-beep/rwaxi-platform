@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { forTenant, type KycStatus, type Prisma, type Subscription } from "@rwaxi/database";
 import { REF_COOKIE, verifyReferral, type ReferralClaims } from "@/app/_lib/referral";
 import { readInvestorSession } from "@/app/_lib/server/investor-session";
+import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { TenantAccessError, requireHostTenant } from "@/app/_lib/server/tenant-context";
 import type {
   KycStatusView,
@@ -54,7 +55,7 @@ export function offeringState(o: OfferingStateRow): PortalOfferingState {
 const HOLDING_STATUS: Record<Subscription["status"], PersistedHolding["status"] | null> = {
   MINTED: "en_wallet",
   MINT_PENDING: "mint_pendiente",
-  PAYMENT_VERIFIED: "mint_pendiente",
+  PAYMENT_PENDING: "pago_pendiente",
   RESERVED: "reservado",
   CANCELLED: null,
 };
@@ -70,7 +71,8 @@ export function toHolding(s: Subscription): PersistedHolding | null {
     since: s.createdAt.toISOString().slice(0, 10),
     status,
     tx: s.mintTxHash,
-    evidenceHash: s.paymentEvidenceRef,
+    evidenceHash: s.agreementHash ?? s.paymentEvidenceRef,
+    paymentCode: s.status === "PAYMENT_PENDING" ? paymentCodeOf(s.onchainId) : null,
   };
 }
 

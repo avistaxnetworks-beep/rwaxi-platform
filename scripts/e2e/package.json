@@ -1,0 +1,13 @@
+{
+  "name": "@rwaxi/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pruebas E2E (Chrome headless) de los 4 entornos contra pnpm dev y la base de datos de packages/database/.env",
+  "scripts": {
+    "e2e": "node run.cjs",
+    "e2e:rpc": "node run-rpc.cjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.43.1"
+  }
+}

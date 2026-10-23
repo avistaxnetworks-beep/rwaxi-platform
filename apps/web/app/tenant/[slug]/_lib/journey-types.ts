@@ -37,11 +37,13 @@ export interface PersistedHolding {
   accrued: number;
   /** YYYY-MM-DD */
   since: string;
-  status: "en_wallet" | "mint_pendiente" | "reservado";
+  status: "en_wallet" | "mint_pendiente" | "pago_pendiente" | "reservado";
   /** mint transaction hash, once confirmed on-chain */
   tx: string | null;
-  /** SHA-256 of the subscription agreement (paymentEvidenceRef on-chain) */
+  /** SHA-256 of the signed subscription agreement */
   evidenceHash: string | null;
+  /** reference to quote in the fiduciary transfer (SUB-XXXXXXXX) */
+  paymentCode: string | null;
 }
 
 /** Offering availability as stored in PostgreSQL. */

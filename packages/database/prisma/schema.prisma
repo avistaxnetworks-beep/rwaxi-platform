@@ -97,11 +97,16 @@ enum RiskProfile {
 }
 
 enum SubscriptionStatus {
-  RESERVED // reserva sin token emitido (pre-venta)
-  MINT_PENDING // token emitido: mintSubscription() en cola (ChainTransaction PENDING)
-  PAYMENT_VERIFIED
-  MINTED // tokens en wallet del inversionista
+  RESERVED // reserva sin token emitido (pre-venta): sin pago, mint ni comisión
+  PAYMENT_PENDING // contrato firmado, unidades reservadas; espera la conciliación del pago fiduciario
+  MINT_PENDING // pago confirmado por el desarrollador: mintSubscription() en cola (ChainTransaction PENDING)
+  MINTED // mint confirmado: tokens en la wallet del inversionista
   CANCELLED
+}
+
+enum ChainExecutionMode {
+  RPC // enviada y confirmada contra un nodo
+  SIMULATION // firmada con OPERATOR_PRIVATE_KEY de forma determinista, sin difundir
 }
 
 enum ChainTxKind {
@@ -139,6 +144,9 @@ enum AuditAction {
   KYC_APPROVED
   KYC_REJECTED
   SUBSCRIPTION_CREATED
+  PAYMENT_CONFIRMED
+  CHAIN_TX_CONFIRMED
+  SUBSCRIPTION_MINTED
 }
 
 // ─────────────────────────────────────────────────────────────── 1. tenant
@@ -203,6 +211,7 @@ model User {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   reviewedCases  KycCase[]     @relation("KycReviewer")
   auditEvents    AuditEvent[]
+  confirmedPayments Subscription[] @relation("SubscriptionPaymentConfirmer")
 
   @@index([organizationId])
   @@map("users")
@@ -448,16 +457,26 @@ model Subscription {
   units              Int
   capitalUsd         Decimal            @map("capital_usd") @db.Decimal(18, 2)
   status             SubscriptionStatus @default(RESERVED)
+  /// SHA-256 of the signed subscription agreement (canonical JSON kept in the AuditEvent)
+  agreementHash      String?            @map("agreement_hash")
+  /// bank / fiduciary receipt reference entered by the developer when reconciling the payment
+  paymentReference   String?            @map("payment_reference")
+  paymentConfirmedAt DateTime?          @map("payment_confirmed_at")
+  paymentConfirmedById String?          @map("payment_confirmed_by_id")
+  /// evidenceHash({subscriptionId, agreementHash, paymentReference}) — mintSubscription(paymentEvidenceRef)
   paymentEvidenceRef String?            @map("payment_evidence_ref")
   mintTxHash         String?            @map("mint_tx_hash")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  offering     Offering         @relation(fields: [offeringId], references: [id], onDelete: Cascade)
-  investor     Investor         @relation(fields: [investorId], references: [id], onDelete: Cascade)
-  feeEntries   FeeLedgerEntry[]
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering           Offering         @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  investor           Investor         @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  paymentConfirmedBy User?            @relation("SubscriptionPaymentConfirmer", fields: [paymentConfirmedById], references: [id], onDelete: SetNull)
+  feeEntries         FeeLedgerEntry[]
 
+  /// one fiduciary receipt reconciles one subscription
+  @@unique([organizationId, paymentReference])
   @@index([organizationId, status])
   @@map("subscriptions")
 }
@@ -476,12 +495,21 @@ model ChainTransaction {
   blockNumber     BigInt?       @map("block_number")
   status          ChainTxStatus @default(PENDING)
   error           String?
+  /// how it was confirmed; SIMULATION = signed deterministically, never broadcast
+  executionMode   ChainExecutionMode? @map("execution_mode")
+  signerAddress   String?       @map("signer_address")
+  nonce           Int?
+  /// raw EIP-1559 signed transaction (SIMULATION); txHash = keccak256(signedTransaction)
+  signedTransaction String?     @map("signed_transaction")
+  executedAt      DateTime?     @map("executed_at")
   createdAt       DateTime      @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   offering     Offering?    @relation(fields: [offeringId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
+  /// one nonce per signer, network and mode (simulated nonces never share the real chain's sequence)
+  @@unique([network, executionMode, signerAddress, nonce], map: "chain_transactions_signer_nonce_key")
   @@map("chain_transactions")
 }
 

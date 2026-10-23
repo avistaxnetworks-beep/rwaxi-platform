@@ -62,14 +62,18 @@ interface DemoState {
   setOverrides: (u: any) => void;
   modal: ModalState;
   setModal: (m: ModalState) => void;
-  leadOverlay: { id: string; lead: any } | null;
+  leadOverlay: { id: string; lead: any; tenant: any; project: any } | null;
   toastMessage: string | null;
   toast: (msg: string) => void;
   photosFor: (project: any) => any;
   uploadPhotos: (projectId: string, files: FileList | File[] | null) => void;
   /** Vitrina → Portal hand-off with a RWAXI referral token (LeadReferral). */
   /** Overlay + hand-off to the portal with a token signed by the vitrina (issueReferral). */
-  openLead: (projectId: string, referral: { token: string; referralId: string; issuedAt: string }) => void;
+  openLead: (
+    projectId: string,
+    referral: { token: string; referralId: string; issuedAt: string },
+    target: { slug: string; tenant: any; project: any },
+  ) => void;
   confirmSubscription: (draft: any) => void;
   navigate: (env: EnvId, tenantId?: string, search?: string) => void;
 }
@@ -107,7 +111,7 @@ export function DemoProvider({ tenantSlug, children }: { tenantSlug?: string; ch
   const [overrides, setOverrides] = useState<Record<string, any>>({});
   const [superAdminTab, setSuperAdminTab] = useState("gobierno");
   const [modal, setModal] = useState<ModalState>(null);
-  const [leadOverlay, setLeadOverlay] = useState<{ id: string; lead: any } | null>(null);
+  const [leadOverlay, setLeadOverlay] = useState<DemoState["leadOverlay"]>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [photoOverrides, setPhotoOverrides] = useState<Record<string, string[]>>({});
   const [, forceRender] = useState(0);
@@ -163,13 +167,14 @@ export function DemoProvider({ tenantSlug, children }: { tenantSlug?: string; ch
       }
     };
 
-    const openLead: DemoState["openLead"] = (projectId, referral) => {
+    const openLead: DemoState["openLead"] = (projectId, referral, target) => {
       // The overlay shows the single-use id; the URL carries the full signed token.
       const lead = { token: referral.referralId, at: referral.issuedAt.replace(/\.\d{3}Z$/, "Z"), source: "RWAXI" };
-      setLeadOverlay({ id: projectId, lead });
+      setLeadOverlay({ id: projectId, lead, tenant: target.tenant, project: target.project });
       setTimeout(() => {
         setLeadOverlay(null);
-        navigate("portal", projectId, `?ref=${encodeURIComponent(referral.token)}`);
+        // vitrina → tenant portal is always a different host: full navigation.
+        window.location.assign(envHref("portal", target.slug, `?ref=${encodeURIComponent(referral.token)}`));
       }, 1900);
     };
 

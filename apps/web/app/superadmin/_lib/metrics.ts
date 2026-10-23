@@ -22,7 +22,15 @@ const KYC_VIEW: Record<string, KycKey> = {
 
 const num = (d: Prisma.Decimal | number | null | undefined) => (d === null || d === undefined ? 0 : Number(Number(d).toFixed(2)));
 const emptyFees = (): FeeTotals => ({ ACCRUED: 0, INVOICED: 0, PAID: 0, total: 0 });
-const emptyVolume = (): SubscribedVolume => ({ count: 0, units: 0, capitalUsd: 0, mintedUsd: 0, pendingUsd: 0, reservedUsd: 0 });
+const emptyVolume = (): SubscribedVolume => ({
+  count: 0,
+  units: 0,
+  capitalUsd: 0,
+  mintedUsd: 0,
+  pendingUsd: 0,
+  paymentPendingUsd: 0,
+  reservedUsd: 0,
+});
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
@@ -114,6 +122,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         v.capitalUsd = round2(v.capitalUsd + capital);
         if (g.status === "MINTED") v.mintedUsd = round2(v.mintedUsd + capital);
         else if (g.status === "RESERVED") v.reservedUsd = round2(v.reservedUsd + capital);
+        else if (g.status === "PAYMENT_PENDING") v.paymentPendingUsd = round2(v.paymentPendingUsd + capital);
         else v.pendingUsd = round2(v.pendingUsd + capital);
       }
       return v;
