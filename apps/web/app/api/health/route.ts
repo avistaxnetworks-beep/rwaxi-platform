@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { forTenant, prisma } from "@rwaxi/database";
+import { forTenant, prisma, resolveTenant } from "@rwaxi/database";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +16,8 @@ export async function GET(req: NextRequest) {
     await prisma.$queryRaw`SELECT 1`;
     body.database = "up";
     if (slug) {
-      // Slug → id lookup needs a platform-level read; here we reuse the seed's deterministic ids.
-      const orgId = { santabarbara: "org_andes_urbano", elpoblado: "org_valle_alto", avista: "org_avista" }[slug];
-      if (orgId) body.visibleOrganizations = await forTenant(orgId).organization.count();
+      const tenant = await resolveTenant(slug);
+      body.visibleOrganizations = tenant ? await forTenant(tenant.id).organization.count() : null;
     }
   } catch (err) {
     body.database = "down";

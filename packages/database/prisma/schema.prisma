@@ -1,17 +1,18 @@
-// RWAXI — multi-tenant data model (13 entities).
+// RWAXI — multi-tenant data model (14 entities).
 //
 // Tenant = Organization (a real-estate developer). Every tenant-owned table carries
 // `organization_id` and is protected by PostgreSQL Row-Level Security
-// (see migrations/*_rls/migration.sql). The app connects with a non-superuser role and
-// sets `app.current_organization_id` per transaction (src/client.ts → forTenant()).
+// (see migrations/*_row_level_security and *_audit_events). The app connects with a
+// non-superuser role and sets `app.current_organization_id` per transaction
+// (src/client.ts → forTenant() / withTenant()).
 //
-//  1 Organization          7 NdaAcceptance
-//  2 User                  8 KycCase
-//  3 Offering              9 DataRoomDocument
-//  4 TokenDeployment      10 DataRoomAccessGrant
-//  5 Investor             11 Subscription
-//  6 Lead                 12 ChainTransaction
-//                         13 FeeLedgerEntry
+//  1 Organization          8 KycCase
+//  2 User                  9 DataRoomDocument
+//  3 Offering             10 DataRoomAccessGrant
+//  4 TokenDeployment      11 Subscription
+//  5 Investor             12 ChainTransaction
+//  6 Lead                 13 FeeLedgerEntry
+//  7 NdaAcceptance        14 AuditEvent (append-only)
 
 generator client {
   provider = "prisma-client-js"
@@ -133,6 +134,11 @@ enum FeeStatus {
   PAID
 }
 
+enum AuditAction {
+  KYC_APPROVED
+  KYC_REJECTED
+}
+
 // ─────────────────────────────────────────────────────────────── 1. tenant
 
 model Organization {
@@ -173,6 +179,7 @@ model Organization {
   subscriptions    Subscription[]
   chainTxs         ChainTransaction[]
   feeEntries       FeeLedgerEntry[]
+  auditEvents      AuditEvent[]
 
   @@map("organizations")
 }
@@ -193,6 +200,7 @@ model User {
 
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   reviewedCases  KycCase[]     @relation("KycReviewer")
+  auditEvents    AuditEvent[]
 
   @@index([organizationId])
   @@map("users")
@@ -487,4 +495,33 @@ model FeeLedgerEntry {
 
   @@index([organizationId, status])
   @@map("fee_ledger_entries")
+}
+
+// ─────────────────────────────────────────────────────────────── 14. audit trail
+
+/// Append-only record of compliance decisions. The app roles may only SELECT and INSERT
+/// (no UPDATE/DELETE policies, privileges revoked) — see migrations/*_audit_events.
+model AuditEvent {
+  id             String      @id @default(cuid())
+  organizationId String      @map("organization_id")
+  action         AuditAction
+  actorUserId    String?     @map("actor_user_id")
+  /// denormalised so the trail survives the removal of the user
+  actorEmail     String      @map("actor_email")
+  entityType     String      @map("entity_type") // e.g. "KycCase"
+  entityId       String      @map("entity_id")
+  /// SHA-256 of the evidence behind the decision (KycCase.dossierHash for KYC events)
+  subjectHash    String?     @map("subject_hash")
+  /// snapshot at decision time: status transition, investor, reason, linked records
+  payload        Json
+  ipAddress      String?     @map("ip_address")
+  userAgent      String?     @map("user_agent")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_events")
 }

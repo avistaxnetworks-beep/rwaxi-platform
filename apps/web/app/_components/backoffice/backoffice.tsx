@@ -1,6 +1,5 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
-import { ComplianceTab } from "@/app/_components/backoffice/compliance-tab";
 import { ConfigTab } from "@/app/_components/backoffice/config-tab";
 import { DataMintTab } from "@/app/_components/backoffice/data-mint-tab";
 import { TenantLogo } from "@/app/_components/portal/tenant-brand";
@@ -21,6 +20,8 @@ export function Backoffice({
   photos: d,
   emit: p,
   openInspector: m,
+  // Persisted compliance inbox (app/tenant/[slug]/backoffice/_components/compliance-inbox.tsx).
+  complianceSlot: g,
 }) {
   const u = [
     ["config", "Settings2", "Configuración White Label"],
@@ -82,18 +83,7 @@ export function Backoffice({
       </header>
       <main className="gutter max-w-[1240px] mx-auto py-8">
         {s === "config" && <ConfigTab t={e} p={a} setTenant={t} toPortal={r} toast={i} photos={d} />}
-        {s === "cumplimiento" && (
-          <ComplianceTab
-            emit={p}
-            t={e}
-            p={a}
-            setTenant={t}
-            journey={o}
-            setJourney={n}
-            currency={l}
-            toast={i}
-          />
-        )}
+        {s === "cumplimiento" && g}
         {s === "dataroom" && (
           <DataMintTab emit={p} t={e} p={a} setTenant={t} setJourney={n} journey={o} toast={i} />
         )}

@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.34.7",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.9"
   },
   "scripts": {
     "dev": "turbo run dev",
@@ -15,6 +15,7 @@
     "db:migrate": "pnpm --filter @rwaxi/database db:migrate",
     "db:deploy": "pnpm --filter @rwaxi/database db:deploy",
     "db:seed": "pnpm --filter @rwaxi/database db:seed",
+    "db:provision-app-role": "pnpm --filter @rwaxi/database db:provision-app-role",
     "contracts:compile": "pnpm --filter @rwaxi/contracts compile",
     "contracts:test": "pnpm --filter @rwaxi/contracts test",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\""

@@ -23,7 +23,7 @@ const LEDGER_MONTHS = ["2026-08", "2026-09", "2026-10"];
 
 async function reset() {
   await db.$executeRawUnsafe(`
-    TRUNCATE TABLE "fee_ledger_entries", "chain_transactions", "subscriptions", "data_room_access_grants",
+    TRUNCATE TABLE "audit_events", "fee_ledger_entries", "chain_transactions", "subscriptions", "data_room_access_grants",
       "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments",
       "offerings", "users", "organizations" CASCADE`);
 }
@@ -50,7 +50,8 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       ndaTemplate: LEGAL_NDA,
       complianceTemplate: { [dev.regimeKey]: LEGAL_COMPLIANCE[dev.regimeKey] },
       onchainId: toOnchainId(orgId),
-      complianceRegistry: o.token.deployed ? demoAddress(`registry-${orgId}`) : null,
+      // Every tenant gets its RwaxiComplianceRegistry at onboarding, before any token exists.
+      complianceRegistry: demoAddress(`registry-${orgId}`),
       feeSetupUsd: dev.fees.setup,
       feeMonthlyUsd: dev.fees.monthly,
       feeUsagePct: dev.fees.usagePct,
@@ -142,32 +143,35 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
 
   const chainTxs: Prisma.ChainTransactionCreateManyInput[] = [];
   const fees: Prisma.FeeLedgerEntryCreateManyInput[] = [];
+  chainTxs.push({
+    organizationId: orgId,
+    network: o.network,
+    kind: "TENANT_REGISTRY_DEPLOYED",
+    contractAddress: demoAddress("factory"),
+    method: "deployTenantRegistry(bytes32,string,string,address,address)",
+    args: {
+      organizationId: toOnchainId(orgId),
+      organizationTaxId: dev.taxId,
+      complianceRegime: dev.regime,
+      registry: demoAddress(`registry-${orgId}`),
+    },
+    txHash: demoHash(`registry-tx-${orgId}`),
+    status: "CONFIRMED",
+    createdAt: new Date(dev.onboardedAt),
+  });
   if (tokenAddress) {
-    chainTxs.push(
-      {
-        organizationId: orgId,
-        network: o.network,
-        kind: "TENANT_REGISTRY_DEPLOYED",
-        contractAddress: demoAddress("factory"),
-        method: "deployTenantRegistry(bytes32,string,string,address,address)",
-        args: { organizationId: toOnchainId(orgId), organizationTaxId: dev.taxId, complianceRegime: dev.regime },
-        txHash: demoHash(`registry-tx-${orgId}`),
-        status: "CONFIRMED",
-        createdAt: new Date("2025-09-30"),
-      },
-      {
-        organizationId: orgId,
-        offeringId: o.id,
-        network: o.network,
-        kind: "OFFERING_TOKEN_DEPLOYED",
-        contractAddress: demoAddress("factory"),
-        method: "deployOfferingToken(bytes32,bytes32,(string,string,string,string,uint256,bytes32),address,address)",
-        args: { symbol: o.token.symbol, token: tokenAddress, dataRoomMerkleRoot: dataRoomRoot },
-        txHash: demoHash(`deploy-${o.id}`),
-        status: "CONFIRMED",
-        createdAt: new Date("2025-10-01"),
-      },
-    );
+    chainTxs.push({
+      organizationId: orgId,
+      offeringId: o.id,
+      network: o.network,
+      kind: "OFFERING_TOKEN_DEPLOYED",
+      contractAddress: demoAddress("factory"),
+      method: "deployOfferingToken(bytes32,bytes32,(string,string,string,string,uint256,bytes32),address,address)",
+      args: { symbol: o.token.symbol, token: tokenAddress, dataRoomMerkleRoot: dataRoomRoot },
+      txHash: demoHash(`deploy-${o.id}`),
+      status: "CONFIRMED",
+      createdAt: new Date("2025-10-01"),
+    });
   }
 
   // 5–8 · Investors, leads, NDA, KYC (+ grants and subscriptions for approved investors)
@@ -179,7 +183,8 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
         docType: lead.docType,
         docNumber: lead.docNumber,
         email: `inversionista${i + 1}@ejemplo.co`,
-        walletAddress: lead.kyc === "APPROVED" ? demoAddress(`wallet-${orgId}-${i}`) : null,
+        // The wallet is declared in the KYC wizard, so every investor who submitted KYC has one.
+        walletAddress: lead.nda ? demoAddress(`wallet-${orgId}-${i}`) : null,
       },
     });
     const landedAt = new Date(`2026-10-${String(12 + i * 2).padStart(2, "0")}T14:00:00Z`);
@@ -221,7 +226,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
         submittedAt: landedAt,
         reviewedById: approved ? officer.id : null,
         reviewedAt: approved ? landedAt : null,
-        whitelistTxHash: approved && tokenAddress ? demoHash(`wl-${orgId}-${i}`) : null,
+        whitelistTxHash: approved ? demoHash(`wl-${orgId}-${i}`) : null,
       },
     });
     if (!approved) continue;
@@ -237,19 +242,19 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
         expiresAt: new Date(landedAt.getTime() + 24 * 3600 * 1000),
       },
     });
-    if (tokenAddress) {
-      chainTxs.push({
-        organizationId: orgId,
-        network: o.network,
-        kind: "INVESTOR_WHITELISTED",
-        contractAddress: demoAddress(`registry-${orgId}`),
-        method: "approveInvestor(address,uint16,bytes32)",
-        args: { wallet: investor.walletAddress, countryCode: 170, kycDossierHash: kyc.dossierHash },
-        txHash: kyc.whitelistTxHash,
-        status: "CONFIRMED",
-        createdAt: landedAt,
-      });
-    }
+    // Whitelisting lives in the tenant registry, so it does not depend on a minted token.
+    chainTxs.push({
+      organizationId: orgId,
+      offeringId: o.id,
+      network: o.network,
+      kind: "INVESTOR_WHITELISTED",
+      contractAddress: demoAddress(`registry-${orgId}`),
+      method: "approveInvestor(address,uint16,bytes32)",
+      args: { wallet: investor.walletAddress, countryCode: 170, kycDossierHash: kyc.dossierHash },
+      txHash: kyc.whitelistTxHash,
+      status: "CONFIRMED",
+      createdAt: landedAt,
+    });
     if (lead.subscriptionUsd) {
       const units = Math.round(lead.subscriptionUsd / o.unitPriceUsd);
       const sub = await db.subscription.create({

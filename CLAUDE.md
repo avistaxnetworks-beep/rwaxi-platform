@@ -15,9 +15,11 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   app/vitrina/           www.rwaxi.com
   app/superadmin/        admin.rwaxi.com
   app/tenant/[slug]/     {slug}.rwaxi.com (portal) y /backoffice
+    backoffice/          bandeja de cumplimiento persistida: _lib/queries.ts (lectura), actions.ts (Server Actions)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
-packages/database        Prisma 6 · esquema multi-tenant (13 entidades) · RLS · cliente con tenant · seed
+packages/database        Prisma 6 · esquema multi-tenant (14 entidades) · RLS · cliente con tenant · seed
+  scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente)
 packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
 contracts                Hardhat 2 · solc 0.8.24 · @openzeppelin/contracts 5.0.2
 ```
@@ -36,18 +38,29 @@ Reglas:
 1. **El host decide el entorno, nunca la ruta.** Todo request de página pasa por `middleware.ts`, que lo reescribe
    con prefijo interno; por eso `/vitrina`, `/superadmin` y `/tenant/*` no son accesibles directamente. Nuevas
    páginas de un entorno van bajo su carpeta interna. `/api/*` no se reescribe: lee el tenant de `x-rwaxi-tenant`.
-2. **Nunca confiar en un tenant que venga del cliente.** El tenant sale del host (middleware) y se valida en el
-   layout `app/tenant/[slug]/layout.tsx` (`notFound()` si no existe). Subdominios reservados: ver `RESERVED_SUBDOMAINS`.
+2. **Nunca confiar en un tenant que venga del cliente.** El tenant sale del host: el middleware descarta cualquier
+   `x-rwaxi-*` recibido y fija `x-rwaxi-tenant`; el servidor lo traduce a `organizationId` con
+   `resolveTenant(slug)` (función SQL `rwaxi_resolve_tenant`, SECURITY DEFINER, sólo campos de enrutado).
+   Las Server Actions reciben únicamente ids de registros y los buscan bajo RLS: un id de otro tenant es "no encontrado".
+   Subdominios reservados: ver `RESERVED_SUBDOMAINS`.
 3. **Aislamiento en la base de datos, no sólo en la app.** Todas las tablas de tenant tienen `organization_id` y RLS
-   (`FORCE ROW LEVEL SECURITY`, fail-closed). Acceso a datos de tenant **sólo** con `forTenant(orgId)` o
-   `withTenant(orgId, fn)` de `@rwaxi/database`. `platformPrisma()` (rol `BYPASSRLS`) sólo en la consola Super-Admin.
-   Un trigger (`rwaxi_assert_same_tenant`) impide referencias a filas de otro tenant (las FK ignoran RLS).
-4. **RWAXI no custodia el valor emitido.** En contratos, RWAXI sólo tiene `RWAXI_OPERATOR_ROLE` (factory) y
+   (`FORCE ROW LEVEL SECURITY`, fail-closed). Acceso a datos de tenant **sólo** con `forTenant(orgId)` (lecturas) o
+   `withTenant(orgId, fn)` (escrituras de varios pasos, una transacción). `platformPrisma()` (rol `BYPASSRLS`) sólo en
+   la consola Super-Admin. Un trigger (`rwaxi_assert_same_tenant`) impide referencias a filas de otro tenant (las FK
+   ignoran RLS). `DATABASE_URL` debe usar un rol **sin** `BYPASSRLS` (`rwaxi_app`): el owner de Neon lo tiene y con él
+   RLS no aplica. `/api/health` en un host de tenant debe responder `visibleOrganizations: 1`.
+4. **Auditoría inmutable.** Toda decisión de cumplimiento escribe un `AuditEvent` (actor, entidad, SHA-256 de la
+   evidencia, snapshot en `payload`) en la misma transacción que el cambio. `audit_events` sólo admite SELECT/INSERT
+   para los roles de la app (sin políticas UPDATE/DELETE + privilegios revocados). Las operaciones on-chain que firma el
+   tenant se encolan como `ChainTransaction` `PENDING` (outbox) y no se marcan `CONFIRMED` sin `txHash` real.
+5. **Autenticación pendiente.** El backoffice usa una sesión demo (el `COMPLIANCE_OFFICER` del tenant), activa sólo
+   fuera de producción o con `RWAXI_DEMO_AUTH=1`. En producción, sin auth real, la bandeja y las acciones se niegan.
+6. **RWAXI no custodia el valor emitido.** En contratos, RWAXI sólo tiene `RWAXI_OPERATOR_ROLE` (factory) y
    `MINTER_ROLE`; pausa, Data Room y recuperación forzosa son del emisor; la whitelist es del oficial de cumplimiento
    del tenant. No añadir roles a RWAXI sin revisión legal.
-5. **Integridad documental.** Cada documento del Data Room se hashea (SHA-256) en el navegador; la raíz se calcula con
+7. **Integridad documental.** Cada documento del Data Room se hashea (SHA-256) en el navegador; la raíz se calcula con
    `@rwaxi/blockchain-sdk/merkle` y se ancla con `updateDataRoomMerkleRoot`. NDA y suscripción citan esa raíz.
-6. **Dominios propios**: mapa `DEFAULT_CUSTOM_DOMAINS` + `RWAXI_CUSTOM_DOMAINS` en `hosts.ts`
+8. **Dominios propios**: mapa `DEFAULT_CUSTOM_DOMAINS` + `RWAXI_CUSTOM_DOMAINS` en `hosts.ts`
    (pendiente: Edge Config alimentado desde `Organization.customDomain`).
 
 ## Identidad visual (no inventar colores ni fuentes)
@@ -79,9 +92,12 @@ pnpm test                                      # tests de contratos, SDK y hosts
 
 pnpm --filter @rwaxi/database prisma generate  # cliente Prisma (alias: pnpm db:generate)
 pnpm db:up                                     # Postgres 16 en Docker (crea roles rwaxi_app / rwaxi_platform)
-pnpm db:deploy                                 # aplica migraciones (init + RLS) con DIRECT_URL
+pnpm db:deploy                                 # aplica migraciones con DIRECT_URL (owner)
 pnpm db:migrate                                # prisma migrate dev (nuevas migraciones)
 pnpm db:seed                                   # resetea y siembra Andes Urbano, Valle Alto y Avista
+pnpm db:provision-app-role                     # crea/actualiza rwaxi_app (sin BYPASSRLS) y reaplica permisos
+pnpm db:provision-app-role --rotate --write-env packages/database/.env --write-env apps/web/.env.local
+pnpm -s db:provision-app-role --rotate --print-url | vercel env add DATABASE_URL production   # staging/prod
 
 pnpm contracts:compile                         # hardhat compile + exporta ABIs a blockchain-sdk/src/abi
 pnpm contracts:test                            # tests de cumplimiento (whitelist, freeze, clawback, roles)
@@ -91,8 +107,15 @@ Entornos en local (Chrome/Edge resuelven `*.localhost` a 127.0.0.1):
 `http://localhost:3000` (vitrina) · `http://admin.localhost:3000` · `http://avista.localhost:3000` ·
 `http://santabarbara.localhost:3000/backoffice` · `http://elpoblado.localhost:3000`.
 Variables: copiar `.env.example` a `.env`, `packages/database/.env` y `apps/web/.env.local`.
+Requiere Node ≥ 22.9 (`--env-file-if-exists`).
 Windows: con `pnpm dev` corriendo, `prisma generate` (y por tanto `pnpm build`/`pnpm typecheck`) falla con `EPERM`
 porque el servidor tiene cargado el motor de Prisma. Detener el dev server antes.
+
+Provisionar un entorno (staging/prod): 1) `pnpm db:deploy` con el owner en `DIRECT_URL`; 2)
+`pnpm db:provision-app-role` (primera vez crea el rol; después es idempotente y conserva la contraseña salvo
+`--rotate`); 3) `DATABASE_URL` = URL que imprime `--print-url` (pooler de Neon, `connect_timeout=15`). Reejecutar el
+paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus permisos antes de `DROP ROLE`
+(en PostgreSQL 16 el creador no puede `DROP OWNED BY`).
 
 ## Convenciones
 
@@ -100,9 +123,16 @@ porque el servidor tiene cargado el motor de Prisma. Detener el dev server antes
   cortos originales y lleva `// @ts-nocheck`. Al tocar un módulo, tiparlo y quitar el pragma; no reescribir en bloque.
   El estado de demo vive en `app/_components/shell/demo-provider.tsx` (antes `App`) y se renderiza sólo en cliente
   (`ClientOnly`) hasta migrar cada pantalla a datos de `@rwaxi/database` vía server actions.
+  Migrado a BD: pestaña "Cumplimiento y Leads" del backoffice. Siguen en estado demo: portal (NDA/KYC/suscripción),
+  configuración White Label, Data Room y minting, Super-Admin e Inspector On-Chain.
+- Patrón de pantalla persistida: página server (`dynamic = "force-dynamic"`) → `_lib/queries.ts` (`server-only`,
+  devuelve un resultado `ok/error`, nunca lanza) → componente cliente tipado → `actions.ts` (`withTenant`, transición
+  condicional de estado, `AuditEvent`, `revalidatePath`).
 - Código nuevo: TypeScript estricto. Componentes de un solo entorno van colocados en `app/<entorno>/_components`.
 - `packages/blockchain-sdk/src/abi/*` es generado: no editar; correr `pnpm contracts:compile` tras cambiar `.sol`.
 - Cambios de esquema: editar `schema.prisma` y crear migración con `pnpm db:migrate`. Toda tabla nueva de tenant
-  necesita `organization_id`, entrada en el bucle RLS y, si referencia otra tabla de tenant, trigger `same_tenant`.
+  necesita `organization_id`, `ENABLE`/`FORCE ROW LEVEL SECURITY` + política en su migración y, si referencia otra
+  tabla de tenant, trigger `same_tenant`. Los privilegios por defecto dan SELECT/INSERT/UPDATE/DELETE a `rwaxi_app`:
+  una tabla append-only debe revocar UPDATE/DELETE en su migración y en `scripts/provision-app-role.ts`.
 - Copys en español (Colombia); importes con `money()` (COP/USD, TRM de demo 4.100).
 - Cifras, proyectos, direcciones y hashes de los seeds son ilustrativos.
