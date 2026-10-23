@@ -1,0 +1,490 @@
+// RWAXI — multi-tenant data model (13 entities).
+//
+// Tenant = Organization (a real-estate developer). Every tenant-owned table carries
+// `organization_id` and is protected by PostgreSQL Row-Level Security
+// (see migrations/*_rls/migration.sql). The app connects with a non-superuser role and
+// sets `app.current_organization_id` per transaction (src/client.ts → forTenant()).
+//
+//  1 Organization          7 NdaAcceptance
+//  2 User                  8 KycCase
+//  3 Offering              9 DataRoomDocument
+//  4 TokenDeployment      10 DataRoomAccessGrant
+//  5 Investor             11 Subscription
+//  6 Lead                 12 ChainTransaction
+//                         13 FeeLedgerEntry
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────────── enums
+
+enum PortalStatus {
+  ACTIVE
+  REVIEW
+  SUSPENDED
+}
+
+enum DomainStatus {
+  NOT_CONFIGURED
+  PENDING_DNS
+  VERIFIED
+}
+
+enum ComplianceRegime {
+  SAGRILAFT_PTEE
+  SARLAFT
+}
+
+enum UserRole {
+  SUPER_ADMIN // Dirección RWAXI (admin.rwaxi.com)
+  RWAXI_OPERATOR // operación técnica RWAXI: factory + mint
+  TENANT_ADMIN // administrador del desarrollador (backoffice)
+  COMPLIANCE_OFFICER // oficial de cumplimiento del desarrollador
+  TENANT_ANALYST // lectura en backoffice
+}
+
+enum OfferingStage {
+  PRESALE // Pre-venta
+  STRUCTURING // En estructuración / construcción
+  OPERATING // En operación / rentando
+}
+
+enum LegalWrapperType {
+  SAS_SPV // SPV Sociedad por Acciones Simplificada
+  FIDUCIARY_TRUST // Patrimonio Autónomo / Encargo Fiduciario
+  PARTICIPATION_ACCOUNTS // Cuentas en Participación
+}
+
+enum ChainNetwork {
+  POLYGON
+  BASE
+  POLYGON_AMOY
+  BASE_SEPOLIA
+  HARDHAT
+}
+
+enum TokenStatus {
+  NOT_DEPLOYED
+  DEPLOYING
+  DEPLOYED
+  PAUSED
+}
+
+enum LeadSource {
+  RWAXI // atribuido desde la vitrina www.rwaxi.com
+  DIRECT // tráfico propio del desarrollador
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RiskProfile {
+  CONSERVATIVE
+  MODERATE
+  DYNAMIC
+}
+
+enum SubscriptionStatus {
+  RESERVED // reserva sin token emitido (pre-venta)
+  PAYMENT_VERIFIED
+  MINTED // tokens en wallet del inversionista
+  CANCELLED
+}
+
+enum ChainTxKind {
+  TENANT_REGISTRY_DEPLOYED
+  OFFERING_TOKEN_DEPLOYED
+  INVESTOR_WHITELISTED
+  INVESTOR_REVOKED
+  INVESTOR_FREEZE_UPDATED
+  SUBSCRIPTION_MINTED
+  DATA_ROOM_ROOT_ANCHORED
+  FORCED_RECOVERY
+  TOKEN_PAUSED
+  TOKEN_UNPAUSED
+}
+
+enum ChainTxStatus {
+  PENDING
+  CONFIRMED
+  REVERTED
+}
+
+enum FeeKind {
+  SETUP // Setup / Onboarding
+  SAAS // Suscripción SaaS
+  USAGE // Uso · operación verificada
+}
+
+enum FeeStatus {
+  ACCRUED
+  INVOICED
+  PAID
+}
+
+// ─────────────────────────────────────────────────────────────── 1. tenant
+
+model Organization {
+  id                     String           @id @default(cuid())
+  slug                   String           @unique // {slug}.rwaxi.com
+  displayName            String           @map("display_name")
+  legalName              String           @map("legal_name")
+  taxId                  String           @unique @map("tax_id") // NIT
+  brandColor             String           @map("brand_color") // #RRGGBB
+  logoUrl                String?          @map("logo_url")
+  customDomain           String?          @unique @map("custom_domain")
+  domainStatus           DomainStatus     @default(NOT_CONFIGURED) @map("domain_status")
+  complianceRegime       ComplianceRegime @map("compliance_regime")
+  complianceContactEmail String           @map("compliance_contact_email")
+  portalStatus           PortalStatus     @default(REVIEW) @map("portal_status")
+  published              Boolean          @default(false)
+  ndaTemplate            String           @map("nda_template")
+  complianceTemplate     Json             @map("compliance_template")
+  /// keccak256(id) — organizationId in RwaxiTenantFactory
+  onchainId              String?          @unique @map("onchain_id")
+  complianceRegistry     String?          @map("compliance_registry_address")
+  feeSetupUsd            Decimal          @default(0) @map("fee_setup_usd") @db.Decimal(18, 2)
+  feeMonthlyUsd          Decimal          @default(0) @map("fee_monthly_usd") @db.Decimal(18, 2)
+  feeUsagePct            Decimal          @default(0) @map("fee_usage_pct") @db.Decimal(6, 3)
+  onboardedAt            DateTime         @default(now()) @map("onboarded_at")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  users            User[]
+  offerings        Offering[]
+  tokens           TokenDeployment[]
+  investors        Investor[]
+  leads            Lead[]
+  ndaAcceptances   NdaAcceptance[]
+  kycCases         KycCase[]
+  documents        DataRoomDocument[]
+  accessGrants     DataRoomAccessGrant[]
+  subscriptions    Subscription[]
+  chainTxs         ChainTransaction[]
+  feeEntries       FeeLedgerEntry[]
+
+  @@map("organizations")
+}
+
+// ─────────────────────────────────────────────────────────────── 2. identity
+
+model User {
+  id             String        @id @default(cuid())
+  /// null for RWAXI staff (SUPER_ADMIN / RWAXI_OPERATOR)
+  organizationId String?       @map("organization_id")
+  email          String        @unique
+  fullName       String        @map("full_name")
+  role           UserRole
+  walletAddress  String?       @map("wallet_address")
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedCases  KycCase[]     @relation("KycReviewer")
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────── 3–4. offering
+
+model Offering {
+  id                   String           @id @default(cuid())
+  organizationId       String           @map("organization_id")
+  code                 String // P-01
+  assetName            String           @map("asset_name")
+  city                 String
+  region               String
+  assetType            String           @map("asset_type")
+  stage                OfferingStage
+  renderKind           String           @map("render_kind") // tower | suites | resort
+  legalEntityName      String           @map("legal_entity_name")
+  legalWrapperType     LegalWrapperType @map("legal_wrapper_type")
+  legalWrapperNote     String           @map("legal_wrapper_note")
+  economicRight        String           @map("economic_right")
+  targetIrrPct         Decimal          @map("target_irr_pct") @db.Decimal(6, 2)
+  distributionYieldPct Decimal          @map("distribution_yield_pct") @db.Decimal(6, 2)
+  appreciationPct      Decimal          @map("appreciation_pct") @db.Decimal(6, 2)
+  minTicketUsd         Decimal          @map("min_ticket_usd") @db.Decimal(18, 2)
+  unitPriceUsd         Decimal          @map("unit_price_usd") @db.Decimal(18, 2)
+  raiseTargetUsd       Decimal          @map("raise_target_usd") @db.Decimal(18, 2)
+  assetValueUsd        Decimal          @map("asset_value_usd") @db.Decimal(18, 2)
+  totalUnits           Int              @map("total_units")
+  rentStartMonths      Int              @map("rent_start_months")
+  network              ChainNetwork
+  /// [legal, financiero, tecnologia, capital] → done | active | pending
+  pipeline             Json
+  videoConfig          Json?            @map("video_config")
+  /// current Data Room Merkle root (bytes32 hex) — see @rwaxi/blockchain-sdk/merkle
+  dataRoomRoot         String?          @map("data_room_root")
+  published            Boolean          @default(false)
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  token         TokenDeployment?
+  leads         Lead[]
+  ndas          NdaAcceptance[]
+  kycCases      KycCase[]
+  documents     DataRoomDocument[]
+  accessGrants  DataRoomAccessGrant[]
+  subscriptions Subscription[]
+  chainTxs      ChainTransaction[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("offerings")
+}
+
+model TokenDeployment {
+  id              String       @id @default(cuid())
+  organizationId  String       @map("organization_id")
+  offeringId      String       @unique @map("offering_id")
+  network         ChainNetwork
+  name            String
+  symbol          String
+  maxSupply       Int          @map("max_supply")
+  unitPriceUsd    Decimal      @map("unit_price_usd") @db.Decimal(18, 2)
+  /// keccak256(offering.id) — offeringId in RwaxiTenantFactory
+  onchainId       String?      @unique @map("onchain_id")
+  contractAddress String?      @map("contract_address")
+  deployTxHash    String?      @map("deploy_tx_hash")
+  status          TokenStatus  @default(NOT_DEPLOYED)
+  deployedAt      DateTime?    @map("deployed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering     Offering     @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("token_deployments")
+}
+
+// ─────────────────────────────────────────────────────────────── 5–8. investor funnel
+
+model Investor {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  fullName       String       @map("full_name")
+  email          String?
+  docType        String       @map("doc_type") // CC | CE | PAS | NIT
+  docNumber      String       @map("doc_number")
+  countryCode    Int          @default(170) @map("country_code") // ISO 3166-1 numérico
+  walletAddress  String?      @map("wallet_address")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads         Lead[]
+  ndas          NdaAcceptance[]
+  kycCases      KycCase[]
+  accessGrants  DataRoomAccessGrant[]
+  subscriptions Subscription[]
+
+  @@unique([organizationId, docType, docNumber])
+  @@index([organizationId])
+  @@map("investors")
+}
+
+/// Referral attribution: a visitor arriving from the RWAXI vitrina carries `referral_token`.
+model Lead {
+  id             String     @id @default(cuid())
+  organizationId String     @map("organization_id")
+  offeringId     String     @map("offering_id")
+  investorId     String?    @map("investor_id")
+  referralToken  String     @unique @map("referral_token") // ref_rwx_…
+  source         LeadSource
+  landedAt       DateTime   @default(now()) @map("landed_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering     Offering     @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  investor     Investor?    @relation(fields: [investorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([offeringId])
+  @@map("leads")
+}
+
+/// ConsentRecord of the signed NDA (hash of the filled legal text + signer data).
+model NdaAcceptance {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  offeringId     String   @map("offering_id")
+  investorId     String   @map("investor_id")
+  signerName     String   @map("signer_name")
+  signerEmail    String   @map("signer_email")
+  documentHash   String   @map("document_hash") // SHA-256
+  ipAddress      String?  @map("ip_address")
+  acceptedAt     DateTime @default(now()) @map("accepted_at")
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering     Offering              @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  investor     Investor              @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  accessGrants DataRoomAccessGrant[]
+
+  @@unique([offeringId, investorId])
+  @@index([organizationId])
+  @@map("nda_acceptances")
+}
+
+model KycCase {
+  id               String       @id @default(cuid())
+  organizationId   String       @map("organization_id")
+  investorId       String       @map("investor_id")
+  offeringId       String?      @map("offering_id")
+  status           KycStatus    @default(NOT_STARTED)
+  activity         String?
+  incomeBracket    Int?         @map("income_bracket")
+  riskProfile      RiskProfile? @map("risk_profile")
+  isPep            Boolean      @default(false) @map("is_pep")
+  listsResult      String?      @map("lists_result") // listas restrictivas (OFAC, ONU, …)
+  /// SHA-256 of the KYC dossier + NDA — written on-chain as kycDossierHash
+  dossierHash      String?      @map("dossier_hash")
+  rejectionReason  String?      @map("rejection_reason")
+  reviewedById     String?      @map("reviewed_by_id")
+  reviewedAt       DateTime?    @map("reviewed_at")
+  whitelistTxHash  String?      @map("whitelist_tx_hash")
+  submittedAt      DateTime?    @map("submitted_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  investor     Investor              @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  offering     Offering?             @relation(fields: [offeringId], references: [id], onDelete: SetNull)
+  reviewedBy   User?                 @relation("KycReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  accessGrants DataRoomAccessGrant[]
+
+  @@index([organizationId, status])
+  @@map("kyc_cases")
+}
+
+// ─────────────────────────────────────────────────────────────── 9–10. data room
+
+model DataRoomDocument {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  offeringId     String   @map("offering_id")
+  folder         String // "01 Jurídico y Tradición"
+  name           String
+  restricted     Boolean  @default(true) // requires NDA + KYC grant
+  sha256         String // Merkle leaf
+  sizeBytes      Int      @map("size_bytes")
+  storageKey     String?  @map("storage_key")
+  uploadedAt     DateTime @default(now()) @map("uploaded_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering     Offering     @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@unique([offeringId, sha256])
+  @@index([organizationId])
+  @@map("data_room_documents")
+}
+
+/// Time-boxed access to restricted documents, issued once NDA is signed and KYC is approved.
+model DataRoomAccessGrant {
+  id              String    @id @default(cuid())
+  organizationId  String    @map("organization_id")
+  offeringId      String    @map("offering_id")
+  investorId      String    @map("investor_id")
+  ndaAcceptanceId String    @map("nda_acceptance_id")
+  kycCaseId       String    @map("kyc_case_id")
+  grantedAt       DateTime  @default(now()) @map("granted_at")
+  expiresAt       DateTime  @map("expires_at")
+  revokedAt       DateTime? @map("revoked_at")
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering      Offering      @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  investor      Investor      @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  ndaAcceptance NdaAcceptance @relation(fields: [ndaAcceptanceId], references: [id], onDelete: Cascade)
+  kycCase       KycCase       @relation(fields: [kycCaseId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([investorId, offeringId])
+  @@map("data_room_access_grants")
+}
+
+// ─────────────────────────────────────────────────────────────── 11–12. capital & chain
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  organizationId     String             @map("organization_id")
+  offeringId         String             @map("offering_id")
+  investorId         String             @map("investor_id")
+  /// keccak256(id) — idempotency key for mintSubscription()
+  onchainId          String?            @unique @map("onchain_id")
+  units              Int
+  capitalUsd         Decimal            @map("capital_usd") @db.Decimal(18, 2)
+  status             SubscriptionStatus @default(RESERVED)
+  paymentEvidenceRef String?            @map("payment_evidence_ref")
+  mintTxHash         String?            @map("mint_tx_hash")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering     Offering         @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  investor     Investor         @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  feeEntries   FeeLedgerEntry[]
+
+  @@index([organizationId, status])
+  @@map("subscriptions")
+}
+
+/// Append-only ledger of on-chain operations (what the On-Chain Inspector shows).
+model ChainTransaction {
+  id              String        @id @default(cuid())
+  organizationId  String        @map("organization_id")
+  offeringId      String?       @map("offering_id")
+  network         ChainNetwork
+  kind            ChainTxKind
+  contractAddress String        @map("contract_address")
+  method          String // e.g. mintSubscription(bytes32,address,uint256,bytes32)
+  args            Json
+  txHash          String?       @unique @map("tx_hash")
+  blockNumber     BigInt?       @map("block_number")
+  status          ChainTxStatus @default(PENDING)
+  error           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering     Offering?    @relation(fields: [offeringId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@map("chain_transactions")
+}
+
+// ─────────────────────────────────────────────────────────────── 13. RWAXI revenue
+
+model FeeLedgerEntry {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  subscriptionId String?   @map("subscription_id")
+  kind           FeeKind
+  amountUsd      Decimal   @map("amount_usd") @db.Decimal(18, 2)
+  /// capital base for USAGE fees
+  baseUsd        Decimal?  @map("base_usd") @db.Decimal(18, 2)
+  period         String? // YYYY-MM for SAAS
+  accruedOn      DateTime  @map("accrued_on") @db.Date
+  evidence       String // contract ref or tx hash
+  status         FeeStatus @default(ACCRUED)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@map("fee_ledger_entries")
+}

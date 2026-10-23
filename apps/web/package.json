@@ -1,0 +1,30 @@
+{
+  "name": "@rwaxi/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"app/_lib/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@rwaxi/blockchain-sdk": "workspace:*",
+    "@rwaxi/database": "workspace:*",
+    "lucide-react": "^0.577.0",
+    "next": "15.5.28",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

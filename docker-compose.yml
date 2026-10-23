@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rwaxi-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rwaxi
+    ports:
+      - "5432:5432"
+    volumes:
+      - rwaxi-pg:/var/lib/postgresql/data
+      - ./packages/database/docker/init-roles.sql:/docker-entrypoint-initdb.d/01-init-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rwaxi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  rwaxi-pg:
