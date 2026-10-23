@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { envHref, type EnvId } from "@/app/_lib/hosts";
 import { PROJECTS, byId } from "@/app/_lib/data/projects";
 import { initJourneys, initTenants } from "@/app/_lib/data/tenants";
+import { registerDbTenant, type DbTenantView } from "@/app/_lib/data/db-tenants";
 import { initFeeRules } from "@/app/_lib/data/fees";
 import { DEMO_WALLET, TX, initChainLog, subIdOf, tokenAddrOf, txHash } from "@/app/_lib/chain/simulator";
 import { projectPhotos, renderCache } from "@/app/_lib/renders";
@@ -86,10 +87,21 @@ export function useDemo(): DemoState {
   return ctx;
 }
 
-export function DemoProvider({ tenantSlug, children }: { tenantSlug?: string; children: ReactNode }) {
+export function DemoProvider({
+  tenantSlug,
+  dbTenant,
+  children,
+}: {
+  tenantSlug?: string;
+  /** tenant of this host read from PostgreSQL when it is not one of the prototype's demo developers */
+  dbTenant?: DbTenantView | null;
+  children: ReactNode;
+}) {
   const router = useRouter();
   const [boot] = useState(() => {
+    if (dbTenant) registerDbTenant(dbTenant);
     const T: Record<string, Tenant> = initTenants();
+    if (dbTenant) T[dbTenant.id] = { ...T[dbTenant.id], ...dbTenant.tenant };
     const J: Record<string, Journey> = initJourneys();
     return { T, J, L: initChainLog(T, J) as ChainTx[] };
   });

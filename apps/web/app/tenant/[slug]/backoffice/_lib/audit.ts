@@ -17,6 +17,10 @@ interface AuditPayload {
   method?: string;
   mode?: string;
   nonce?: number;
+  period?: string;
+  totalUsd?: string;
+  holders?: number;
+  offeringCode?: string;
 }
 
 const amount = (p: AuditPayload) => `${p.units ?? "?"} unidades · ${p.capitalUsd ?? "?"} USD`;
@@ -54,6 +58,8 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload): string | null 
         .join(" · ");
     case "SUBSCRIPTION_MINTED":
       return `${amount(p)} · tokens en la wallet del inversionista`;
+    case "DISTRIBUTION_DECLARED":
+      return `Distribución ${p.period} · ${p.totalUsd} USD entre ${p.holders} tenedor(es) · anchorDistributionRoot en cola`;
     default:
       return p.reason ?? (p.chainStatus ? `ChainTransaction ${p.chainStatus}` : null);
   }
@@ -66,7 +72,13 @@ export function toAuditEntry(e: AuditEvent): AuditEntry {
     at: e.createdAt.toISOString(),
     action: e.action,
     actorEmail: e.actorEmail,
-    investorName: p.investorName ?? (isPlatformAction(e.action) ? `RWAXI · ${p.tenant ?? e.entityType}` : e.entityId),
+    investorName:
+      p.investorName ??
+      (isPlatformAction(e.action)
+        ? `RWAXI · ${p.tenant ?? e.entityType}`
+        : e.action === "DISTRIBUTION_DECLARED"
+          ? `Tenedores de ${p.offeringCode ?? "la oferta"}`
+          : e.entityId),
     subjectHash: e.subjectHash,
     detail: detailOf(e.action, p),
   };

@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./canonical": "./src/canonical.ts",
+    "./distribution": "./src/distribution.ts",
     "./merkle": "./src/merkle.ts",
     "./evm-adapter": "./src/evm-adapter.ts",
     "./abi": "./src/abi/index.ts"

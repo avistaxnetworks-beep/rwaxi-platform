@@ -117,6 +117,7 @@ enum ChainTxKind {
   INVESTOR_FREEZE_UPDATED
   SUBSCRIPTION_MINTED
   DATA_ROOM_ROOT_ANCHORED
+  DISTRIBUTION_ROOT_ANCHORED
   FORCED_RECOVERY
   TOKEN_PAUSED
   TOKEN_UNPAUSED
@@ -155,6 +156,14 @@ enum AuditAction {
   FEE_TERMS_UPDATED
   FEE_INVOICED
   FEE_PAYMENT_RECORDED
+  ORGANIZATION_ONBOARDED
+  // yield distributions (backoffice)
+  DISTRIBUTION_DECLARED
+}
+
+enum DistributionStatus {
+  DECLARED // allocations committed (Merkle root computed); anchorDistributionRoot() queued
+  ANCHORED // root confirmed on the token (RwaxiPropertyToken.distributionRoots)
 }
 
 // ─────────────────────────────────────────────────────────────── 1. tenant
@@ -198,6 +207,8 @@ model Organization {
   chainTxs         ChainTransaction[]
   feeEntries       FeeLedgerEntry[]
   feeInvoices      FeeInvoice[]
+  distributions    Distribution[]
+  allocations      DistributionAllocation[]
   auditEvents      AuditEvent[]
 
   @@map("organizations")
@@ -221,6 +232,7 @@ model User {
   reviewedCases  KycCase[]     @relation("KycReviewer")
   auditEvents    AuditEvent[]
   confirmedPayments Subscription[] @relation("SubscriptionPaymentConfirmer")
+  declaredDistributions Distribution[]
 
   @@index([organizationId])
   @@map("users")
@@ -274,6 +286,7 @@ model Offering {
   accessGrants  DataRoomAccessGrant[]
   subscriptions Subscription[]
   chainTxs      ChainTransaction[]
+  distributions Distribution[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -328,6 +341,7 @@ model Investor {
   kycCases      KycCase[]
   accessGrants  DataRoomAccessGrant[]
   subscriptions Subscription[]
+  allocations   DistributionAllocation[]
 
   @@unique([organizationId, docType, docNumber])
   @@unique([organizationId, email])
@@ -522,6 +536,67 @@ model ChainTransaction {
   /// one nonce per signer, network and mode (simulated nonces never share the real chain's sequence)
   @@unique([network, executionMode, signerAddress, nonce], map: "chain_transactions_signer_nonce_key")
   @@map("chain_transactions")
+}
+
+// ─────────────────────────────────────────────────────────────── 12b. yield distributions
+
+/// A yield distribution of an offering, split pro rata over the MINTED token balances at the snapshot
+/// and committed in a SHA-256 Merkle tree (@rwaxi/blockchain-sdk/distribution).
+model Distribution {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  offeringId     String             @map("offering_id")
+  /// keccak256("rwaxi.distribution:{offeringId}:{period}"): distributionId in RwaxiPropertyToken.anchorDistributionRoot
+  onchainId      String             @unique @map("onchain_id")
+  /// month (2026-09) or quarter (2026-Q3), unique per offering
+  period         String
+  /// declared amount and currency; COP is converted at fxRate (COP per USD)
+  currency       String
+  amountDeclared Decimal            @map("amount_declared") @db.Decimal(20, 2)
+  fxRate         Decimal?           @map("fx_rate") @db.Decimal(12, 4)
+  totalUsd       Decimal            @map("total_usd") @db.Decimal(18, 2)
+  totalUnits     Int                @map("total_units")
+  holders        Int
+  snapshotAt     DateTime           @map("snapshot_at")
+  merkleRoot     String             @map("merkle_root")
+  status         DistributionStatus @default(DECLARED)
+  anchorTxHash   String?            @map("anchor_tx_hash")
+  declaredById   String?            @map("declared_by_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering     Offering                 @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  declaredBy   User?                    @relation(fields: [declaredById], references: [id], onDelete: SetNull)
+  allocations  DistributionAllocation[]
+
+  @@unique([offeringId, period])
+  @@index([organizationId, createdAt])
+  @@map("distributions")
+}
+
+/// One holder's share of a distribution with its Merkle inclusion proof. Append-only.
+model DistributionAllocation {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  distributionId String   @map("distribution_id")
+  investorId     String   @map("investor_id")
+  wallet         String
+  units          Int
+  amountUsd      Decimal  @map("amount_usd") @db.Decimal(18, 2)
+  leafHash       String   @map("leaf_hash")
+  /// sibling hashes bottom-up (bytes32[])
+  merkleProof    Json     @map("merkle_proof")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  distribution Distribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  investor     Investor     @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@unique([distributionId, investorId])
+  @@index([organizationId])
+  @@index([investorId])
+  @@map("distribution_allocations")
 }
 
 // ─────────────────────────────────────────────────────────────── 13. RWAXI revenue

@@ -6,7 +6,7 @@
 const { url } = require("./lib.cjs");
 const { seed, runSuite, waitForHttp, summary } = require("./runner.cjs");
 
-const SUITES = ["backoffice", "portal", "referrals-subscriptions", "payments-queue", "superadmin-ops"];
+const SUITES = ["backoffice", "portal", "referrals-subscriptions", "payments-queue", "superadmin-ops", "onboarding", "distributions"];
 
 (async () => {
   const selected = process.argv.slice(2).length ? process.argv.slice(2) : SUITES;

@@ -12,7 +12,7 @@ import { Icon } from "@/app/_components/ui/icon";
 import { PROJECTS } from "@/app/_lib/data/projects";
 import { issueReferral } from "../actions";
 import type { PublicCatalogResult } from "../_lib/catalog";
-import { projectIdOf, toVitrinaDeveloper, toVitrinaProject } from "../_lib/catalog-view";
+import { projectIdOf, toVitrinaDeveloper, toVitrinaProject } from "@/app/_lib/offering-view";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the prototype components are untyped */
 export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {

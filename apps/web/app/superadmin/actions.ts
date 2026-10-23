@@ -7,14 +7,29 @@
  *   Module A · governance: portal status, publication in the vitrina and the pause of an offering's
  *   capital raising. All are off-chain platform controls: RWAXI never pauses the issuer's token.
  *   Module C · B2B billing: agreed fee terms, invoices over ACCRUED ledger entries, payments.
+ *   Onboarding: a new developer (organization, team, first offering, Data Room, setup fee) and the
+ *   deployment of its RwaxiComplianceRegistry through the factory (RWAXI_OPERATOR_ROLE).
  *
  * Each action is one transaction with a conditional state transition and an AuditEvent on the
  * affected organization, whose subjectHash is the SHA-256 (canonical JSON) of the recorded decision.
  */
 import { revalidatePath } from "next/cache";
+import { keccak256, toHex } from "viem";
 import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
-import { isUniqueViolation, platformPrisma, type AuditAction, type PortalStatus, type Prisma } from "@rwaxi/database";
+import {
+  isUniqueViolation,
+  platformPrisma,
+  withTenant,
+  type AuditAction,
+  type ChainNetwork,
+  type PortalStatus,
+  type Prisma,
+} from "@rwaxi/database";
+import { LEGAL_COMPLIANCE, LEGAL_NDA } from "@/app/_lib/data/legal";
+import { ExecutionError, executeChainTx } from "@/app/_lib/server/chain-executor";
 import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
+import { parseOnboarding } from "./_lib/onboarding";
+import { RESERVED_SLUGS, SLUG_RULE } from "./_lib/onboarding-shared";
 import { requirePlatformSession, type PlatformSession } from "./_lib/session";
 import type { PlatformActionResult } from "./_lib/types";
 
@@ -31,7 +46,7 @@ const MAX_INVOICE_ENTRIES = 50;
 class PlatformError extends Error {}
 
 function failure(e: unknown, unique = "Ese registro ya existe."): PlatformActionResult {
-  if (e instanceof PlatformError || e instanceof TenantAccessError) return { ok: false, error: e.message };
+  if (e instanceof PlatformError || e instanceof TenantAccessError || e instanceof ExecutionError) return { ok: false, error: e.message };
   if (isUniqueViolation(e)) return { ok: false, error: unique };
   console.error("[superadmin] platform action failed", e);
   return { ok: false, error: "No se pudo registrar la acción. Inténtalo de nuevo." };
@@ -351,6 +366,233 @@ export async function recordInvoicePayment(invoiceId: string, paidOn: string, re
     });
     refresh();
     return { ok: true, message };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+// ───────────────────────────────────────────────────────── onboarding
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const DEPLOY_REGISTRY = "deployTenantRegistry(bytes32,string,string,address,address)";
+
+/** RwaxiTenantFactory that deploys the registry: RWAXI_FACTORY_ADDRESS, else the one the network already uses. */
+async function factoryFor(tx: Prisma.TransactionClient, network: ChainNetwork): Promise<string> {
+  const configured = process.env.RWAXI_FACTORY_ADDRESS;
+  if (configured && ADDRESS.test(configured)) return configured;
+  const known =
+    (await tx.chainTransaction.findFirst({ where: { kind: "TENANT_REGISTRY_DEPLOYED", network }, orderBy: { createdAt: "desc" }, select: { contractAddress: true } })) ??
+    (await tx.chainTransaction.findFirst({ where: { kind: "TENANT_REGISTRY_DEPLOYED" }, orderBy: { createdAt: "desc" }, select: { contractAddress: true } }));
+  if (!known) throw new PlatformError("No hay RwaxiTenantFactory configurada: define RWAXI_FACTORY_ADDRESS.");
+  return known.contractAddress;
+}
+
+/** Which unique constraint a P2002 hit, as a message for the operator. */
+function onboardingConflict(e: unknown): string {
+  const target = (e as { meta?: { target?: unknown } }).meta?.target;
+  const fields = Array.isArray(target) ? target.join(",") : String(target ?? "");
+  if (/slug/.test(fields)) return "Ese subdominio ya pertenece a otro desarrollador.";
+  if (/tax_?id/i.test(fields)) return "Ya existe un desarrollador con ese NIT.";
+  if (/email/.test(fields)) return "Uno de los correos ya pertenece a otro usuario de la plataforma.";
+  return "El desarrollador o alguno de sus datos ya existe en la plataforma.";
+}
+
+/** Live check of the wizard: format, reserved names and availability of a subdomain. */
+export async function checkSlugAvailability(slug: string): Promise<{ ok: true; available: boolean; reason: string | null } | { ok: false; error: string }> {
+  try {
+    await requirePlatformSession();
+    const value = typeof slug === "string" ? slug.trim().toLowerCase() : "";
+    if (!SLUG_RULE.test(value)) return { ok: true, available: false, reason: "3 a 32 caracteres: minúsculas, números y guiones." };
+    if (RESERVED_SLUGS.has(value)) return { ok: true, available: false, reason: "Subdominio reservado." };
+    const taken = await platformPrisma().organization.findUnique({ where: { slug: value }, select: { id: true } });
+    return { ok: true, available: !taken, reason: taken ? "Ya pertenece a otro desarrollador." : null };
+  } catch (e) {
+    return failure(e) as { ok: false; error: string };
+  }
+}
+
+/**
+ * Onboarding B2B, all or nothing: Organization (REVIEW, outside the vitrina, agreed fee terms),
+ * its TENANT_ADMIN and COMPLIANCE_OFFICER, the first offering (pre-sale or structuring) with its
+ * pending token and Data Room (Merkle root of the documents hashed in the browser), the
+ * ONBOARDING_SETUP fee (ACCRUED), the registry deployment queued for RWAXI's operator and the
+ * ORGANIZATION_ONBOARDED audit event.
+ */
+export async function onboardDeveloper(input: unknown): Promise<PlatformActionResult & { slug?: string }> {
+  try {
+    const parsed = parseOnboarding(input);
+    if (!parsed.ok) throw new PlatformError(parsed.error);
+    const { company: c, admin, officer, offering: o, documents, dataRoomRoot, fees } = parsed.plan;
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const message = await platformPrisma().$transaction(
+      async (tx) => {
+        if (await tx.offering.findFirst({ where: { code: o.code }, select: { id: true } })) {
+          throw new PlatformError(`El código ${o.code} ya se usa en la plataforma: elige otro.`);
+        }
+        const factory = await factoryFor(tx, o.network);
+        const now = new Date();
+        const regimeKey = c.regime === "SARLAFT" ? "sarlaft" : "sagrilaft";
+        const org = await tx.organization.create({
+          data: {
+            slug: c.slug,
+            displayName: c.displayName,
+            legalName: c.legalName,
+            taxId: c.taxId,
+            brandColor: c.brandColor,
+            complianceRegime: c.regime,
+            complianceContactEmail: officer.email,
+            portalStatus: "REVIEW",
+            published: false,
+            ndaTemplate: LEGAL_NDA,
+            complianceTemplate: { [regimeKey]: (LEGAL_COMPLIANCE as Record<string, unknown>)[regimeKey] } as Prisma.InputJsonValue,
+            feeSetupUsd: fees.setupUsd,
+            feeMonthlyUsd: fees.monthlyUsd,
+            feeUsagePct: fees.usagePct,
+            onboardedAt: now,
+          },
+        });
+        const onchainId = keccak256(toHex(org.id));
+        await tx.organization.update({ where: { id: org.id }, data: { onchainId } });
+        await tx.user.createMany({
+          data: [
+            { organizationId: org.id, email: admin.email, fullName: admin.fullName, role: "TENANT_ADMIN", walletAddress: admin.wallet },
+            { organizationId: org.id, email: officer.email, fullName: officer.fullName, role: "COMPLIANCE_OFFICER", walletAddress: officer.wallet },
+          ],
+        });
+        const offering = await tx.offering.create({
+          data: {
+            organizationId: org.id,
+            code: o.code,
+            assetName: o.assetName,
+            city: o.city,
+            region: o.region,
+            assetType: o.assetType,
+            stage: o.stage,
+            renderKind: o.renderKind,
+            legalEntityName: o.legalEntityName,
+            legalWrapperType: o.legalWrapperType,
+            legalWrapperNote: o.legalWrapperNote,
+            economicRight: o.economicRight,
+            targetIrrPct: o.targetIrrPct,
+            distributionYieldPct: o.distributionYieldPct,
+            appreciationPct: o.appreciationPct,
+            minTicketUsd: o.minTicketUsd,
+            unitPriceUsd: o.unitPriceUsd,
+            raiseTargetUsd: o.raiseTargetUsd,
+            assetValueUsd: o.assetValueUsd,
+            totalUnits: o.totalUnits,
+            unitsSubscribed: 0,
+            rentStartMonths: o.rentStartMonths,
+            network: o.network,
+            pipeline: o.pipeline,
+            dataRoomRoot,
+            published: true,
+          },
+        });
+        await tx.tokenDeployment.create({
+          data: {
+            organizationId: org.id,
+            offeringId: offering.id,
+            network: o.network,
+            name: `${o.assetName} Unit`,
+            symbol: o.tokenSymbol,
+            maxSupply: o.totalUnits,
+            unitPriceUsd: o.unitPriceUsd,
+            onchainId: keccak256(toHex(offering.id)),
+            status: "NOT_DEPLOYED",
+          },
+        });
+        await tx.dataRoomDocument.createMany({
+          data: documents.map((d) => ({ organizationId: org.id, offeringId: offering.id, ...d, uploadedAt: now })),
+        });
+        const fee = Number(fees.setupUsd) > 0
+          ? await tx.feeLedgerEntry.create({
+              data: {
+                organizationId: org.id,
+                kind: "ONBOARDING_SETUP",
+                amountUsd: fees.setupUsd,
+                accruedOn: now,
+                evidence: `Contrato de implementación White Label · ${c.slug}`,
+                status: "ACCRUED",
+              },
+            })
+          : null;
+        const registryTx = await tx.chainTransaction.create({
+          data: {
+            organizationId: org.id,
+            offeringId: offering.id,
+            network: o.network,
+            kind: "TENANT_REGISTRY_DEPLOYED",
+            contractAddress: factory,
+            method: DEPLOY_REGISTRY,
+            args: {
+              organizationId: onchainId,
+              organizationTaxId: c.taxId,
+              complianceRegime: c.regime,
+              tenantAdmin: admin.wallet,
+              complianceOfficer: officer.wallet,
+            },
+            status: "PENDING",
+          },
+        });
+        await audit(tx, session, meta, {
+          organizationId: org.id,
+          action: "ORGANIZATION_ONBOARDED",
+          entityType: "Organization",
+          entityId: org.id,
+          payload: {
+            tenant: c.displayName,
+            slug: c.slug,
+            taxId: c.taxId,
+            regime: c.regime,
+            users: [
+              { role: "TENANT_ADMIN", email: admin.email, wallet: admin.wallet },
+              { role: "COMPLIANCE_OFFICER", email: officer.email, wallet: officer.wallet },
+            ],
+            offeringCode: o.code,
+            offeringId: offering.id,
+            stage: o.stage,
+            documents: documents.length,
+            dataRoomRoot,
+            fees,
+            setupFeeEntryId: fee?.id ?? null,
+            registryChainTransactionId: registryTx.id,
+          },
+        });
+        return `${c.displayName} dado de alta · ${c.slug}.rwaxi.com en revisión · registro on-chain en cola`;
+      },
+      { maxWait: 10_000, timeout: 30_000 },
+    );
+    refresh();
+    return { ok: true, message, slug: parsed.plan.company.slug };
+  } catch (e) {
+    if (isUniqueViolation(e)) return { ok: false, error: onboardingConflict(e) };
+    return failure(e);
+  }
+}
+
+/** RWAXI's operator executes the queued deployTenantRegistry() of a developer (RWAXI_OPERATOR_ROLE). */
+export async function deployTenantRegistry(organizationId: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof organizationId !== "string" || !ID.test(organizationId)) throw new PlatformError("Organización inválida.");
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+    const pending = await withTenant(organizationId, (db) =>
+      db.chainTransaction.findFirst({
+        where: { kind: "TENANT_REGISTRY_DEPLOYED", status: "PENDING" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      }),
+    );
+    if (!pending) throw new PlatformError("Este desarrollador no tiene un despliegue de registro pendiente.");
+    const ex = await executeChainTx(organizationId, pending.id, { id: session.admin.id, email: session.admin.email }, meta, "platform");
+    refresh();
+    return {
+      ok: true,
+      message: `RwaxiComplianceRegistry desplegado en ${ex.created} · ${ex.mode === "SIMULATION" ? `simulación firmada, nonce ${ex.nonce}` : "confirmado en red"}`,
+    };
   } catch (e) {
     return failure(e);
   }

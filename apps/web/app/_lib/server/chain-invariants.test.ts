@@ -5,11 +5,14 @@ import { blockerFor, registryEntry, type ChainState } from "./chain-invariants";
 
 const REGISTRY = `0x${"1".repeat(40)}`;
 const TOKEN = `0x${"2".repeat(40)}`;
+const FACTORY = `0x${"3".repeat(40)}`;
 const WALLET = `0x${"a".repeat(40)}`;
 const OTHER = `0x${"b".repeat(40)}`;
 const SUB = `0x${"5".repeat(64)}`;
 const EVIDENCE = `0x${"e".repeat(64)}`;
 const DOSSIER = `0x${"d".repeat(64)}`;
+const DISTRIBUTION = `0x${"7".repeat(64)}`;
+const ZERO32 = `0x${"0".repeat(64)}`;
 
 let seq = 0;
 const at = (minute: number) => new Date(Date.UTC(2026, 9, 23, 12, minute));
@@ -21,6 +24,8 @@ function row(kind: ChainTransaction["kind"], args: Record<string, unknown>, extr
     INVESTOR_FREEZE_UPDATED: "setFrozen(address,bool)",
     SUBSCRIPTION_MINTED: "mintSubscription(bytes32,address,uint256,bytes32)",
     DATA_ROOM_ROOT_ANCHORED: "updateDataRoomMerkleRoot(bytes32)",
+    TENANT_REGISTRY_DEPLOYED: "deployTenantRegistry(bytes32,string,string,address,address)",
+    DISTRIBUTION_ROOT_ANCHORED: "anchorDistributionRoot(bytes32,bytes32,uint256,uint256)",
   };
   seq += 1;
   return {
@@ -55,6 +60,7 @@ const confirmed = { status: "CONFIRMED" as const };
 function state(txs: ChainTransaction[], overrides: Partial<ChainState> = {}): ChainState {
   return {
     registry: REGISTRY,
+    distributions: [],
     txs,
     subscriptions: [{ onchainId: SUB, status: "MINT_PENDING", wallet: WALLET }],
     tokens: [{ contractAddress: TOKEN, status: "DEPLOYED", maxSupply: 1000 }],
@@ -153,4 +159,37 @@ test("rows that cannot be signed from the queue are refused", () => {
   assert.match(blockerFor(broken, state([approve(confirmed), broken]))!, /calldata/);
   const anchor = row("DATA_ROOM_ROOT_ANCHORED", { newRoot: EVIDENCE });
   assert.match(blockerFor(anchor, state([anchor]))!, /no se ejecuta desde la cola/);
+});
+
+test("the tenant registry is deployed only by RWAXI's operator (platform console), once", () => {
+  const args = { organizationId: DISTRIBUTION, organizationTaxId: "901.234.567-8", complianceRegime: "SARLAFT", tenantAdmin: WALLET, complianceOfficer: OTHER };
+  const deploy = row("TENANT_REGISTRY_DEPLOYED", args, { contractAddress: FACTORY });
+  const fresh = { registry: null };
+  assert.match(blockerFor(deploy, state([deploy], fresh))!, /operador RWAXI/);
+  assert.equal(blockerFor(deploy, state([deploy], fresh), "platform"), null);
+  assert.match(blockerFor(deploy, state([deploy]), "platform")!, /ya tiene RwaxiComplianceRegistry/);
+  const earlier = row("TENANT_REGISTRY_DEPLOYED", args, { contractAddress: FACTORY, status: "CONFIRMED" });
+  assert.match(blockerFor(deploy, state([earlier, deploy], fresh), "platform")!, /TenantAlreadyRegistered/);
+});
+
+test("a distribution root is anchored once, for a declared distribution, on a deployed token", () => {
+  const anchor = (extra: Partial<ChainTransaction> = {}, args: Record<string, unknown> = {}) =>
+    row(
+      "DISTRIBUTION_ROOT_ANCHORED",
+      { distributionId: DISTRIBUTION, merkleRoot: EVIDENCE, totalAmountCents: "1000000", snapshotSupply: 450, ...args },
+      { contractAddress: TOKEN, ...extra },
+    );
+  const declared: Partial<ChainState> = { distributions: [{ onchainId: DISTRIBUTION, status: "DECLARED" }] };
+  const a = anchor();
+  assert.equal(blockerFor(a, state([a], declared)), null);
+  const empty = anchor({}, { merkleRoot: ZERO32 });
+  assert.match(blockerFor(empty, state([empty], declared))!, /EmptyDistributionRoot/);
+  assert.match(blockerFor(a, state([a]))!, /No existe la distribución/);
+  assert.match(blockerFor(a, state([a], { distributions: [{ onchainId: DISTRIBUTION, status: "ANCHORED" }] }))!, /ya está anclada/);
+  assert.match(blockerFor(a, state([anchor(confirmed), a], declared))!, /DistributionAlreadyAnchored/);
+  assert.match(blockerFor(a, state([a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "NOT_DEPLOYED", maxSupply: 1000 }] }))!, /no está desplegado/);
+  // anchorDistributionRoot() has no whenNotPaused: the issuer may publish a root while transfers are paused
+  assert.equal(blockerFor(a, state([a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "PAUSED", maxSupply: 1000 }] })), null);
+  const broken = anchor({}, { totalAmountCents: "mil" });
+  assert.match(blockerFor(broken, state([broken], declared))!, /calldata/);
 });

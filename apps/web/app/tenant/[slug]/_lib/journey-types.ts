@@ -59,6 +59,40 @@ export interface PortalOfferingState {
   capturePaused: boolean;
 }
 
+/**
+ * A yield distribution allocated to this investor, with the Merkle proof that binds the allocation
+ * (leaf = SHA-256 of its canonical JSON, see @rwaxi/blockchain-sdk/distribution) to the anchored root.
+ */
+export interface PersistedDistribution {
+  /** DistributionAllocation id */
+  id: string;
+  /** bytes32 distributionId of anchorDistributionRoot() */
+  distributionId: string;
+  period: string;
+  offeringCode: string;
+  wallet: string;
+  units: number;
+  /** USD */
+  amount: number;
+  amountCents: number;
+  /** whole distribution: USD, holders and token supply of the snapshot */
+  totalUsd: number;
+  totalUnits: number;
+  holders: number;
+  currency: "USD" | "COP";
+  amountDeclared: number;
+  fxRate: number | null;
+  merkleRoot: string;
+  leafHash: string;
+  proof: string[];
+  status: "DECLARED" | "ANCHORED";
+  anchorTxHash: string | null;
+  /** how the anchoring was executed (every view that shows a hash shows its mode) */
+  anchorMode: "SIMULATION" | "RPC" | null;
+  token: { address: string | null; network: string };
+  declaredAt: string;
+}
+
 export interface PersistedJourney {
   /** governance status of this portal (Super-Admin): SUSPENDED blocks new NDA, KYC and subscriptions */
   portalStatus: "ACTIVE" | "REVIEW" | "SUSPENDED";
@@ -70,6 +104,8 @@ export interface PersistedJourney {
   kyc: PersistedKyc | null;
   grant: { id: string; at: string; ttlH: number } | null;
   holdings: PersistedHolding[];
+  /** yield distributions allocated to the investor in this offering (newest first) */
+  distributions: PersistedDistribution[];
   offering: PortalOfferingState | null;
 }
 

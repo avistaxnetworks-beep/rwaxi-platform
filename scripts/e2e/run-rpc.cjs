@@ -25,10 +25,15 @@ process.on("SIGINT", () => {
     seed();
     const db = ownerDb();
     const setup = await deployRpcFixtures(db).finally(() => db.$disconnect());
-    console.log(`contratos en Hardhat · registry ${setup.registry} · token ${setup.token}`);
+    console.log(`contratos en Hardhat · registry ${setup.registry} · token ${setup.token} · factory ${setup.factory}`);
 
     services.push(
-      startService(`pnpm --filter @rwaxi/web exec next dev --port ${PORT}`, { ...ORIGINAL_ENV, CHAIN_EXECUTION: "rpc", RPC_URL_HARDHAT: RPC_URL }),
+      startService(`pnpm --filter @rwaxi/web exec next dev --port ${PORT}`, {
+        ...ORIGINAL_ENV,
+        CHAIN_EXECUTION: "rpc",
+        RPC_URL_HARDHAT: RPC_URL,
+        RWAXI_FACTORY_ADDRESS: setup.factory,
+      }),
     );
     if (!(await waitForHttp(url(null, "/api/health"), 180000))) throw new Error("next dev (modo RPC) no arrancó.");
 

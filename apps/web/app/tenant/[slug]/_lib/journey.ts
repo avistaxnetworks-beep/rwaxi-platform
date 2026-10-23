@@ -7,6 +7,7 @@ import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { TenantAccessError, requireHostTenant } from "@/app/_lib/server/tenant-context";
 import type {
   KycStatusView,
+  PersistedDistribution,
   PersistedHolding,
   PersistedJourney,
   PersistedJourneyResult,
@@ -80,6 +81,54 @@ export function toHolding(s: Subscription): PersistedHolding | null {
 
 export const toHoldings = (subs: Subscription[]) => subs.flatMap((s) => toHolding(s) ?? []);
 
+/** Distributions allocated to an investor in an offering, with their proofs and how the root was anchored. */
+async function investorDistributions(
+  db: ReturnType<typeof forTenant>,
+  investorId: string,
+  offeringId: string,
+): Promise<PersistedDistribution[]> {
+  const allocations = await db.distributionAllocation.findMany({
+    where: { investorId, distribution: { offeringId } },
+    orderBy: { createdAt: "desc" },
+    include: {
+      distribution: { include: { offering: { select: { code: true, network: true, token: { select: { contractAddress: true } } } } } },
+    },
+  });
+  if (!allocations.length) return [];
+  const anchors = await db.chainTransaction.findMany({
+    where: { kind: "DISTRIBUTION_ROOT_ANCHORED", status: "CONFIRMED" },
+    select: { args: true, executionMode: true },
+  });
+  const modeOf = new Map(anchors.map((t) => [String((t.args as { distributionId?: string }).distributionId).toLowerCase(), t.executionMode]));
+  return allocations.map((a) => {
+    const d = a.distribution;
+    return {
+      id: a.id,
+      distributionId: d.onchainId,
+      period: d.period,
+      offeringCode: d.offering.code,
+      wallet: a.wallet,
+      units: a.units,
+      amount: Number(a.amountUsd),
+      amountCents: a.amountUsd.mul(100).toNumber(),
+      totalUsd: Number(d.totalUsd),
+      totalUnits: d.totalUnits,
+      holders: d.holders,
+      currency: d.currency === "COP" ? "COP" : "USD",
+      amountDeclared: Number(d.amountDeclared),
+      fxRate: d.fxRate === null ? null : Number(d.fxRate),
+      merkleRoot: d.merkleRoot,
+      leafHash: a.leafHash,
+      proof: Array.isArray(a.merkleProof) ? (a.merkleProof as string[]) : [],
+      status: d.status,
+      anchorTxHash: d.anchorTxHash,
+      anchorMode: d.status === "ANCHORED" ? (modeOf.get(d.onchainId.toLowerCase()) ?? null) : null,
+      token: { address: d.offering.token?.contractAddress ?? null, network: d.offering.network },
+      declaredAt: d.createdAt.toISOString(),
+    };
+  });
+}
+
 /** A referral is shown (and later persisted) only if its HMAC verifies for this tenant. */
 async function verifiedReferral(slug: string, ...candidates: (string | undefined)[]): Promise<ReferralClaims | null> {
   for (const token of candidates) {
@@ -112,6 +161,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
       kyc: null,
       grant: null,
       holdings: [],
+      distributions: [],
       offering: offering ? offeringState(offering) : null,
     };
 
@@ -140,6 +190,8 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
     const kyc = investor.kycCases[0];
     const grant = investor.accessGrants[0];
     const status = kyc ? KYC_STATUS_VIEW[kyc.status] : undefined;
+
+    const distributions = await investorDistributions(db, investor.id, offering.id);
 
     let whitelistTx = kyc?.whitelistTxHash ?? null;
     let whitelistQueued = false;
@@ -184,6 +236,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
             }
           : null,
         holdings: toHoldings(investor.subscriptions),
+        distributions,
         offering: offeringState(offering),
       },
     };

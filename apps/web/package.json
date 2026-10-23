@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test \"app/_lib/**/*.test.ts\""
+    "test": "tsx --test \"app/**/*.test.ts\""
   },
   "dependencies": {
     "@rwaxi/blockchain-sdk": "workspace:*",

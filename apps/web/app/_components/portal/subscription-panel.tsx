@@ -19,6 +19,7 @@ export function SubscriptionPanel({
   openDoc: i,
   toast: s,
   suspended: c,
+  distributionsSlot: w,
 }) {
   if (!t.grant)
     return (
@@ -196,6 +197,7 @@ export function SubscriptionPanel({
             </span>
           </p>
         )}
+        {w}
       </div>
     </div>
   );

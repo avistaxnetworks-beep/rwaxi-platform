@@ -33,6 +33,8 @@ export function Portal({
   // Server Actions (app/tenant/[slug]/actions.ts): NDA and KYC persist to PostgreSQL.
   persistNda: P,
   persistKyc: Q,
+  // Persisted yield distributions with their Merkle proofs (app/tenant/[slug]/_components/investor-distributions.tsx).
+  distributionsSlot: D,
 }) {
   const [m, u] = useState(() => (t.holdings.length || t.grant ? 3 : t.nda ? 1 : 0)),
     [v, h] = useState(Math.max(a.ticket, 25e3));
@@ -178,6 +180,7 @@ export function Portal({
                 openDoc={s}
                 toast={d}
                 suspended={N}
+                distributionsSlot={D}
               />
             )}
           </div>

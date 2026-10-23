@@ -7,9 +7,9 @@ import { Switch } from "@/app/_components/ui/primitives";
 import { fieldCls } from "@/app/_components/ui/form";
 import { PORTAL_STATUS } from "@/app/_lib/data/fees";
 import { REGIMES } from "@/app/_lib/data/kyc";
-import { money } from "@/app/_lib/format";
+import { money, shortHash } from "@/app/_lib/format";
 import { envHref } from "@/app/_lib/hosts";
-import { setOfferingCapture, setOrganizationPublished, setPortalStatus } from "../actions";
+import { deployTenantRegistry, setOfferingCapture, setOrganizationPublished, setPortalStatus } from "../actions";
 import type {
   PlatformActionResult,
   PlatformMetrics,
@@ -24,7 +24,8 @@ type Toast = (message: string) => void;
 type Decision =
   | { kind: "status"; tenant: PlatformTenantRow; to: PortalStatusKey }
   | { kind: "publish"; tenant: PlatformTenantRow; to: boolean }
-  | { kind: "capture"; tenant: PlatformTenantRow; offering: PlatformOfferingRow; pause: boolean };
+  | { kind: "capture"; tenant: PlatformTenantRow; offering: PlatformOfferingRow; pause: boolean }
+  | { kind: "registry"; tenant: PlatformTenantRow };
 
 const STATUSES: PortalStatusKey[] = ["ACTIVE", "REVIEW", "SUSPENDED"];
 const REGIME_KEY = { SAGRILAFT_PTEE: "sagrilaft", SARLAFT: "sarlaft" } as const;
@@ -56,6 +57,14 @@ function effectOf(d: Decision): { title: string; effect: string; restrictive: bo
       restrictive: !d.to,
     };
   }
+  if (d.kind === "registry") {
+    return {
+      title: `Desplegar el registro de cumplimiento de ${d.tenant.displayName}`,
+      effect:
+        "El operador RWAXI (RWAXI_OPERATOR_ROLE de la factory) ejecuta deployTenantRegistry(): el RwaxiComplianceRegistry queda administrado por las wallets del tenant (administrador y oficial de cumplimiento) y RWAXI no conserva ningún rol sobre él. Sin registro, el oficial no puede aprobar KYC en la whitelist.",
+      restrictive: false,
+    };
+  }
   return {
     title: `${d.pause ? "Pausar" : "Reanudar"} la captación de ${d.offering.code} · ${d.offering.assetName}`,
     effect: d.pause
@@ -75,7 +84,7 @@ export function PlatformGovernance({
   metrics: PlatformMetricsResult;
   currency: Currency;
   toast: Toast;
-  /** developer onboarding (KYB) still runs on the prototype's demo state */
+  /** persisted developer onboarding (wizard) */
   onboarding: ReactNode;
 }) {
   if (!metrics.ok) return null; // PlatformOverview already shows the error
@@ -105,6 +114,7 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
       let result: PlatformActionResult;
       if (d.kind === "status") result = await setPortalStatus(d.tenant.id, d.to, reason);
       else if (d.kind === "publish") result = await setOrganizationPublished(d.tenant.id, d.to, reason);
+      else if (d.kind === "registry") result = await deployTenantRegistry(d.tenant.id);
       else result = await setOfferingCapture(d.offering.id, d.pause, reason);
       setBusy(false);
       if (result.ok) {
@@ -150,12 +160,12 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
           {onboarding}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-[12.5px]">
+          <table className="w-full min-w-[1280px] text-[12.5px]">
             <thead>
               <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
                 <th className="font-semibold px-5 py-3">Desarrollador</th>
                 <th className="font-semibold px-3 py-3">Portal</th>
-                <th className="font-semibold px-3 py-3">Régimen</th>
+                <th className="font-semibold px-3 py-3">Régimen · registro on-chain</th>
                 <th className="font-semibold px-3 py-3">Proyecto · captación</th>
                 <th className="font-semibold px-3 py-3">Estado del portal</th>
                 <th className="font-semibold px-3 py-3">Vitrina RWAXI</th>
@@ -176,7 +186,29 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
                     {`${t.slug}.rwaxi.com`}
                     {t.customDomain && <span className="block text-muted">{t.customDomain}</span>}
                   </td>
-                  <td className="px-3 py-3.5 text-[11.5px]">{REGIMES[REGIME_KEY[t.regime]].short}</td>
+                  <td className="px-3 py-3.5 text-[11.5px] min-w-[190px]" data-registry-status={t.registry.status}>
+                    {REGIMES[REGIME_KEY[t.regime]].short}
+                    {t.registry.status === "DEPLOYED" && t.registry.address ? (
+                      <span className="block font-mono text-[10.5px] text-aquaInk mt-1" title={t.registry.address}>
+                        {`Registry ${shortHash(t.registry.address, 8, 6)}`}
+                      </span>
+                    ) : t.registry.status === "PENDING" ? (
+                      <span className="flex flex-col items-start gap-1 mt-1">
+                        <span className="text-[10.5px] font-semibold px-2 py-0.5 bg-goldTint text-goldInk">Registro en cola · operador RWAXI</span>
+                        <button
+                          disabled={!canAct}
+                          data-deploy-registry={t.id}
+                          onClick={() => open({ kind: "registry", tenant: t })}
+                          className="text-[11px] font-semibold text-rxBlue inline-flex items-center gap-1 focus-ring disabled:opacity-40"
+                        >
+                          <Icon name="Network" size={12} />
+                          Desplegar registro
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="block text-[10.5px] text-muted mt-1">Sin registro on-chain</span>
+                    )}
+                  </td>
                   <td className="px-3 py-3.5 min-w-[240px]">
                     {t.offerings.length === 0 && <span className="text-muted text-[11.5px]">Sin proyectos aún</span>}
                     {t.offerings.map((o) => (
@@ -314,6 +346,9 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
         <Modal title={info.title} onClose={() => !busy && setDecision(null)} wide={true}>
           <div className="flex flex-col gap-4" data-governance-dialog>
             <p className="text-[13px] text-inkBody leading-relaxed">{info.effect}</p>
+            {decision.kind === "registry" ? (
+              <p className="font-mono text-[11px] text-muted">{`${decision.tenant.slug}.rwaxi.com · deployTenantRegistry(bytes32,string,string,address,address) · red ${decision.tenant.registry.network ?? "—"}`}</p>
+            ) : (
             <div className="flex flex-col gap-1.5">
               <label htmlFor="gov-reason" className="text-[11px] font-semibold tracking-[0.06em] uppercase text-muted">
                 {info.restrictive ? "Motivo (obligatorio, queda en el registro de auditoría)" : "Motivo (opcional)"}
@@ -327,6 +362,7 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
                 className={fieldCls(false) + " text-[13px]"}
               />
             </div>
+            )}
             {error && (
               <p role="alert" className="border border-[#F3C5C0] bg-[#FDECEA] text-[#B42318] text-[12.5px] px-4 py-3">
                 {error}

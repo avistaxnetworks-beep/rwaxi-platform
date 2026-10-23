@@ -147,3 +147,34 @@ describe("RwaxiPropertyToken compliance hook", () => {
     expect(await token.read.hasRole([MINTER_ROLE, getAddress(rwaxi.account.address)])).to.equal(true);
   });
 });
+
+describe("RwaxiPropertyToken distribution roots", () => {
+  const distId = keccak256(toHex("dist_avista_2026_t3"));
+  const root = keccak256(toHex("allocations-root"));
+
+  it("only the issuer anchors a distribution root, once, and never an empty one", async () => {
+    const { token, rwaxi, officer, asAdmin } = await deployFixture();
+    await expect(
+      token.write.anchorDistributionRoot([distId, root, 1_000_000n, 450n], { account: rwaxi.account }),
+    ).to.be.rejectedWith("AccessControlUnauthorizedAccount");
+    await expect(
+      token.write.anchorDistributionRoot([distId, root, 1_000_000n, 450n], { account: officer.account }),
+    ).to.be.rejectedWith("AccessControlUnauthorizedAccount");
+    await expect(
+      token.write.anchorDistributionRoot([distId, `0x${"0".repeat(64)}`, 1_000_000n, 450n], asAdmin),
+    ).to.be.rejectedWith("EmptyDistributionRoot");
+
+    await token.write.anchorDistributionRoot([distId, root, 1_000_000n, 450n], asAdmin);
+    expect(await token.read.distributionRoots([distId])).to.equal(root);
+    await expect(token.write.anchorDistributionRoot([distId, root, 1n, 1n], asAdmin)).to.be.rejectedWith(
+      "DistributionAlreadyAnchored",
+    );
+  });
+
+  it("emits DistributionRootAnchored with the declared totals", async () => {
+    const { token, asAdmin } = await deployFixture();
+    await token.write.anchorDistributionRoot([distId, root, 1_000_000n, 450n], asAdmin);
+    const [event] = await token.getEvents.DistributionRootAnchored();
+    expect(event?.args).to.deep.equal({ distributionId: distId, merkleRoot: root, totalAmountCents: 1_000_000n, snapshotSupply: 450n });
+  });
+});

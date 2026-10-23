@@ -24,7 +24,7 @@ const DAY = 86_400_000;
 
 async function reset() {
   await db.$executeRawUnsafe(`
-    TRUNCATE TABLE "audit_events", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
+    TRUNCATE TABLE "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
       "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments",
       "offerings", "users", "organizations" CASCADE`);
 }

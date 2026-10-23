@@ -9,6 +9,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "FEE_TERMS_UPDATED",
   "FEE_INVOICED",
   "FEE_PAYMENT_RECORDED",
+  "ORGANIZATION_ONBOARDED",
 ] as const;
 export type PlatformAuditActionKey = (typeof PLATFORM_AUDIT_ACTIONS)[number];
 
@@ -26,6 +27,10 @@ interface PlatformPayload {
   totalUsd?: string;
   paidOn?: string;
   paymentReceipt?: string;
+  slug?: string;
+  taxId?: string;
+  users?: unknown[];
+  documents?: number;
 }
 
 const STATUS_LABEL: Record<string, string> = { ACTIVE: "ACTIVO", REVIEW: "EN REVISIÓN", SUSPENDED: "SUSPENDIDO" };
@@ -57,5 +62,7 @@ export function platformAuditSummary(action: PlatformAuditActionKey, raw: unknow
       return `Factura ${p.invoiceNumber} · ${p.entries?.length ?? 0} asiento(s) · ${p.totalUsd} USD`;
     case "FEE_PAYMENT_RECORDED":
       return `Pago de la factura ${p.invoiceNumber} · ${p.paidOn} · comprobante ${p.paymentReceipt} · ${p.totalUsd} USD`;
+    case "ORGANIZATION_ONBOARDED":
+      return `Alta B2B · ${p.slug}.rwaxi.com · NIT ${p.taxId} · ${p.users?.length ?? 0} usuarios · oferta ${p.offeringCode} · ${p.documents ?? 0} documentos`;
   }
 }

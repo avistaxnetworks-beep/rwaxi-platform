@@ -85,6 +85,32 @@ const canon = (v) =>
           .map((k) => `${JSON.stringify(k)}:${canon(v[k])}`)
           .join(",")}}`;
 const sha256 = (s) => "0x" + crypto.createHash("sha256").update(s).digest("hex");
+const sha256Hex = (hex) => "0x" + crypto.createHash("sha256").update(Buffer.from(hex.slice(2), "hex")).digest("hex");
+
+// Independent re-implementation of the SDK Merkle tree (merkle.ts): sorted unique leaves,
+// parent = SHA-256(min || max) over the raw 32-byte values, an odd node is promoted unchanged.
+const hashPair = (a, b) => sha256Hex(a < b ? a + b.slice(2) : b + a.slice(2));
+function merkleRoot(hashes) {
+  let layer = [...new Set(hashes.map((h) => h.toLowerCase()))].sort();
+  if (!layer.length) return "0x" + "0".repeat(64);
+  while (layer.length > 1) {
+    const next = [];
+    for (let i = 0; i < layer.length; i += 2) next.push(layer[i + 1] === undefined ? layer[i] : hashPair(layer[i], layer[i + 1]));
+    layer = next;
+  }
+  return layer[0];
+}
+/** Folds a proof (sibling hashes, bottom-up) from a leaf: equals the root when the leaf is included. */
+const foldProof = (leaf, proof) => proof.reduce((acc, sib) => hashPair(acc, sib.toLowerCase()), leaf.toLowerCase());
+
+/** DIAN check digit of a 9-digit NIT base, re-implemented independently of the app. */
+function nitDv(base9) {
+  const w = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
+  const r = [...base9].reverse().reduce((s, d, i) => s + Number(d) * w[i], 0) % 11;
+  return r > 1 ? 11 - r : r;
+}
+const nitOf = (base9, dv = nitDv(base9)) => `${base9.slice(0, 3)}.${base9.slice(3, 6)}.${base9.slice(6, 9)}-${dv}`;
+const randomNitBase = () => `9${crypto.randomInt(10_000_000, 99_999_999)}`;
 
 const abi = (name) => {
   const file = path.join(ROOT, `contracts/artifacts/src/${name}.sol/${name}.json`);
@@ -148,6 +174,39 @@ const waitAlert = (page, re, timeout = 90000) =>
     { timeout },
     re.source,
   );
+
+/** Super-Admin console (admin.localhost) on module A, "Gobierno de Tenants". */
+async function openGovernance(page) {
+  await page.goto(url("admin"), { waitUntil: "domcontentloaded", timeout: 180000 });
+  await page.waitForSelector("[data-platform-overview]", { timeout: 180000 });
+  await page.evaluate(() => [...document.querySelectorAll('[role="tab"]')].find((x) => x.textContent.includes("Gobierno")).click());
+  await page.waitForSelector("[data-platform-governance]", { timeout: 60000 });
+}
+
+/** The onboarding wizard with its sample data for `slug` (optionally on `network`); resolves once persisted. */
+async function onboardTenant(page, { slug, legalName, displayName, nit, network }) {
+  await openGovernance(page);
+  await clickText(page, "Dar de Alta Nuevo Desarrollador");
+  await page.waitForSelector('[data-onboarding-step="0"]', { timeout: 30000 });
+  await clickText(page, "Completar con datos de ejemplo");
+  await fill(page, "#ob-legal", legalName);
+  await fill(page, "#ob-display", displayName);
+  await fill(page, "#ob-nit", nit);
+  await fill(page, "#ob-slug", slug);
+  await page.waitForFunction(() => document.querySelector("[data-slug-state]")?.dataset.slugState === "available", { timeout: 30000 });
+  for (const step of [1, 2, 3, 4]) {
+    await clickText(page, "Continuar");
+    await page.waitForSelector(`[data-onboarding-step="${step}"]`, { timeout: 30000 });
+    if (step === 1 || step === 2) await clickText(page, "Completar con datos de ejemplo");
+    if (step === 2 && network) await page.select("#ob-network", network);
+    if (step === 3) {
+      await clickText(page, "Adjuntar documentos de ejemplo");
+      await page.waitForFunction(() => document.querySelectorAll('[data-doc-loaded="true"]').length === 13, { timeout: 30000 });
+    }
+  }
+  await clickText(page, "Crear tenant y causar Setup Fee");
+  await page.waitForSelector(`[data-onboarded-slug="${slug}"]`, { timeout: 90000 });
+}
 
 /** Opens {slug}.localhost/backoffice on the tab whose label includes `label`. */
 async function openBackofficeTab(page, slug, label) {
@@ -268,6 +327,11 @@ module.exports = {
   fail,
   canon,
   sha256,
+  merkleRoot,
+  foldProof,
+  nitDv,
+  nitOf,
+  randomNitBase,
   abi,
   hardhatAccount,
   text,
@@ -279,6 +343,8 @@ module.exports = {
   toastText,
   alertText,
   waitAlert,
+  openGovernance,
+  onboardTenant,
   openBackofficeTab,
   replayAction,
   tryAction,

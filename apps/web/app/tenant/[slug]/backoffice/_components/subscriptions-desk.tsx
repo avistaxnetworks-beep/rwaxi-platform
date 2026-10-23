@@ -18,6 +18,8 @@ type Busy = { id: string; kind: "pay" | "exec" | "queue" } | null;
 const brandVars = (color: string) => ({ "--tc": color, "--tc-on": onColor(color) }) as CSSProperties;
 const hash = (h: string) => shortHash(h, 12, 6);
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
+/** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: distribution roots). */
+const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED"]);
 
 const STATUS: Record<SubscriptionRow["status"], [string, string]> = {
   RESERVED: ["Reserva pre-venta", "bg-cloud text-muted"],
@@ -330,8 +332,8 @@ function QueuePanel({
   onRegister: (chainTxId: string, txHash: string) => void;
   onProcess: () => void;
 }) {
-  // RPC mode: RWAXI never signs registry calls; the officer signs them and their hash is registered here.
-  const officerSigned = (q: ChainQueueItem) => execution.mode === "RPC" && REGISTRY_KINDS.has(q.kind);
+  // RPC mode: RWAXI never signs the tenant's calls; the officer or the issuer signs them and their hash is registered here.
+  const officerSigned = (q: ChainQueueItem) => execution.mode === "RPC" && TENANT_SIGNED_KINDS.has(q.kind);
   const ready = queue.filter((q) => !q.blockedReason && !officerSigned(q)).length;
   return (
     <div className="bg-white border border-line" data-chain-desk>
@@ -341,7 +343,7 @@ function QueuePanel({
           <p className="text-[11.5px] text-muted mt-0.5" data-execution-mode={execution.mode}>
             {execution.mode === "SIMULATION"
               ? "Simulación determinista: firma EIP-1559 con OPERATOR_PRIVATE_KEY, sin difundir a la red"
-              : "RPC: RWAXI envía mintSubscription; el Oficial de Cumplimiento firma el registro con su wallet"}
+              : "RPC: RWAXI envía mintSubscription; el Oficial firma el registro y el emisor las raíces de distribución con sus wallets"}
             {execution.operator && <span className="font-mono">{` · operador ${shortHash(execution.operator, 8, 6)}`}</span>}
           </p>
         </div>
@@ -387,7 +389,12 @@ function QueuePanel({
                   )}
                 </div>
                 {officerSigned(q) ? (
-                  <OfficerHashForm id={q.id} disabled={!!busy || !!q.blockedReason} onSubmit={(txHash) => onRegister(q.id, txHash)} />
+                  <OfficerHashForm
+                    id={q.id}
+                    signer={REGISTRY_KINDS.has(q.kind) ? "Oficial" : "emisor"}
+                    disabled={!!busy || !!q.blockedReason}
+                    onSubmit={(txHash) => onRegister(q.id, txHash)}
+                  />
                 ) : (
                   <button
                     disabled={!!busy || !!q.blockedReason}
@@ -432,20 +439,30 @@ function QueuePanel({
   );
 }
 
-/** RPC mode: hash of the registry call the compliance officer signed with their own wallet. */
-function OfficerHashForm({ id, disabled, onSubmit }: { id: string; disabled: boolean; onSubmit: (txHash: string) => void }) {
+/** RPC mode: hash of the call the compliance officer (registry) or the issuer (distribution root) signed with their own wallet. */
+function OfficerHashForm({
+  id,
+  signer,
+  disabled,
+  onSubmit,
+}: {
+  id: string;
+  signer: "Oficial" | "emisor";
+  disabled: boolean;
+  onSubmit: (txHash: string) => void;
+}) {
   const [value, setValue] = useState("");
   const valid = /^0x[0-9a-fA-F]{64}$/.test(value.trim());
   return (
     <div className="flex flex-wrap items-center gap-2" data-officer-form={id}>
       <label htmlFor={`officer-tx-${id}`} className="sr-only">
-        Tx hash firmado por el Oficial de Cumplimiento
+        {signer === "Oficial" ? "Tx hash firmado por el Oficial de Cumplimiento" : "Tx hash firmado por el emisor"}
       </label>
       <input
         id={`officer-tx-${id}`}
         value={value}
         onChange={(ev) => setValue(ev.target.value)}
-        placeholder="tx hash del Oficial (0x…)"
+        placeholder={`tx hash del ${signer} (0x…)`}
         autoComplete="off"
         className={fieldCls(false) + " font-mono text-[11.5px] w-[300px] max-w-full py-1.5"}
       />
@@ -454,7 +471,7 @@ function OfficerHashForm({ id, disabled, onSubmit }: { id: string; disabled: boo
         onClick={() => onSubmit(value.trim())}
         className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue focus-ring disabled:opacity-40"
       >
-        Registrar tx del Oficial
+        {`Registrar tx del ${signer}`}
       </button>
     </div>
   );

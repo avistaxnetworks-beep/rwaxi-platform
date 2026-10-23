@@ -24,11 +24,14 @@ export function Backoffice({
   complianceSlot: g,
   // Persisted payments desk and chain queue (app/tenant/[slug]/backoffice/_components/subscriptions-desk.tsx).
   subscriptionsSlot: q,
+  // Persisted yield distributions (app/tenant/[slug]/backoffice/_components/distributions-desk.tsx).
+  distributionsSlot: w,
 }) {
   const u = [
     ["config", "Settings2", "Configuración White Label"],
     ["cumplimiento", "ShieldCheck", "Cumplimiento y Leads"],
     ["suscripciones", "Coins", "Suscripciones y Pagos"],
+    ["distribuciones", "Calculator", "Distribuciones y Rendimientos"],
     ["dataroom", "Database", "Data Room y Minting"],
   ];
   return (
@@ -88,6 +91,7 @@ export function Backoffice({
         {s === "config" && <ConfigTab t={e} p={a} setTenant={t} toPortal={r} toast={i} photos={d} />}
         {s === "cumplimiento" && g}
         {s === "suscripciones" && q}
+        {s === "distribuciones" && w}
         {s === "dataroom" && (
           <DataMintTab emit={p} t={e} p={a} setTenant={t} setJourney={n} journey={o} toast={i} />
         )}

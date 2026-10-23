@@ -87,6 +87,17 @@ export const rwaxiPropertyTokenAbi = [
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "distributionId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DistributionAlreadyAnchored",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "spender",
         "type": "address"
@@ -168,6 +179,11 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "name": "ERC20InvalidSpender",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyDistributionRoot",
     "type": "error"
   },
   {
@@ -265,6 +281,37 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "name": "DataRoomMerkleRootAnchored",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "distributionId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "merkleRoot",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalAmountCents",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "snapshotSupply",
+        "type": "uint256"
+      }
+    ],
+    "name": "DistributionRootAnchored",
     "type": "event"
   },
   {
@@ -496,6 +543,19 @@ export const rwaxiPropertyTokenAbi = [
   },
   {
     "inputs": [],
+    "name": "DISTRIBUTION_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "ISSUER_ADMIN_ROLE",
     "outputs": [
       {
@@ -555,6 +615,34 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "distributionId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "merkleRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalAmountCents",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "snapshotSupply",
+        "type": "uint256"
+      }
+    ],
+    "name": "anchorDistributionRoot",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -637,6 +725,25 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "distributionId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "distributionRoots",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "merkleRoot",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

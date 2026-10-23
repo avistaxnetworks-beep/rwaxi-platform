@@ -23,6 +23,8 @@ const STATUS: Record<ChainQueueItem["status"], [string, string]> = {
 };
 
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
+/** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: distribution roots). */
+const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED"]);
 
 type Run = (busyId: string, action: () => Promise<{ ok: true; message: string } | { ok: false; error: string }>) => void;
 
@@ -78,10 +80,10 @@ export function ChainQueueTab({
       await load();
     });
   };
-  // RPC mode: registry calls are signed by the compliance officer, so the queue run never sends them.
+  // RPC mode: the tenant's own calls (registry, distribution roots) are signed by its wallets, so the queue run never sends them.
   const runnable = res?.ok
     ? res.items.filter(
-        (t) => t.status === "PENDING" && !t.blockedReason && !(res.execution.mode === "RPC" && REGISTRY_KINDS.has(t.kind)),
+        (t) => t.status === "PENDING" && !t.blockedReason && !(res.execution.mode === "RPC" && TENANT_SIGNED_KINDS.has(t.kind)),
       ).length
     : 0;
 
@@ -211,8 +213,8 @@ function QueueCard({
   const [open, setOpen] = useState(false);
   const [officerHash, setOfficerHash] = useState("");
   const [label, cls] = STATUS[tx.status];
-  // RPC mode: RWAXI never signs registry calls; the officer's own signed tx is registered by hash.
-  const officerSigned = mode === "RPC" && REGISTRY_KINDS.has(tx.kind);
+  // RPC mode: RWAXI never signs the tenant's calls; the officer's or issuer's own signed tx is registered by hash.
+  const officerSigned = mode === "RPC" && TENANT_SIGNED_KINDS.has(tx.kind);
   return (
     <article data-chain-tx={tx.status} className="border border-white/15 bg-[#120726]">
       <header className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-white/10">
@@ -276,7 +278,7 @@ function QueueCard({
         {canExecute && tx.status === "PENDING" && officerSigned && (
           <div className="flex flex-wrap gap-2 items-center">
             <label htmlFor={`officer-${tx.id}`} className="font-mono text-[10.5px] text-[#A79FC0]">
-              tx hash firmado por el Oficial de Cumplimiento
+              {REGISTRY_KINDS.has(tx.kind) ? "tx hash firmado por el Oficial de Cumplimiento" : "tx hash firmado por el emisor"}
             </label>
             <input
               id={`officer-${tx.id}`}

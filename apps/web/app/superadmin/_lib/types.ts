@@ -44,6 +44,8 @@ export interface PlatformTenantRow {
   published: boolean;
   onboardedAt: string;
   offerings: PlatformOfferingRow[];
+  /** RwaxiComplianceRegistry of the tenant: deployed, queued for RWAXI's operator, or none */
+  registry: { address: string | null; status: "DEPLOYED" | "PENDING" | "NONE"; network: string | null };
   leads: { referral: number; direct: number };
   investors: number;
   ndas: number;
@@ -127,6 +129,8 @@ export interface PlatformMetrics {
   audit: PlatformAuditRow[];
   /** RWAXI staff member acting in this console (demo session until MFA auth exists) */
   admin: { name: string; email: string } | null;
+  /** defaults and limits of the onboarding wizard */
+  onboarding: { networks: string[]; nextOfferingCode: string };
 }
 
 export type PlatformMetricsResult = { ok: true; data: PlatformMetrics } | { ok: false; error: string };

@@ -13,12 +13,15 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   middleware.ts          Edge Middleware: host → entorno (rewrite + headers x-rwaxi-env / x-rwaxi-tenant)
   app/_lib/hosts.ts      resolución de host pura y Edge-safe (la usan middleware y cliente)
   app/vitrina/           www.rwaxi.com · _lib/catalog.ts: catálogo en vivo (listPublicOfferings → rwaxi_public_offerings)
-  app/superadmin/        admin.rwaxi.com · actions.ts (gobierno y facturación B2B) · _lib/session.ts (sesión de plataforma)
+  app/superadmin/        admin.rwaxi.com · actions.ts (gobierno, facturación B2B, onboarding y registro on-chain)
+                         _lib/session.ts (sesión de plataforma) · _lib/onboarding.ts (validación del alta B2B)
   app/tenant/[slug]/     {slug}.rwaxi.com (portal) y /backoffice
     actions.ts           onboarding persistido del inversionista: signNda(), submitKyc(), subscribe()
-    _lib/journey.ts      journey del visitante leído de PostgreSQL (sesión por cookie firmada)
+    _lib/journey.ts      journey del visitante leído de PostgreSQL (sesión por cookie firmada), con sus distribuciones
+    _lib/tenant-view.ts  tenants dados de alta en la BD (no del prototipo): vista leída bajo RLS para el estado demo
     backoffice/          actions.ts (KYC) · payment-actions.ts (confirmPayment) · chain-actions.ts (ejecutar la cola)
-                         _lib/queries.ts (bandeja de cumplimiento) · _lib/subscriptions-desk.ts (Suscripciones y Pagos)
+                         distribution-actions.ts (declareDistribution) · _lib/queries.ts (bandeja de cumplimiento)
+                         _lib/subscriptions-desk.ts (Suscripciones y Pagos) · _lib/distributions-desk.ts (Distribuciones)
   app/_lib/server/       tenant-context, investor-session (HMAC), chain-queue (calldata viem, puro),
                          chain-invariants (prelación + reverts de los contratos, puro), chain-executor (firma y confirma)
   app/_lib/referral.ts   tokens de referido firmados (HMAC-SHA256, Web Crypto: middleware y Server Actions)
@@ -26,9 +29,10 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
-packages/database        Prisma 6 · esquema multi-tenant (15 entidades) · RLS · cliente con tenant · seed
+packages/database        Prisma 6 · esquema multi-tenant (17 entidades) · RLS · cliente con tenant · seed
   scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente)
-packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
+packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · distribution.ts (prorrata en centavos + árbol de asignaciones)
+                         canonical.ts (evidenceHash) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
 contracts                Hardhat 2 · solc 0.8.24 · @openzeppelin/contracts 5.0.2
 ```
 
@@ -53,8 +57,11 @@ Reglas:
    Subdominios reservados: ver `RESERVED_SUBDOMAINS`. Las únicas lecturas sin contexto de tenant son funciones
    SECURITY DEFINER acotadas: `rwaxi_resolve_tenant` (enrutado), `rwaxi_public_offerings()` (vitrina: campos de
    marketing, progreso y pausa de captación de ofertas publicadas de desarrolladores publicados, sin datos de
-   inversionistas) y
-   `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global).
+   inversionistas), `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global) y
+   `rwaxi_factory_creations` (contratos que la factory ya creó en simulación: el nonce de su próximo `CREATE`).
+   Un slug que no es de los desarrolladores demo del prototipo se sirve desde la BD: el layout del tenant lo resuelve
+   con `resolveTenant`, lee su vista bajo RLS (`_lib/tenant-view.ts`) y la registra en el estado demo
+   (`registerDbTenant`); sin organización u oferta, 404.
 3. **Aislamiento en la base de datos, no sólo en la app.** Todas las tablas de tenant tienen `organization_id` y RLS
    (`FORCE ROW LEVEL SECURITY`, fail-closed). Acceso a datos de tenant **sólo** con `forTenant(orgId)` (lecturas) o
    `withTenant(orgId, fn)` (escrituras de varios pasos, una transacción). `platformPrisma()` (rol `BYPASSRLS`) sólo en
@@ -88,11 +95,13 @@ Reglas:
    Super-Admin (`platformPrisma()`, BYPASSRLS) sólo en el host `admin` y nunca en producción sin MFA
    (`requirePlatformAccess`).
 6. **RWAXI no custodia el valor emitido.** En contratos, RWAXI sólo tiene `RWAXI_OPERATOR_ROLE` (factory) y
-   `MINTER_ROLE`; pausa, Data Room y recuperación forzosa son del emisor; la whitelist es del oficial de cumplimiento
-   del tenant. No añadir roles a RWAXI sin revisión legal. En modo `RPC` el operador sólo envía `mintSubscription`;
-   `approveInvestor` lo firma el oficial con su propia wallet y se registra su hash (`registerOfficerTransaction`,
-   que exige recibo exitoso y el evento `InvestorWhitelisted` con los argumentos en cola). En `SIMULATION` la clave
-   del operador firma todo, sólo como demostración. Los controles de gobierno de la consola (suspender un portal,
+   `MINTER_ROLE`; pausa, Data Room, raíces de distribución (`DISTRIBUTION_ROLE`) y recuperación forzosa son del
+   emisor; la whitelist es del oficial de cumplimiento del tenant. No añadir roles a RWAXI sin revisión legal. En modo
+   `RPC` el operador sólo envía `mintSubscription` y, desde la consola Super-Admin, `deployTenantRegistry` (el registro
+   creado queda con el admin y el oficial del tenant); `approveInvestor` lo firma el oficial y `anchorDistributionRoot`
+   el emisor, cada uno con su propia wallet, y se registra su hash (`registerOfficerTransaction`, que exige recibo
+   exitoso y el evento `InvestorWhitelisted` / `DistributionRootAnchored` con los argumentos en cola). En `SIMULATION`
+   la clave del operador firma todo, sólo como demostración. Los controles de gobierno de la consola (suspender un portal,
    pausar la captación de una oferta, retirar de la vitrina) son **off-chain**: nunca pausan el token del emisor.
 7. **Integridad documental.** Cada documento del Data Room se hashea (SHA-256) en el navegador; la raíz se calcula con
    `@rwaxi/blockchain-sdk/merkle` y se ancla con `updateDataRoomMerkleRoot`. NDA y suscripción citan esa raíz.
@@ -128,7 +137,7 @@ pnpm install                                   # instala todo el workspace
 pnpm dev                                       # Next en http://localhost:3000 (turbo; genera Prisma antes)
 pnpm build                                     # db:generate + contratos + next build
 pnpm typecheck                                 # tsc en todos los paquetes
-pnpm test                                      # contratos, SDK, hosts, referidos e invariantes de la cola
+pnpm test                                      # contratos, SDK (Merkle, distribuciones), hosts, referidos, invariantes, alta B2B
 
 pnpm --filter @rwaxi/database prisma generate  # cliente Prisma (alias: pnpm db:generate)
 pnpm db:up                                     # Postgres 16 en Docker (crea roles rwaxi_app / rwaxi_platform)
@@ -143,8 +152,10 @@ pnpm contracts:compile                         # hardhat compile + exporta ABIs 
 pnpm contracts:test                            # tests de cumplimiento (whitelist, freeze, clawback, roles)
 
 pnpm e2e                                       # suites E2E (Chrome headless) contra pnpm dev + la BD de .env; reseedea
-pnpm e2e portal superadmin-ops                 # sólo esas (backoffice, portal, referrals-subscriptions, payments-queue, superadmin-ops)
-pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local + next dev con CHAIN_EXECUTION=rpc
+pnpm e2e portal onboarding                     # sólo esas (backoffice, portal, referrals-subscriptions, payments-queue,
+                                               #   superadmin-ops, onboarding, distributions)
+pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local (registry, token y factory) + next dev con
+                                               #   CHAIN_EXECUTION=rpc y RWAXI_FACTORY_ADDRESS
 ```
 
 E2E (`scripts/e2e`, paquete `@rwaxi/e2e`): cada suite verifica la UI y, por separado, las filas en la BD con
@@ -158,7 +169,7 @@ Entornos en local (Chrome/Edge resuelven `*.localhost` a 127.0.0.1):
 `http://santabarbara.localhost:3000/backoffice` · `http://elpoblado.localhost:3000`.
 Variables: copiar `.env.example` a `.env`, `packages/database/.env` y `apps/web/.env.local`. La cola on-chain usa
 `OPERATOR_PRIVATE_KEY` (0x + 64 hex) y `CHAIN_EXECUTION` (`simulation` por defecto; `rpc` exige `RPC_URL_<NETWORK>`)
-en `apps/web/.env.local`.
+en `apps/web/.env.local`; el alta B2B usa `RWAXI_FACTORY_ADDRESS` (vacía: la factory ya registrada en esa red).
 Requiere Node ≥ 22.9 (`--env-file-if-exists`).
 Windows: con `pnpm dev` corriendo, `prisma generate` (y por tanto `pnpm build`/`pnpm typecheck`) falla con `EPERM`
 porque el servidor tiene cargado el motor de Prisma. Detener el dev server antes.
@@ -177,9 +188,10 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   (`ClientOnly`) hasta migrar cada pantalla a datos de `@rwaxi/database` vía server actions.
   Migrado a BD: catálogo de la vitrina, portal del inversionista (Lead, NDA, KYC, AccessGrant, suscripción y
   portafolio), pestañas "Cumplimiento y Leads" y "Suscripciones y Pagos" del backoffice, Inspector pestaña 4 (cola
-  `ChainTransaction` y su ejecución) y Super-Admin (consolidado, módulo A Gobierno, B Atribución y C Tarifas, libro
-  mayor y facturación). Siguen en estado demo: alta de nuevos desarrolladores (onboarding KYB), configuración White
-  Label, Data Room y minting del backoffice y pestañas 1–3 del inspector.
+  `ChainTransaction` y su ejecución), pestaña "Distribuciones y Rendimientos" del backoffice y su reflejo en el
+  portafolio, y Super-Admin (consolidado, alta de desarrolladores, módulo A Gobierno, B Atribución y C Tarifas, libro
+  mayor y facturación). Siguen en estado demo: configuración White Label, Data Room y minting del backoffice y
+  pestañas 1–3 del inspector.
 - **Suscripciones**, en tres pasos, cada uno una transacción `withTenant` con transición condicional y `AuditEvent`:
   1. `subscribe()` (portal): KYC `APPROVED` + wallet; capital recalculado en servidor (`unitPriceUsd × units`, ticket
      mínimo, máx. 250.000 USD); unidades comprometidas con `UPDATE` condicional + `CHECK
@@ -204,6 +216,23 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   desarrollador → `INVOICED`; registrar el pago (fecha ≤ hoy y ≥ emisión + comprobante) → la factura y sus asientos
   `PAID`. CHECK: `(status = ACCRUED) = (invoice_id IS NULL)` y pago con fecha y comprobante juntos. Las tarifas
   pactadas (`fee_setup_usd`, `fee_monthly_usd` ≥ 0, `fee_usage_pct` 0–10, CHECK) aplican a devengos futuros.
+- **Alta B2B** (`onboardDeveloper()`, una transacción `platformPrisma()`; el servidor revalida todo con
+  `parseOnboarding`): `Organization` en `REVIEW` y fuera de la vitrina (NIT con dígito de verificación DIAN, slug
+  único fuera de `RESERVED_SLUGS`, color con contraste AA, tarifas pactadas), su `TENANT_ADMIN` y su
+  `COMPLIANCE_OFFICER` (correo y wallet distintos), la primera oferta (`PRESALE` o `STRUCTURING`, código único en la
+  plataforma) con su token `NOT_DEPLOYED` y su Data Room base (SHA-256 en el navegador, raíz recalculada con el SDK),
+  el asiento `ONBOARDING_SETUP` `ACCRUED`, `deployTenantRegistry()` `PENDING` (factory: `RWAXI_FACTORY_ADDRESS` o la
+  ya usada en la red) y `ORGANIZATION_ONBOARDED`. «Desplegar registro» (módulo A) lo ejecuta el operador RWAXI
+  (`origin: "platform"`; desde el tenant está bloqueado); en `SIMULATION` la dirección es
+  `CREATE(factory, 1 + rwaxi_factory_creations)`. Hasta entonces el oficial no puede aprobar KYC.
+- **Distribuciones** (`declareDistribution()`, backoffice, `TENANT_ADMIN`): snapshot de tokens `MINTED` por
+  inversionista; monto en USD o en COP a la tasa declarada → centavos USD; prorrata por mayor residuo y árbol de
+  Merkle de `@rwaxi/blockchain-sdk/distribution` (hoja = `evidenceHash({ v: 1, kind: "rwaxi.distribution.allocation",
+  distributionId, wallet, units, amountCents })`). Una transacción `withTenant`: `Distribution` (una por oferta y
+  periodo; `distributionId = keccak256("rwaxi.distribution:{offeringId}:{periodo}")`), `DistributionAllocation`
+  (append-only, con su `merkleProof`), `anchorDistributionRoot(distributionId, root, totalAmountCents,
+  snapshotSupply)` `PENDING` y `DISTRIBUTION_DECLARED` (subjectHash = raíz). Al confirmarse → `ANCHORED`. El
+  portafolio muestra las asignaciones del inversionista y verifica su prueba en el navegador.
 - Errores únicos de Prisma (P2002): `isUniqueViolation(e)` de `@rwaxi/database`, nunca `instanceof
   Prisma.PrismaClientKnownRequestError` (con `transpilePackages` el cliente compartido y el namespace importado pueden
   ser copias distintas y el `instanceof` falla).

@@ -9,7 +9,7 @@ import {
   type AbiFunction,
   type AbiParameter,
 } from "viem";
-import { rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi } from "@rwaxi/blockchain-sdk/abi";
+import { rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi, rwaxiTenantFactoryAbi } from "@rwaxi/blockchain-sdk/abi";
 import type { ChainTransaction, ChainTxKind } from "@rwaxi/database";
 import type { ChainQueueItem, RwaxiContract } from "@/app/_lib/chain-queue-types";
 
@@ -21,6 +21,7 @@ const CONTRACT: Record<ChainTxKind, RwaxiContract> = {
   INVESTOR_FREEZE_UPDATED: "RwaxiComplianceRegistry",
   SUBSCRIPTION_MINTED: "RwaxiPropertyToken",
   DATA_ROOM_ROOT_ANCHORED: "RwaxiPropertyToken",
+  DISTRIBUTION_ROOT_ANCHORED: "RwaxiPropertyToken",
   FORCED_RECOVERY: "RwaxiPropertyToken",
   TOKEN_PAUSED: "RwaxiPropertyToken",
   TOKEN_UNPAUSED: "RwaxiPropertyToken",
@@ -35,6 +36,7 @@ const SIGNER: Record<ChainTxKind, string> = {
   INVESTOR_FREEZE_UPDATED: "COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant",
   SUBSCRIPTION_MINTED: "MINTER_ROLE · adaptador RWAXI, tras verificar el pago",
   DATA_ROOM_ROOT_ANCHORED: "DATA_ROOM_ROLE · emisor",
+  DISTRIBUTION_ROOT_ANCHORED: "DISTRIBUTION_ROLE · emisor (desarrollador)",
   FORCED_RECOVERY: "LEGAL_ENFORCEMENT_ROLE · emisor",
   TOKEN_PAUSED: "ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor",
   TOKEN_UNPAUSED: "ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor",
@@ -49,6 +51,12 @@ interface CallSpec {
 
 /** Contract call behind each outbox kind (compiled ABIs from contracts/). */
 const CALLS: Partial<Record<ChainTxKind, CallSpec>> = {
+  TENANT_REGISTRY_DEPLOYED: {
+    abi: rwaxiTenantFactoryAbi,
+    fn: "deployTenantRegistry",
+    event: "TenantRegistryDeployed",
+    note: "La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma; sin registro el tenant no puede aprobar inversionistas.",
+  },
   INVESTOR_WHITELISTED: { abi: rwaxiComplianceRegistryAbi, fn: "approveInvestor", event: "InvestorWhitelisted" },
   INVESTOR_REVOKED: { abi: rwaxiComplianceRegistryAbi, fn: "revokeInvestor", event: "InvestorRevoked" },
   INVESTOR_FREEZE_UPDATED: { abi: rwaxiComplianceRegistryAbi, fn: "setFrozen", event: "InvestorFreezeUpdated" },
@@ -59,6 +67,12 @@ const CALLS: Partial<Record<ChainTxKind, CallSpec>> = {
     note: "El hook _update del token exige que el receptor esté en la whitelist: su approveInvestor() debe confirmarse antes.",
   },
   DATA_ROOM_ROOT_ANCHORED: { abi: rwaxiPropertyTokenAbi, fn: "updateDataRoomMerkleRoot", event: "DataRoomMerkleRootAnchored" },
+  DISTRIBUTION_ROOT_ANCHORED: {
+    abi: rwaxiPropertyTokenAbi,
+    fn: "anchorDistributionRoot",
+    event: "DistributionRootAnchored",
+    note: "Ancla la raíz de Merkle de las asignaciones; la firma el emisor (DISTRIBUTION_ROLE), RWAXI no custodia ese rol.",
+  },
   TOKEN_PAUSED: { abi: rwaxiPropertyTokenAbi, fn: "pause", event: "Paused" },
   TOKEN_UNPAUSED: { abi: rwaxiPropertyTokenAbi, fn: "unpause", event: "Unpaused" },
 };

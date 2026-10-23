@@ -19,6 +19,8 @@ const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   FEE_TERMS_UPDATED: "Tarifas RWAXI actualizadas",
   FEE_INVOICED: "Factura RWAXI emitida",
   FEE_PAYMENT_RECORDED: "Pago a RWAXI registrado",
+  ORGANIZATION_ONBOARDED: "Alta en la red RWAXI",
+  DISTRIBUTION_DECLARED: "Distribución declarada",
 };
 const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "text-aquaInk",
@@ -34,6 +36,8 @@ const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   FEE_TERMS_UPDATED: "text-goldInk",
   FEE_INVOICED: "text-goldInk",
   FEE_PAYMENT_RECORDED: "text-aquaInk",
+  ORGANIZATION_ONBOARDED: "text-rxPurple",
+  DISTRIBUTION_DECLARED: "text-goldInk",
 };
 const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "SHA-256 expediente",
@@ -49,6 +53,8 @@ const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   FEE_TERMS_UPDATED: "SHA-256 decisión",
   FEE_INVOICED: "SHA-256 factura",
   FEE_PAYMENT_RECORDED: "SHA-256 pago",
+  ORGANIZATION_ONBOARDED: "SHA-256 alta",
+  DISTRIBUTION_DECLARED: "Merkle root",
 };
 
 export function AuditTrail({ entries, empty }: { entries: AuditEntry[]; empty?: string }) {

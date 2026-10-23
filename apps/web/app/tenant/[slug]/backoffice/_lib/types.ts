@@ -51,7 +51,9 @@ export interface AuditEntry {
     | "OFFERING_CAPTURE_RESUMED"
     | "FEE_TERMS_UPDATED"
     | "FEE_INVOICED"
-    | "FEE_PAYMENT_RECORDED";
+    | "FEE_PAYMENT_RECORDED"
+    | "ORGANIZATION_ONBOARDED"
+    | "DISTRIBUTION_DECLARED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;
@@ -115,3 +117,74 @@ export interface SubscriptionsDeskData {
 }
 
 export type SubscriptionsDeskResult = { ok: true; data: SubscriptionsDeskData } | { ok: false; error: string };
+
+/** "Distribuciones y Rendimientos": declaration of a yield distribution (amount as typed, e.g. "10000.50"). */
+export interface DistributionInput {
+  offeringId: string;
+  /** 2026-09 or 2026-Q3 */
+  period: string;
+  currency: "USD" | "COP";
+  amount: string;
+  /** COP per USD, only for COP declarations */
+  fxRate?: string;
+}
+
+export interface DistributionHolderRow {
+  investorId: string;
+  name: string;
+  wallet: string;
+  units: number;
+}
+
+export interface DistributionAllocationRow {
+  investorName: string;
+  wallet: string;
+  units: number;
+  amountUsd: number;
+  leafHash: string;
+  proofLength: number;
+}
+
+export interface DistributionRow {
+  id: string;
+  onchainId: string;
+  period: string;
+  currency: "USD" | "COP";
+  amountDeclared: number;
+  fxRate: number | null;
+  totalUsd: number;
+  holders: number;
+  totalUnits: number;
+  merkleRoot: string;
+  status: "DECLARED" | "ANCHORED";
+  anchorTxHash: string | null;
+  declaredAt: string;
+  declaredBy: string | null;
+  /** the queued anchorDistributionRoot() and how it was (or can be) executed */
+  anchor: { chainTxId: string; status: "PENDING" | "CONFIRMED" | "REVERTED"; mode: "SIMULATION" | "RPC" | null; blockedReason: string | null } | null;
+  allocations: DistributionAllocationRow[];
+}
+
+export interface DistributionOfferingRow {
+  id: string;
+  code: string;
+  assetName: string;
+  network: string;
+  token: { symbol: string; address: string; status: string };
+  /** current snapshot: MINTED units per investor */
+  holders: DistributionHolderRow[];
+  mintedUnits: number;
+  distributions: DistributionRow[];
+}
+
+export interface DistributionsDeskData {
+  organization: { slug: string; legalName: string; brandColor: string };
+  admin: { name: string; email: string };
+  execution: { mode: "SIMULATION" | "RPC"; operator: string | null };
+  /** default COP per USD for COP declarations (demo TRM) */
+  fxRate: number;
+  offerings: DistributionOfferingRow[];
+  audit: AuditEntry[];
+}
+
+export type DistributionsDeskResult = { ok: true; data: DistributionsDeskData } | { ok: false; error: string };

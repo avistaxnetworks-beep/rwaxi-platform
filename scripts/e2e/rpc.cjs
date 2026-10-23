@@ -1,19 +1,23 @@
 // E2E · CHAIN_EXECUTION=rpc against a local Hardhat node (run it through run-rpc.cjs): custody split
-// (the compliance officer signs approveInvestor with their wallet, RWAXI only sends mintSubscription)
+// (the compliance officer signs approveInvestor and the issuer anchorDistributionRoot with their own
+// wallets; RWAXI only sends mintSubscription and, from its console, the factory's deployTenantRegistry)
 // and confirmations backed by real receipts and on-chain state.
+const crypto = require("crypto");
 const lib = require("./lib.cjs");
-const { launch, ownerDb, ok, fail, shot, url, viem, viemChains, abi, hardhatAccount } = lib;
-const { clickText, toastText, alertText, waitAlert, openBackofficeTab } = lib;
+const { launch, ownerDb, ok, fail, shot, url, viem, viemAccounts, viemChains, abi, hardhatAccount, webEnv } = lib;
+const { clickText, clickIn, fill, toastText, alertText, waitAlert, openBackofficeTab } = lib;
 const { RPC_URL } = require("./rpc-fixtures.cjs");
 
 const SETUP = JSON.parse(process.env.E2E_RPC_SETUP || "null");
 if (!SETUP) throw new Error("Ejecuta esta suite con run-rpc.cjs (despliega los contratos y fija E2E_RPC_SETUP)");
 const tokenAbi = abi("RwaxiPropertyToken");
 const registryAbi = abi("RwaxiComplianceRegistry");
+const factoryAbi = abi("RwaxiTenantFactory");
 const db = ownerDb();
 const transport = viem.http(RPC_URL);
 const chain = viem.createPublicClient({ chain: viemChains.hardhat, transport });
 const officer = viem.createWalletClient({ account: hardhatAccount(1), chain: viemChains.hardhat, transport });
+const issuer = viem.createWalletClient({ account: hardhatAccount(0), chain: viemChains.hardhat, transport });
 
 async function registerOfficerTx(page, chainTxId, txHash) {
   const sel = `[data-officer-form="${chainTxId}"] input`;
@@ -21,6 +25,14 @@ async function registerOfficerTx(page, chainTxId, txHash) {
   await page.$eval(sel, (i) => (i.value = ""));
   await page.type(sel, txHash);
   await clickText(page, "Registrar tx del Oficial", `[data-officer-form="${chainTxId}"]`);
+}
+/** Distributions desk: hash of the anchorDistributionRoot() the issuer signed with its own wallet. */
+async function registerIssuerTx(page, chainTxId, txHash) {
+  const sel = `[data-issuer-form="${chainTxId}"] input`;
+  await page.waitForSelector(sel, { timeout: 30000 });
+  await page.$eval(sel, (i) => (i.value = ""));
+  await page.type(sel, txHash);
+  await clickText(page, "Registrar tx del emisor", `[data-issuer-form="${chainTxId}"]`);
 }
 
 (async () => {
@@ -127,6 +139,149 @@ async function registerOfficerTx(page, chainTxId, txHash) {
     await a.goto(url("avista"), { waitUntil: "domcontentloaded" });
     await a.waitForSelector('[data-holding="en_wallet"]', { timeout: 90000 });
     ok("portafolio: 'En wallet' tras el recibo de la red", true);
+
+    // ── Distribution: the issuer anchors the Merkle root (DISTRIBUTION_ROLE), RWAXI cannot ──
+    const offering = await db.offering.findFirstOrThrow({ where: { organizationId: org.id }, include: { token: true } });
+    await openBackofficeTab(b, "avista", "Distribuciones y Rendimientos");
+    await b.waitForSelector(`[data-distribution-offering="${offering.code}"]`, { timeout: 90000 });
+    await fill(b, `#dist-period-${offering.id}`, "2026-Q3");
+    await fill(b, `#dist-amount-${offering.id}`, "10000");
+    await b.waitForFunction((id) => !document.querySelector(`[data-declare-distribution="${id}"]`)?.disabled, { timeout: 10000 }, offering.id);
+    await clickIn(b, `[data-distribution-offering="${offering.code}"]`, "Declarar y encolar raíz de Merkle");
+    await b.waitForSelector('[data-distribution="2026-Q3"]', { timeout: 60000 });
+    const dist = await db.distribution.findFirstOrThrow({ where: { offeringId: offering.id, period: "2026-Q3" } });
+    const anchorTx = await db.chainTransaction.findFirstOrThrow({ where: { organizationId: org.id, kind: "DISTRIBUTION_ROOT_ANCHORED" } });
+    ok(
+      "anchorDistributionRoot() en cola contra el token en Hardhat; la mesa pide la tx del emisor (sin «Firmar y ejecutar»)",
+      anchorTx.network === "HARDHAT" &&
+        anchorTx.contractAddress.toLowerCase() === SETUP.token.toLowerCase() &&
+        !!(await b.$(`[data-issuer-form="${anchorTx.id}"]`)) &&
+        !(await b.$(`[data-anchor-execute="${anchorTx.id}"]`)),
+    );
+    const operatorAccount = viemAccounts.privateKeyToAccount(webEnv("OPERATOR_PRIVATE_KEY"));
+    const refused = await chain
+      .simulateContract({
+        account: operatorAccount,
+        address: SETUP.token,
+        abi: tokenAbi,
+        functionName: "anchorDistributionRoot",
+        args: [dist.onchainId, dist.merkleRoot, 1_000_000n, BigInt(dist.totalUnits)],
+      })
+      .then(
+        () => "",
+        (e) => `${e.shortMessage ?? ""} ${e.message ?? ""}`,
+      );
+    ok("on-chain: el operador RWAXI no tiene DISTRIBUTION_ROLE (AccessControlUnauthorizedAccount)", /AccessControlUnauthorizedAccount/.test(refused), refused.split("\n")[0].trim());
+
+    await openBackofficeTab(b, "avista", "Suscripciones y Pagos");
+    await b.waitForSelector(`[data-queue-item="${anchorTx.id}"]`, { timeout: 90000 });
+    await clickText(b, "Procesar cola en orden");
+    await b.waitForFunction(() => /Nada ejecutable/.test(document.querySelector(".toast-wrap")?.textContent ?? ""), { timeout: 90000 });
+    const anchorAfterRun = await db.chainTransaction.findUniqueOrThrow({ where: { id: anchorTx.id } });
+    ok(
+      "procesar la cola no envía anchorDistributionRoot con la clave de RWAXI (la mesa pide la tx del emisor)",
+      anchorAfterRun.status === "PENDING" && anchorAfterRun.executionMode === null && !!(await b.$(`[data-officer-form="${anchorTx.id}"]`)),
+    );
+
+    const strayId = viem.keccak256(viem.toHex(`rwaxi.distribution:${offering.id}:stray`));
+    const stray = await issuer.writeContract({
+      address: SETUP.token,
+      abi: tokenAbi,
+      functionName: "anchorDistributionRoot",
+      args: [strayId, dist.merkleRoot, 1_000_000n, BigInt(dist.totalUnits)],
+    });
+    await chain.waitForTransactionReceipt({ hash: stray });
+    await openBackofficeTab(b, "avista", "Distribuciones y Rendimientos");
+    await registerIssuerTx(b, anchorTx.id, stray);
+    await waitAlert(b, /no emitió DistributionRootAnchored con los argumentos en cola/);
+    ok(
+      "tx del emisor para otro distributionId → rechazada (evento no coincide con la cola)",
+      (await db.chainTransaction.findUniqueOrThrow({ where: { id: anchorTx.id } })).status === "PENDING",
+      await alertText(b),
+    );
+
+    const anchorHash = await issuer.writeContract({
+      address: SETUP.token,
+      abi: tokenAbi,
+      functionName: "anchorDistributionRoot",
+      args: [dist.onchainId, dist.merkleRoot, BigInt(anchorTx.args.totalAmountCents), BigInt(anchorTx.args.snapshotSupply)],
+    });
+    const anchorReceipt = await chain.waitForTransactionReceipt({ hash: anchorHash });
+    await registerIssuerTx(b, anchorTx.id, anchorHash);
+    await b.waitForSelector('[data-distribution="2026-Q3"][data-distribution-status="ANCHORED"]', { timeout: 90000 });
+    const anchored = await db.chainTransaction.findUniqueOrThrow({ where: { id: anchorTx.id } });
+    const distAfter = await db.distribution.findUniqueOrThrow({ where: { id: dist.id } });
+    ok(
+      "anchorDistributionRoot CONFIRMED con hash, bloque y firmante reales del emisor; Distribution ANCHORED",
+      anchored.status === "CONFIRMED" &&
+        anchored.executionMode === "RPC" &&
+        anchored.txHash === anchorHash &&
+        anchored.blockNumber === anchorReceipt.blockNumber &&
+        anchored.signerAddress === SETUP.issuer &&
+        distAfter.status === "ANCHORED" &&
+        distAfter.anchorTxHash === anchorHash,
+      `bloque ${anchored.blockNumber}`,
+    );
+    const onchainRoot = await chain.readContract({ address: SETUP.token, abi: tokenAbi, functionName: "distributionRoots", args: [dist.onchainId] });
+    ok("on-chain: distributionRoots(distributionId) = raíz de Merkle persistida en Neon", onchainRoot === dist.merkleRoot, onchainRoot);
+    await shot(b, "rpc-distribution", { fullPage: true });
+
+    // ── New developer on HARDHAT: RWAXI's operator deploys its registry through the factory ──
+    const s = await (await browser.createBrowserContext()).newPage();
+    s.on("pageerror", (e) => console.log("PAGEERROR(S)", e.message));
+    const slug = `rpc-${crypto.randomBytes(3).toString("hex")}`;
+    await lib.onboardTenant(s, {
+      slug,
+      legalName: `Desarrollos ${slug.toUpperCase()} S.A.S.`,
+      displayName: `Desarrollos ${slug.toUpperCase()}`,
+      nit: lib.nitOf(lib.randomNitBase()),
+      network: "HARDHAT",
+    });
+    const newOrg = await db.organization.findUniqueOrThrow({ where: { slug }, include: { users: true } });
+    const registryTx = await db.chainTransaction.findFirstOrThrow({ where: { organizationId: newOrg.id, kind: "TENANT_REGISTRY_DEPLOYED" } });
+    ok(
+      "alta en HARDHAT: deployTenantRegistry() en cola contra la RwaxiTenantFactory local (RWAXI_FACTORY_ADDRESS)",
+      registryTx.network === "HARDHAT" && registryTx.contractAddress.toLowerCase() === SETUP.factory.toLowerCase(),
+    );
+    await lib.openGovernance(s);
+    await clickIn(s, `[data-governance-row="${slug}"]`, "Desplegar registro");
+    await s.waitForSelector("[data-governance-dialog]", { timeout: 30000 });
+    await clickText(s, "Confirmar decisión", '[role="dialog"]');
+    await s.waitForFunction(
+      (sl) => document.querySelector(`[data-governance-row="${sl}"] [data-registry-status]`)?.dataset.registryStatus === "DEPLOYED",
+      { timeout: 120000 },
+      slug,
+    );
+    const deployed = await db.chainTransaction.findUniqueOrThrow({ where: { id: registryTx.id } });
+    const orgAfter = await db.organization.findUniqueOrThrow({ where: { id: newOrg.id } });
+    const deployReceipt = await chain.getTransactionReceipt({ hash: deployed.txHash });
+    const deploySent = await chain.getTransaction({ hash: deployed.txHash });
+    const onchainRegistry = await chain.readContract({ address: SETUP.factory, abi: factoryAbi, functionName: "tenantRegistries", args: [newOrg.onchainId] });
+    ok(
+      "deployTenantRegistry CONFIRMED: enviada por el operador RWAXI; el registro del evento = Organization.complianceRegistry = factory.tenantRegistries(orgId)",
+      deployed.status === "CONFIRMED" &&
+        deployed.executionMode === "RPC" &&
+        deploySent.from.toLowerCase() === SETUP.operator.toLowerCase() &&
+        deployReceipt.status === "success" &&
+        onchainRegistry !== viem.zeroAddress &&
+        orgAfter.complianceRegistry === onchainRegistry &&
+        deployed.args.registry === onchainRegistry,
+      onchainRegistry,
+    );
+    const admin2 = newOrg.users.find((u) => u.role === "TENANT_ADMIN");
+    const officer2 = newOrg.users.find((u) => u.role === "COMPLIANCE_OFFICER");
+    const OFFICER_ROLE = viem.keccak256(viem.toHex("COMPLIANCE_OFFICER_ROLE"));
+    const hasRole = (role, who) => chain.readContract({ address: onchainRegistry, abi: registryAbi, functionName: "hasRole", args: [role, who] });
+    const taxId = await chain.readContract({ address: onchainRegistry, abi: registryAbi, functionName: "organizationTaxId" });
+    ok(
+      "on-chain: el registro es del tenant (admin y oficial con sus roles, su NIT) y RWAXI no conserva ningún rol",
+      (await hasRole(viem.zeroHash, admin2.walletAddress)) &&
+        (await hasRole(OFFICER_ROLE, officer2.walletAddress)) &&
+        !(await hasRole(viem.zeroHash, SETUP.operator)) &&
+        !(await hasRole(OFFICER_ROLE, SETUP.operator)) &&
+        taxId === newOrg.taxId,
+      taxId,
+    );
   } finally {
     await browser.close();
     await db.$disconnect();

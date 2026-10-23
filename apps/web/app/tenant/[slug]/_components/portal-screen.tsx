@@ -9,6 +9,7 @@ import { byId } from "@/app/_lib/data/projects";
 import { EMPTY_KYC } from "@/app/_lib/data/kyc";
 import { signNda, submitKyc, subscribe } from "../actions";
 import { toKycSubmission } from "../_lib/kyc-submission";
+import { InvestorDistributions } from "./investor-distributions";
 import type {
   NdaSubmission,
   PersistedJourney,
@@ -21,7 +22,7 @@ const freshKyc = () => ({ stage: "form", step: 0, data: { ...EMPTY_KYC }, status
 
 /**
  * PostgreSQL is the source of truth for lead, NDA, KYC status, Data Room grant, subscriptions
- * (portfolio) and offering availability. The demo journey of the prototype is discarded; only
+ * (portfolio), yield distributions and offering availability. The demo journey of the prototype is discarded; only
  * an in-progress KYC form for the same NDA survives, since the database does not hold drafts.
  */
 function applyPersisted(j: any, p: PersistedJourney | null, firstApply: boolean): any {
@@ -130,6 +131,9 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
           }}
           persistNda={persistNda}
           persistKyc={persistKyc}
+          distributionsSlot={
+            <InvestorDistributions distributions={persisted.ok ? persisted.data.distributions : []} toast={d.toast} />
+          }
         />
       ) : (
         <div className="boot">RWAXI · CARGANDO TU PROCESO</div>

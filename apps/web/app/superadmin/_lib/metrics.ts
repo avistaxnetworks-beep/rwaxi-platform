@@ -2,6 +2,7 @@ import "server-only";
 import { platformPrisma, type Prisma } from "@rwaxi/database";
 import { PLATFORM_AUDIT_ACTIONS, platformAuditSummary } from "@/app/_lib/server/platform-audit";
 import { TenantAccessError, requirePlatformAccess } from "@/app/_lib/server/tenant-context";
+import { onboardingNetworks } from "./onboarding";
 import { requirePlatformSession } from "./session";
 import type {
   FeeKindKey,
@@ -45,7 +46,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
     await requirePlatformAccess();
     const session = await requirePlatformSession().catch(() => null); // actions need it; reading does not
     const db = platformPrisma();
-    const [orgs, leadGroups, ndaGroups, kycGroups, investorGroups, subGroups, feeGroups, referralLeads, ledger, invoices, audit] =
+    const [orgs, leadGroups, ndaGroups, kycGroups, investorGroups, subGroups, feeGroups, referralLeads, ledger, invoices, audit, registryTxs, codes] =
       await Promise.all([
         db.organization.findMany({
           orderBy: { onboardedAt: "asc" },
@@ -56,6 +57,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
             legalName: true,
             taxId: true,
             complianceRegime: true,
+            complianceRegistry: true,
             customDomain: true,
             domainStatus: true,
             portalStatus: true,
@@ -128,6 +130,12 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
           take: 20,
           include: { organization: { select: { displayName: true } } },
         }),
+        db.chainTransaction.findMany({
+          where: { kind: "TENANT_REGISTRY_DEPLOYED" },
+          orderBy: { createdAt: "desc" },
+          select: { organizationId: true, status: true, network: true },
+        }),
+        db.offering.findMany({ select: { code: true } }),
       ]);
 
     const count = <T extends { organizationId: string; _count: { _all: number } }>(rows: T[], orgId: string, pick?: (r: T) => boolean) =>
@@ -162,6 +170,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
 
     const tenants: PlatformTenantRow[] = orgs.map((o) => {
       const offering = o.offerings.find((f) => f.published);
+      const registryTx = registryTxs.find((t) => t.organizationId === o.id);
       return {
         id: o.id,
         slug: o.slug,
@@ -173,6 +182,11 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         portalStatus: o.portalStatus,
         published: o.published,
         onboardedAt: o.onboardedAt.toISOString().slice(0, 10),
+        registry: {
+          address: o.complianceRegistry,
+          status: o.complianceRegistry ? "DEPLOYED" : registryTx?.status === "PENDING" ? "PENDING" : "NONE",
+          network: registryTx?.network ?? null,
+        },
         offerings: o.offerings.map((f) => ({
           id: f.id,
           code: f.code,
@@ -261,6 +275,10 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         subjectHash: e.subjectHash,
       })),
       admin: session ? { name: session.admin.fullName, email: session.admin.email } : null,
+      onboarding: {
+        networks: onboardingNetworks(),
+        nextOfferingCode: `P-${String(Math.max(0, ...codes.map((c) => Number(/^P-(\d+)$/.exec(c.code)?.[1] ?? 0))) + 1).padStart(2, "0")}`,
+      },
     };
     return { ok: true, data };
   } catch (e) {

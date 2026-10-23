@@ -1,5 +1,6 @@
-// Maps the live public catalogue (PostgreSQL) to the project / developer shapes the ported
-// vitrina components render. Client-safe: no runtime imports from the database package.
+// Maps an offering of the live catalogue (PostgreSQL) to the project / developer shapes the ported
+// components render: the vitrina catalogue and the portal of tenants onboarded in the database.
+// Client-safe: no runtime imports from the database package.
 import type { PublicOffering } from "@rwaxi/database";
 import { DEVELOPERS } from "@/app/_lib/data/tenants";
 

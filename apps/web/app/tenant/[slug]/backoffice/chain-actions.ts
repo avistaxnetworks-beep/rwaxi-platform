@@ -85,7 +85,7 @@ export async function processChainQueue(): Promise<QueueRunResult> {
   }
 }
 
-/** RPC mode: registers the approveInvestor() the compliance officer signed with their own wallet. */
+/** RPC mode: registers a call the tenant signed with its own wallet (registry: the compliance officer; anchorDistributionRoot: the issuer). */
 export async function registerOfficerTransaction(chainTxId: string, txHash: string): Promise<ActionResult> {
   try {
     const session = await requireBackofficeSession(roleFor(await kindOf(chainTxId)));
