@@ -1,6 +1,7 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
 import { useEffect } from "react";
+import { ChainQueueTab } from "@/app/_components/inspector/chain-queue-tab";
 import { LogTab } from "@/app/_components/inspector/log-tab";
 import { SimTab } from "@/app/_components/inspector/sim-tab";
 import { StateTab } from "@/app/_components/inspector/state-tab";
@@ -39,6 +40,7 @@ export function OnChainInspector({
       ["state", "Contract State Explorer"],
       ["log", "Live Calldata & Event Log"],
       ["sim", "Compliance Simulator"],
+      ["db", "Cola PostgreSQL · ChainTransaction"],
     ];
   return (
     <div
@@ -108,11 +110,12 @@ export function OnChainInspector({
           {d === "state" && <StateTab s={v} toast={m} />}
           {d === "log" && <LogTab log={r} tenants={t} tenantId={s} toast={m} />}
           {d === "sim" && <SimTab s={v} emit={i} setChainX={l} toast={m} />}
+          {d === "db" && <ChainQueueTab selectedSlug={t[s].slug} selectedName={t[s].displayName} toast={m} />}
         </div>
         <footer className="px-5 py-2.5 border-t border-white/10 font-mono text-[10.5px] text-[#A79FC0]">
-          Simulación determinista del estado de los contratos; el código fuente es real y compila con solc
-          0.8.24. Direcciones y hashes de transacción son de demostración; los hashes SHA-256 de documentos,
-          NDA y KYC se calculan en tu navegador.
+          {d === "db"
+            ? "Datos reales de PostgreSQL (ChainTransaction, aislado por RLS). Las operaciones PENDING aún no se han enviado a la red: el calldata se codifica con el ABI compilado de RwaxiComplianceRegistry y espera la firma del rol indicado."
+            : "Simulación determinista del estado de los contratos; el código fuente es real y compila con solc 0.8.24. Direcciones y hashes de transacción son de demostración; los hashes SHA-256 de documentos, NDA y KYC se calculan en tu navegador."}
         </footer>
       </aside>
     </div>

@@ -209,6 +209,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                   ["Listas restrictivas", open.lists],
                   ["Wallet declarada", open.wallet ? shortHash(open.wallet, 10, 8) : "—"],
                   ["SHA-256 del expediente", open.dossierHash ? shortHash(open.dossierHash, 14, 8) : "—"],
+                  ["Prueba de vida", open.liveness ?? "—"],
                   ["Estado", KYC_LABEL[open.kyc][0]],
                   ["Revisado por", open.reviewedBy && open.reviewedAt ? `${open.reviewedBy} · ${utc(open.reviewedAt)}` : "—"],
                 ] as [string, string][]
@@ -219,6 +220,27 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                 </div>
               ))}
             </dl>
+            {open.documents.length > 0 && (
+              <div className="border border-line">
+                <p className="px-4 py-2 border-b border-line bg-cloud font-mono text-[10.5px] tracking-[0.12em] text-muted uppercase">
+                  Documentos del expediente · SHA-256 calculado en el navegador del inversionista
+                </p>
+                <ul>
+                  {open.documents.map((doc) => (
+                    <li
+                      key={doc.kind + doc.sha256}
+                      className="px-4 py-2 border-b border-line last:border-b-0 text-[12px] flex flex-wrap justify-between gap-2"
+                    >
+                      <span className="text-inkBody">
+                        {doc.kind === "front" ? "Frente · " : doc.kind === "back" ? "Reverso · " : ""}
+                        {doc.name}
+                      </span>
+                      <span className="font-mono text-[11px] text-muted">{shortHash(doc.sha256, 14, 8)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {open.rejectionReason && (
               <p className="text-[12px] text-[#B42318]">
                 {"Motivo del rechazo: "}

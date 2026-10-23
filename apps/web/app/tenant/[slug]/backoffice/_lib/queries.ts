@@ -1,6 +1,7 @@
 import "server-only";
 import { forTenant, type KycStatus, type RiskProfile } from "@rwaxi/database";
-import { BackofficeAccessError, requireBackofficeSession, type BackofficeSession } from "./session";
+import { TenantAccessError } from "@/app/_lib/server/tenant-context";
+import { requireBackofficeSession, type BackofficeSession } from "./session";
 import type { AuditEntry, ComplianceInboxData, ComplianceInboxResult, ComplianceRow, KycView, RiskKey } from "./types";
 
 const KYC_VIEW: Record<KycStatus, KycView> = {
@@ -18,15 +19,39 @@ const RISK_VIEW: Record<RiskProfile, RiskKey> = {
 
 const group = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
-/** "CC" + "52381904" → "C.C. 52.381.904" · "NIT" + "901330448-2" → "NIT 901.330.448-2" */
-export function formatDoc(docType: string, docNumber: string): string {
+const DOC_LABEL: Record<string, string> = { CC: "C.C.", CE: "C.E.", PA: "Pasaporte", NIT: "NIT" };
+
+/** "CC" + "52381904" → "C.C. 52.381.904" · "NIT" + "901330448-2" → "NIT 901.330.448-2" · none yet → "—" */
+export function formatDoc(docType: string | null, docNumber: string | null): string {
+  if (!docType || !docNumber) return "—";
   const [base = docNumber, dv] = docNumber.split("-");
   const grouped = /^\d+$/.test(base) ? group(base) : base;
-  const label = docType === "CC" ? "C.C." : docType === "CE" ? "C.E." : docType;
-  return `${label} ${grouped}${dv ? `-${dv}` : ""}`;
+  return `${DOC_LABEL[docType] ?? docType} ${grouped}${dv ? `-${dv}` : ""}`;
 }
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Documents and liveness recorded in KycCase.evidence by the portal (absent for seeded cases). */
+function evidenceSummary(evidence: unknown): Pick<ComplianceRow, "documents" | "liveness"> {
+  const ev = (evidence ?? {}) as {
+    documents?: { kind?: unknown; name?: unknown; sha256?: unknown }[];
+    liveness?: { method?: unknown; result?: unknown };
+  };
+  const documents = Array.isArray(ev.documents)
+    ? ev.documents.flatMap((d) =>
+        typeof d.name === "string" && typeof d.sha256 === "string"
+          ? [{ kind: String(d.kind ?? ""), name: d.name, sha256: d.sha256 }]
+          : [],
+      )
+    : [];
+  const liveness =
+    ev.liveness && typeof ev.liveness.result === "string"
+      ? `${ev.liveness.result === "done" ? "Completada" : ev.liveness.result}${
+          ev.liveness.method === "simulated" ? " · simulada (sin proveedor biométrico)" : ""
+        }`
+      : null;
+  return { documents, liveness };
+}
 
 async function readInbox(session: BackofficeSession): Promise<ComplianceInboxData> {
   const db = forTenant(session.tenant.id);
@@ -87,6 +112,7 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
       ptee: ptee && submitted,
       wallet: inv.walletAddress,
       dossierHash: kyc?.dossierHash ?? null,
+      ...evidenceSummary(kyc?.evidence),
       whitelist: inv.walletAddress ? (whitelistByWallet.get(inv.walletAddress.toLowerCase()) ?? null) : null,
       rejectionReason: kyc?.rejectionReason ?? null,
       reviewedAt: kyc?.reviewedAt?.toISOString() ?? null,
@@ -126,7 +152,7 @@ export async function loadComplianceInbox(): Promise<ComplianceInboxResult> {
     const session = await requireBackofficeSession();
     return { ok: true, data: await readInbox(session) };
   } catch (e) {
-    if (e instanceof BackofficeAccessError) return { ok: false, error: e.message };
+    if (e instanceof TenantAccessError) return { ok: false, error: e.message };
     console.error("[backoffice] compliance inbox failed", e);
     return { ok: false, error: "No se pudo leer la bandeja de cumplimiento desde la base de datos." };
   }

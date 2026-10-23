@@ -44,6 +44,9 @@ importers:
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
+      viem:
+        specifier: ^2.57.10
+        version: 2.57.10(typescript@5.9.3)
     devDependencies:
       '@types/node':
         specifier: ^22.10.0

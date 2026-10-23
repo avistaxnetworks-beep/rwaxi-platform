@@ -15,7 +15,11 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   app/vitrina/           www.rwaxi.com
   app/superadmin/        admin.rwaxi.com
   app/tenant/[slug]/     {slug}.rwaxi.com (portal) y /backoffice
+    actions.ts           onboarding persistido del inversionista: signNda(), submitKyc()
+    _lib/journey.ts      journey del visitante leído de PostgreSQL (sesión por cookie firmada)
     backoffice/          bandeja de cumplimiento persistida: _lib/queries.ts (lectura), actions.ts (Server Actions)
+  app/_lib/server/       server-only: tenant-context, investor-session (HMAC), chain-queue (calldata viem)
+  app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
 packages/database        Prisma 6 · esquema multi-tenant (14 entidades) · RLS · cliente con tenant · seed
@@ -54,12 +58,21 @@ Reglas:
    para los roles de la app (sin políticas UPDATE/DELETE + privilegios revocados). Las operaciones on-chain que firma el
    tenant se encolan como `ChainTransaction` `PENDING` (outbox) y no se marcan `CONFIRMED` sin `txHash` real.
 5. **Autenticación pendiente.** El backoffice usa una sesión demo (el `COMPLIANCE_OFFICER` del tenant), activa sólo
-   fuera de producción o con `RWAXI_DEMO_AUTH=1`. En producción, sin auth real, la bandeja y las acciones se niegan.
+   fuera de producción o con `RWAXI_DEMO_AUTH=1`. En producción, sin auth real, la bandeja, sus acciones y la cola del
+   inspector se niegan. El inversionista se identifica con la cookie `rwaxi_inv` (HttpOnly, HMAC con
+   `INVESTOR_SESSION_SECRET`, ligada a la organización del host) emitida al firmar el NDA. Sin verificación de email
+   todavía: un email ya registrado en el tenant **nunca** se asocia a un navegador nuevo (se rechaza la firma).
+   La atribución RWAXI viaja en la cookie `rwaxi_ref` (primer contacto, la fija el middleware desde `?ref=`); un token
+   ya usado genera un Lead `DIRECT`, nunca doble atribución.
 6. **RWAXI no custodia el valor emitido.** En contratos, RWAXI sólo tiene `RWAXI_OPERATOR_ROLE` (factory) y
    `MINTER_ROLE`; pausa, Data Room y recuperación forzosa son del emisor; la whitelist es del oficial de cumplimiento
    del tenant. No añadir roles a RWAXI sin revisión legal.
 7. **Integridad documental.** Cada documento del Data Room se hashea (SHA-256) en el navegador; la raíz se calcula con
    `@rwaxi/blockchain-sdk/merkle` y se ancla con `updateDataRoomMerkleRoot`. NDA y suscripción citan esa raíz.
+   El expediente KYC lo hashea **el servidor**: `KycCase.dossierHash = evidenceHash(KycCase.evidence)` (JSON canónico,
+   claves ordenadas, estable tras `jsonb`); `evidence` guarda formulario, SHA-256 del contenido de cada documento,
+   declaraciones y NDA, de modo que cualquiera puede recalcular el hash que va on-chain. La evidencia persistida usa
+   `app/_lib/sha256.ts` (Web Crypto, falla si no puede); nunca el `sha256Hex()` del prototipo, que inventa un hash.
 8. **Dominios propios**: mapa `DEFAULT_CUSTOM_DOMAINS` + `RWAXI_CUSTOM_DOMAINS` en `hosts.ts`
    (pendiente: Edge Config alimentado desde `Organization.customDomain`).
 
@@ -123,8 +136,10 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   cortos originales y lleva `// @ts-nocheck`. Al tocar un módulo, tiparlo y quitar el pragma; no reescribir en bloque.
   El estado de demo vive en `app/_components/shell/demo-provider.tsx` (antes `App`) y se renderiza sólo en cliente
   (`ClientOnly`) hasta migrar cada pantalla a datos de `@rwaxi/database` vía server actions.
-  Migrado a BD: pestaña "Cumplimiento y Leads" del backoffice. Siguen en estado demo: portal (NDA/KYC/suscripción),
-  configuración White Label, Data Room y minting, Super-Admin e Inspector On-Chain.
+  Migrado a BD: portal del inversionista (Lead, NDA, KYC, estado y AccessGrant), bandeja "Cumplimiento y Leads" del
+  backoffice e Inspector pestaña 4 (cola `ChainTransaction`). Siguen en estado demo: suscripción/portafolio,
+  configuración White Label, Data Room y minting, Super-Admin y pestañas 1–3 del inspector.
+  `PortalScreen` descarta el journey demo del prototipo y aplica el persistido antes de montar el portal.
 - Patrón de pantalla persistida: página server (`dynamic = "force-dynamic"`) → `_lib/queries.ts` (`server-only`,
   devuelve un resultado `ok/error`, nunca lanza) → componente cliente tipado → `actions.ts` (`withTenant`, transición
   condicional de estado, `AuditEvent`, `revalidatePath`).
@@ -134,5 +149,7 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   necesita `organization_id`, `ENABLE`/`FORCE ROW LEVEL SECURITY` + política en su migración y, si referencia otra
   tabla de tenant, trigger `same_tenant`. Los privilegios por defecto dan SELECT/INSERT/UPDATE/DELETE a `rwaxi_app`:
   una tabla append-only debe revocar UPDATE/DELETE en su migración y en `scripts/provision-app-role.ts`.
+- Validación de formularios: las reglas de UI (`validateStep`) se reaplican en el servidor, más listas cerradas
+  (países, actividades, rangos). Emails y wallets se guardan en minúsculas (únicos por tenant).
 - Copys en español (Colombia); importes con `money()` (COP/USD, TRM de demo 4.100).
 - Cifras, proyectos, direcciones y hashes de los seeds son ilustrativos.

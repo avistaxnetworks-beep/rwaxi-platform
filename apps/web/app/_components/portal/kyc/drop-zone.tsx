@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Icon } from "@/app/_components/ui/icon";
 import { nf } from "@/app/_lib/format";
+import { sha256Bytes } from "@/app/_lib/sha256";
 
 export function DropZone({ id: e, label: a, file: t, onFile: o, error: n }) {
   const [l, r] = useState(false),
@@ -23,11 +24,14 @@ export function DropZone({ id: e, label: a, file: t, onFile: o, error: n }) {
       }
       const d = new FileReader();
       (d.onload = () =>
-        o({
-          name: c.name,
-          size: c.size,
-          src: c.type.startsWith("image/") ? d.result : null,
-        })),
+        // SHA-256 of the file bytes is the evidence sent with the KYC dossier (files stay in the browser).
+        c
+          .arrayBuffer()
+          .then((p) => sha256Bytes(p))
+          .then(
+            (p) => o({ name: c.name, size: c.size, type: c.type, sha256: p, src: c.type.startsWith("image/") ? d.result : null }),
+            () => o({ error: "Tu navegador no pudo calcular el hash SHA-256 del archivo." }),
+          )),
         d.readAsDataURL(c);
     };
   return (

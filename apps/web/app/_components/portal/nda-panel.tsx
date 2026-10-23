@@ -9,8 +9,9 @@ import { fillLegal, legalVars } from "@/app/_lib/data/legal";
 import { DEMO_KYC } from "@/app/_lib/data/tenants";
 import { nowISO, shortHash } from "@/app/_lib/format";
 import { sha256Hex } from "@/app/_lib/hash";
+import { sha256Text } from "@/app/_lib/sha256";
 
-export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n }) {
+export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist: g }) {
   const [l, r] = useState(""),
     [i, s] = useState(""),
     [c, d] = useState(false),
@@ -72,7 +73,8 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n }) {
     }
     v(""), m(true);
     const b = nowISO(),
-      y = await sha256Hex(
+      // Persisted evidence must come from Web Crypto: sha256Hex() falls back to a fake hash on failure.
+      y = await (g ? sha256Text : sha256Hex)(
         JSON.stringify({
           tenant: e.slug,
           nit: e.nit,
@@ -81,7 +83,21 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n }) {
           at: b,
           text: fillLegal(e.ndaText, legalVars(e, a)),
         }),
-      );
+      ).catch(() => null);
+    if (!y) {
+      m(false), v("Tu navegador no pudo calcular el hash SHA-256 del acuerdo.");
+      return;
+    }
+    if (g) {
+      const w = await g({ signerName: l.trim(), signerEmail: i.trim(), at: b, documentHash: y });
+      m(false);
+      if (!w.ok) {
+        v(w.error);
+        return;
+      }
+      o(w.nda);
+      return;
+    }
     m(false),
       o({
         id: "cr_" + y.slice(0, 12),
@@ -142,7 +158,8 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n }) {
         </button>
         <button
           onClick={() => {
-            r(DEMO_KYC.fullName), s("inversionista@ejemplo.co"), d(true);
+            // Random alias: emails are unique per tenant in the database.
+            r(DEMO_KYC.fullName), s(`inversionista.${Math.random().toString(16).slice(2, 6)}@ejemplo.co`), d(true);
           }}
           className="text-[12px] text-rxBlue underline underline-offset-2 self-start focus-ring"
         >

@@ -24,6 +24,9 @@ export interface ComplianceRow {
   ptee: boolean;
   wallet: string | null;
   dossierHash: string | null;
+  /** From KycCase.evidence (portal submissions): uploaded files, hashed in the browser. */
+  documents: { kind: string; name: string; sha256: string }[];
+  liveness: string | null;
   whitelist: { status: "PENDING" | "CONFIRMED" | "REVERTED"; txHash: string | null } | null;
   rejectionReason: string | null;
   reviewedAt: string | null;

@@ -68,6 +68,7 @@ export const EMPTY_KYC = {
   docType: "CC",
   docNumber: "",
   country: "Colombia",
+  wallet: "",
   activity: "",
   activityOther: "",
   income: null,
@@ -99,7 +100,10 @@ export function validateStep(e, a, t = "sagrilaft") {
         (o.docNumber = "La cédula tiene entre 6 y 10 dígitos, sin puntos."),
       a.docType === "PA" &&
         !/^[A-Za-z0-9]{6,12}$/.test(a.docNumber) &&
-        (o.docNumber = "El pasaporte tiene entre 6 y 12 caracteres alfanuméricos.")),
+        (o.docNumber = "El pasaporte tiene entre 6 y 12 caracteres alfanuméricos."),
+      // Required by RwaxiComplianceRegistry.approveInvestor(wallet, …).
+      /^0x[0-9a-fA-F]{40}$/.test(a.wallet || "") ||
+        (o.wallet = "Escribe una dirección EVM válida: 0x seguido de 40 caracteres hexadecimales.")),
     e === 1 &&
       (a.activity || (o.activity = "Selecciona la actividad económica principal."),
       a.activity === "Otra actividad" &&

@@ -30,6 +30,9 @@ export function Portal({
   startSub: c,
   toast: d,
   toBackoffice: p,
+  // Server Actions (app/tenant/[slug]/actions.ts): NDA and KYC persist to PostgreSQL.
+  persistNda: P,
+  persistKyc: Q,
 }) {
   const [m, u] = useState(() => (t.holdings.length || t.grant ? 3 : t.nda ? 1 : 0)),
     [v, h] = useState(Math.max(a.ticket, 25e3));
@@ -145,6 +148,7 @@ export function Portal({
                 p={a}
                 journey={t}
                 toast={d}
+                persist={P}
                 onSign={(g) => {
                   o((w) => ({
                     ...w,
@@ -159,7 +163,7 @@ export function Portal({
               <LockedNote text="Portal temporalmente suspendido para nuevas operaciones: no se reciben nuevas verificaciones." />
             )}
             {m === 1 && !(N && t.kyc.stage === "form") && (
-              <KycPanel t={e} p={a} journey={t} setJourney={o} currency={n} toBackoffice={p} />
+              <KycPanel t={e} p={a} journey={t} setJourney={o} currency={n} toBackoffice={p} persist={Q} />
             )}
             {m === 2 && <DataRoomPanel t={e} p={a} journey={t} openDoc={s} />}
             {m === 3 && (

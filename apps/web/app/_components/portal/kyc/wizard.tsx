@@ -54,13 +54,16 @@ export function Wizard({
       u({}), n(o - 1);
     },
     y = () => {
+      // Document and wallet are unique per tenant in the database: demo values are randomised.
+      const rnd = (f) => Array.from(crypto.getRandomValues(new Uint8Array(f)), (N) => N.toString(16).padStart(2, "0")).join("");
       o === 0 &&
         t((f) => ({
           ...f,
           fullName: "María Fernanda Ríos Ospina",
           docType: "CC",
-          docNumber: "1020456789",
+          docNumber: "10" + String(parseInt(rnd(4), 16) % 1e8).padStart(8, "0"),
           country: "Colombia",
+          wallet: "0x" + rnd(20),
         })),
         o === 1 &&
           t((f) => ({
@@ -170,6 +173,24 @@ export function Wizard({
                       <option key={f}>{f}</option>
                     ))}
                   </select>
+                </Field>
+              </div>
+              <div className="sm:col-span-2">
+                <Field
+                  id="kyc-wallet"
+                  label="Wallet EVM para recibir tus unidades digitales"
+                  error={m.wallet}
+                  hint="Dirección 0x… en Polygon o Base. Es la que el Oficial de Cumplimiento añadirá a la whitelist al aprobarte."
+                >
+                  <input
+                    id="kyc-wallet"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={a.wallet || ""}
+                    onChange={(f) => v("wallet")(f.target.value.trim())}
+                    placeholder="0x…"
+                    className={fieldCls(m.wallet) + " font-mono"}
+                  />
                 </Field>
               </div>
             </div>
@@ -393,8 +414,9 @@ export function Wizard({
             <p className="text-[13px] text-inkBody break-words">
               {e.email}
               <span className="block text-[12px] text-muted mt-0.5">
-                Billetera: se vincula al aprobarse el perfil
+                {a.wallet ? "Billetera declarada · se añade a la whitelist al aprobarse" : "Billetera: decláralo en el paso 1"}
               </span>
+              {a.wallet && <span className="block font-mono text-aquaInk text-[12px] mt-0.5 break-all">{a.wallet}</span>}
             </p>
           )}
         </div>
@@ -404,6 +426,7 @@ export function Wizard({
             ["Titular", a.fullName || "—"],
             ["Documento", a.docNumber ? `${a.docType === "CC" ? "C.C." : "Pasaporte"} ${a.docNumber}` : "—"],
             ["Residencia", a.country],
+            ["Wallet", a.wallet ? `${a.wallet.slice(0, 8)}…${a.wallet.slice(-6)}` : "—"],
             ["Perfil", (RISK.find((f) => f[0] === a.risk) || [0, "—"])[1]],
             ["Documento cargado", a.docFront ? "Sí" : "No"],
             ["Prueba de vida", a.liveness === "done" ? "Completada" : "Pendiente"],

@@ -283,14 +283,17 @@ model TokenDeployment {
 
 // ─────────────────────────────────────────────────────────────── 5–8. investor funnel
 
+/// Created when the visitor signs the NDA (name + email); identity document and wallet
+/// arrive with the KYC submission, hence optional.
 model Investor {
   id             String       @id @default(cuid())
   organizationId String       @map("organization_id")
   fullName       String       @map("full_name")
   email          String?
-  docType        String       @map("doc_type") // CC | CE | PAS | NIT
-  docNumber      String       @map("doc_number")
+  docType        String?      @map("doc_type") // CC | CE | PA | NIT
+  docNumber      String?      @map("doc_number")
   countryCode    Int          @default(170) @map("country_code") // ISO 3166-1 numérico
+  /// EVM wallet declared in the KYC wizard; whitelisted on approval
   walletAddress  String?      @map("wallet_address")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
@@ -303,6 +306,8 @@ model Investor {
   subscriptions Subscription[]
 
   @@unique([organizationId, docType, docNumber])
+  @@unique([organizationId, email])
+  @@unique([organizationId, walletAddress])
   @@index([organizationId])
   @@map("investors")
 }
@@ -361,6 +366,9 @@ model KycCase {
   listsResult      String?      @map("lists_result") // listas restrictivas (OFAC, ONU, …)
   /// SHA-256 of the KYC dossier + NDA — written on-chain as kycDossierHash
   dossierHash      String?      @map("dossier_hash")
+  /// Canonical dossier the server hashed into dossierHash (form, document SHA-256s, consents);
+  /// sha256(JSON.stringify(evidence)) must equal dossierHash. Files themselves are not stored here.
+  evidence         Json?
   rejectionReason  String?      @map("rejection_reason")
   reviewedById     String?      @map("reviewed_by_id")
   reviewedAt       DateTime?    @map("reviewed_at")

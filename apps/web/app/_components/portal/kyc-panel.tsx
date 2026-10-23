@@ -1,5 +1,6 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
+import { useState } from "react";
 import { LegalText } from "@/app/_components/legal/legal-text";
 import { LockedNote } from "@/app/_components/portal/data-room-panel";
 import { Wizard } from "@/app/_components/portal/kyc/wizard";
@@ -9,7 +10,9 @@ import { WALLET } from "@/app/_lib/data/projects";
 import { shortHash } from "@/app/_lib/format";
 import { sha256Hex } from "@/app/_lib/hash";
 
-export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, toBackoffice: l }) {
+export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, toBackoffice: l, persist: g }) {
+  const [w, A] = useState(null),
+    [P, z] = useState(false);
   const r = t.kyc,
     i = (s) =>
       o((c) => ({
@@ -19,6 +22,17 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
   return t.nda ? (
     r.stage === "form" ? (
       <div className="flex flex-col gap-4">
+        {w && (
+          <p role="alert" className="border border-[#F3C5C0] bg-[#FDECEA] text-[#B42318] text-[12.5px] px-4 py-3">
+            {w}
+          </p>
+        )}
+        {P && (
+          <p role="status" className="text-[12.5px] text-muted inline-flex items-center gap-2">
+            <Icon name="Loader2" size={14} className="spin" />
+            Enviando tu expediente al Oficial de Cumplimiento…
+          </p>
+        )}
         <p className="text-[12.5px] text-inkBody bg-cloud border border-line px-4 py-3 flex gap-2 items-start">
           <Icon name="Scale" size={16} className="tc-text shrink-0 mt-0.5" />
           {"Responsable del tratamiento y la debida diligencia: "}
@@ -51,6 +65,29 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
           sarlaftText={<LegalText tpl={e.complianceTpl[e.regime]} vars={legalVars(e, a)} compact={true} />}
           regime={e.regime}
           onSubmit={async () => {
+            if (g) {
+              // Persisted path: the server validates, hashes the canonical dossier and creates the KycCase.
+              if (P) return;
+              A(null), z(true);
+              const s = await g(r.data);
+              z(false);
+              if (!s.ok) {
+                A(s.error), window.scrollTo({ top: 0, behavior: "smooth" });
+                return;
+              }
+              i((c) => ({
+                ...c,
+                stage: "status",
+                status: s.kyc.status,
+                reason: null,
+                dossierHash: s.kyc.dossierHash,
+                kycCaseId: s.kyc.kycCaseId,
+                wallet: s.kyc.wallet,
+                whitelistTx: null,
+                whitelistQueued: false,
+              }));
+              return;
+            }
             const s = r.data,
               c = await sha256Hex(
                 JSON.stringify({
@@ -95,7 +132,15 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
         </p>
         <div className="border border-dashed border-[#C9C4D6] p-4 flex flex-wrap items-center gap-3 justify-between">
           <span className="text-[12.5px] text-muted">
-            Simulación: la aprobación ocurre en el Backoffice aislado del desarrollador.
+            {g
+              ? "Tu expediente quedó registrado en la bandeja de cumplimiento del desarrollador."
+              : "Simulación: la aprobación ocurre en el Backoffice aislado del desarrollador."}
+            {r.dossierHash && (
+              <span className="block font-mono text-[11px] mt-1">
+                {"SHA-256 del expediente "}
+                {shortHash(r.dossierHash, 14, 8)}
+              </span>
+            )}
           </span>
           <button
             onClick={l}
@@ -144,9 +189,17 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
         <p className="text-[15px] text-inkBody leading-[1.65]">
           {"¡Verificación exitosa! Tu perfil ha sido aprobado por "}
           {e.legalName}
-          {" y tu billetera ha sido vinculada a la Whitelist On-Chain ("}
-          <span className="font-mono text-aquaInk">{WALLET}</span>).
+          {r.whitelistQueued
+            ? " y tu billetera está en cola para la Whitelist On-Chain ("
+            : " y tu billetera ha sido vinculada a la Whitelist On-Chain ("}
+          <span className="font-mono text-aquaInk">{r.wallet ? shortHash(r.wallet, 8, 6) : WALLET}</span>).
         </p>
+        {r.whitelistQueued && (
+          <p className="text-[12px] text-goldInk">
+            ChainTransaction PENDING: approveInvestor() espera la firma del Oficial de Cumplimiento en
+            RwaxiComplianceRegistry.
+          </p>
+        )}
         {r.whitelistTx && (
           <p className="text-[12px] text-muted">
             {"Transacción de whitelist: "}

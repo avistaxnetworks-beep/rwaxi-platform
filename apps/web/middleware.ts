@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { internalPath, resolveHost } from "@/app/_lib/hosts";
+import { REF_COOKIE, REF_MAX_AGE_S, REF_TOKEN_RE, encodeRef } from "@/app/_lib/referral";
 
 /**
  * Edge Middleware — multi-tenant routing by host.
@@ -32,7 +33,20 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl.clone();
   url.pathname = target;
   url.search = search;
-  return NextResponse.rewrite(url, { request: { headers } });
+  const res = NextResponse.rewrite(url, { request: { headers } });
+
+  // LeadReferral from the vitrina: first touch wins, persisted as a Lead when the NDA is signed.
+  const ref = ctx.kind === "tenant" ? req.nextUrl.searchParams.get("ref") : null;
+  if (ref && REF_TOKEN_RE.test(ref) && !req.cookies.has(REF_COOKIE)) {
+    res.cookies.set(REF_COOKIE, encodeRef(ref, Date.now()), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: req.nextUrl.protocol === "https:",
+      path: "/",
+      maxAge: REF_MAX_AGE_S,
+    });
+  }
+  return res;
 }
 
 export const config = {

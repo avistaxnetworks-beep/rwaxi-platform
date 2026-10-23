@@ -8,11 +8,11 @@
  * not at all. The browser only sends the KycCase id (and a reason index); a case of another
  * tenant is invisible under RLS and reported as not found.
  */
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { withTenant, type KycStatus } from "@rwaxi/database";
 import { REJECT_REASONS } from "@/app/_lib/data/kyc";
-import { BackofficeAccessError, requireBackofficeSession } from "./_lib/session";
+import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
+import { requireBackofficeSession } from "./_lib/session";
 import type { ActionResult } from "./_lib/types";
 
 const CUID = /^[a-z0-9]{20,40}$/i;
@@ -31,21 +31,17 @@ const STATUS_LABEL: Record<KycStatus, string> = {
 
 class DecisionError extends Error {}
 
-async function requestMeta() {
-  const h = await headers();
-  return {
-    ipAddress: h.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
-    userAgent: h.get("user-agent")?.slice(0, 300) ?? null,
-  };
-}
-
 function failure(e: unknown): ActionResult {
-  if (e instanceof DecisionError || e instanceof BackofficeAccessError) return { ok: false, error: e.message };
+  if (e instanceof DecisionError || e instanceof TenantAccessError) return { ok: false, error: e.message };
   console.error("[backoffice] compliance decision failed", e);
   return { ok: false, error: "No se pudo registrar la decisión. Inténtalo de nuevo." };
 }
 
-const refresh = () => revalidatePath("/tenant/[slug]/backoffice", "page");
+// The investor portal reflects compliance decisions too (status, Data Room grant).
+const refresh = () => {
+  revalidatePath("/tenant/[slug]/backoffice", "page");
+  revalidatePath("/tenant/[slug]", "page");
+};
 
 /** Approve a pending KYC case: APPROVED + whitelist queued on-chain + Data Room grant + audit event. */
 export async function approveInvestor(kycCaseId: string): Promise<ActionResult> {
