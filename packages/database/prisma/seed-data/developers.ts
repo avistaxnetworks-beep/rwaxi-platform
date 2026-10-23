@@ -47,6 +47,8 @@ export interface SeedDeveloper {
     rentStartMonths: number;
     network: ChainNetwork;
     pipeline: string[];
+    /** share of the raise already placed (prototype PROJECTS.subscribed) */
+    subscribedFraction: number;
     token: { name: string; symbol: string; deployed: boolean };
   };
 }
@@ -91,6 +93,7 @@ export const DEVELOPERS: SeedDeveloper[] = [
       rentStartMonths: 20,
       network: "POLYGON",
       pipeline: ["done", "done", "active", "pending"],
+      subscribedFraction: 0.41,
       token: { name: "Torre Corporativa Santa Bárbara Unit", symbol: "TSB", deployed: false },
     },
   },
@@ -132,6 +135,7 @@ export const DEVELOPERS: SeedDeveloper[] = [
       rentStartMonths: 14,
       network: "BASE",
       pipeline: ["done", "active", "pending", "pending"],
+      subscribedFraction: 0.18,
       token: { name: "Suites El Poblado Unit", symbol: "SEP", deployed: false },
     },
   },
@@ -173,6 +177,7 @@ export const DEVELOPERS: SeedDeveloper[] = [
       rentStartMonths: 0,
       network: "BASE",
       pipeline: ["done", "done", "done", "active"],
+      subscribedFraction: 0.68,
       token: { name: "Avista Villas Unit", symbol: "AVB", deployed: true },
     },
   },
@@ -233,7 +238,7 @@ export const LEADS: SeedLead[] = [
     fullName: "Laura Gómez Restrepo",
     docType: "CC",
     docNumber: "52381904",
-    source: "RWAXI",
+    source: "REFERRAL",
     nda: true,
     kyc: "APPROVED",
     subscriptionUsd: 20000,
@@ -246,7 +251,7 @@ export const LEADS: SeedLead[] = [
     fullName: "Carlos A. Méndez Pardo",
     docType: "CC",
     docNumber: "79604112",
-    source: "RWAXI",
+    source: "REFERRAL",
     nda: true,
     kyc: "PENDING",
     lists: "Sin coincidencias",
@@ -258,7 +263,7 @@ export const LEADS: SeedLead[] = [
     fullName: "Jorge Iván Toro",
     docType: "CC",
     docNumber: "71228540",
-    source: "RWAXI",
+    source: "REFERRAL",
     nda: true,
     kyc: "PENDING",
     lists: "Coincidencia parcial · revisar homónimo",

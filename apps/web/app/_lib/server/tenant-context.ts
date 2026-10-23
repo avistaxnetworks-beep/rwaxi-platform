@@ -26,6 +26,19 @@ export async function requireHostTenant(): Promise<ResolvedTenant> {
   return tenant;
 }
 
+/**
+ * Gate for platformPrisma() (BYPASSRLS): only the admin host, and never in production until the
+ * console has real authentication (the prototype shows "MFA activo").
+ */
+export async function requirePlatformAccess(): Promise<void> {
+  if ((await headers()).get("x-rwaxi-env") !== "admin") {
+    throw new TenantAccessError("Los datos consolidados sólo están disponibles en admin.rwaxi.com.");
+  }
+  if (!demoAccessEnabled()) {
+    throw new TenantAccessError("Consola Super-Admin deshabilitada en producción hasta configurar autenticación con MFA.");
+  }
+}
+
 /** Request metadata recorded as evidence (consent records, audit events). */
 export async function requestMeta(): Promise<{ ipAddress: string | null; userAgent: string | null }> {
   const h = await headers();

@@ -147,6 +147,7 @@ function QueueCard({ tx, toast }: { tx: ChainQueueItem; toast: (message: string)
         <p className="font-mono text-[10.5px] text-[#A79FC0] break-words">
           {`firma requerida: ${tx.signerRole} → ${tx.contract} @ ${short(tx.contractAddress)}`}
         </p>
+        {tx.note && <p className="font-mono text-[10.5px] text-[#D9A24A] break-words">{`⚠ ${tx.note}`}</p>}
         {tx.expectedEvent && (
           <div className="border-l-2 border-[#D9A24A] pl-3">
             <p className="font-mono text-[11.5px]">

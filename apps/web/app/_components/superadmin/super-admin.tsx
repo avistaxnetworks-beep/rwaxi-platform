@@ -1,12 +1,9 @@
 // @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
-import { useMemo, useState } from "react";
-import { Attribution } from "@/app/_components/superadmin/attribution";
-import { Fees } from "@/app/_components/superadmin/fees";
+import { useState } from "react";
 import { Governance } from "@/app/_components/superadmin/governance";
 import { CurrencyToggle } from "@/app/_components/ui/currency-toggle";
 import { Icon } from "@/app/_components/ui/icon";
-import { buildLedger, buildReferrals } from "@/app/_lib/data/fees";
 
 export function SuperAdmin({
   emit: e,
@@ -26,6 +23,10 @@ export function SuperAdmin({
   setTab: v,
   toast: h,
   openTenant: b,
+  // PostgreSQL-backed panels (app/superadmin/_components/platform-panels.tsx).
+  overviewSlot: O,
+  attributionSlot: Q,
+  feesSlot: R,
 }) {
   const [y, f] = useState([
       {
@@ -49,9 +50,7 @@ export function SuperAdmin({
           },
           ...P,
         ].slice(0, 12),
-      ),
-    x = useMemo(() => buildReferrals(t, n), [t, n]),
-    g = useMemo(() => buildLedger(t, n, l, i, c), [t, n, l, i, c]);
+      );
   return (
     <div
       className="min-h-full flex flex-col"
@@ -113,6 +112,7 @@ export function SuperAdmin({
         </div>
       </header>
       <main className="gutter max-w-[1240px] mx-auto py-8 w-full flex-1">
+        {O}
         {u === "gobierno" && (
           <Governance
             emit={e}
@@ -129,20 +129,8 @@ export function SuperAdmin({
             openTenant={b}
           />
         )}
-        {u === "atribucion" && <Attribution rows={x} tenants={t} ledger={g} currency={p} />}
-        {u === "tarifas" && (
-          <Fees
-            ledger={g}
-            tenants={t}
-            orgs={l}
-            feeRules={i}
-            setFeeRules={s}
-            setOverrides={d}
-            currency={p}
-            toast={h}
-            log={N}
-          />
-        )}
+        {u === "atribucion" && Q}
+        {u === "tarifas" && R}
       </main>
     </div>
   );

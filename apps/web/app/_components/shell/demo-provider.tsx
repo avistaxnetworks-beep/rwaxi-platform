@@ -17,7 +17,7 @@ import { initFeeRules } from "@/app/_lib/data/fees";
 import { DEMO_WALLET, TX, initChainLog, subIdOf, tokenAddrOf, txHash } from "@/app/_lib/chain/simulator";
 import { projectPhotos, renderCache } from "@/app/_lib/renders";
 import { seededHex } from "@/app/_lib/hash";
-import { newToken, nf, nowISO } from "@/app/_lib/format";
+import { nf, nowISO } from "@/app/_lib/format";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- prototype state is untyped until it moves to Prisma models */
 type Tenant = any;
@@ -68,7 +68,8 @@ interface DemoState {
   photosFor: (project: any) => any;
   uploadPhotos: (projectId: string, files: FileList | File[] | null) => void;
   /** Vitrina → Portal hand-off with a RWAXI referral token (LeadReferral). */
-  openLead: (projectId: string) => void;
+  /** Overlay + hand-off to the portal with a token signed by the vitrina (issueReferral). */
+  openLead: (projectId: string, referral: { token: string; referralId: string; issuedAt: string }) => void;
   confirmSubscription: (draft: any) => void;
   navigate: (env: EnvId, tenantId?: string, search?: string) => void;
 }
@@ -162,13 +163,13 @@ export function DemoProvider({ tenantSlug, children }: { tenantSlug?: string; ch
       }
     };
 
-    const openLead = (projectId: string) => {
-      const lead = { token: newToken("lead" + projectId), at: nowISO(), source: "RWAXI" };
-      setJourneys((prev) => ({ ...prev, [projectId]: { ...prev[projectId], lead: prev[projectId].lead || lead } }));
+    const openLead: DemoState["openLead"] = (projectId, referral) => {
+      // The overlay shows the single-use id; the URL carries the full signed token.
+      const lead = { token: referral.referralId, at: referral.issuedAt.replace(/\.\d{3}Z$/, "Z"), source: "RWAXI" };
       setLeadOverlay({ id: projectId, lead });
       setTimeout(() => {
         setLeadOverlay(null);
-        navigate("portal", projectId, `?ref=${encodeURIComponent(lead.token)}`);
+        navigate("portal", projectId, `?ref=${encodeURIComponent(referral.token)}`);
       }, 1900);
     };
 

@@ -18,6 +18,17 @@ const utc = (iso: string) => `${iso.slice(0, 16).replace("T", " ")} UTC`;
 const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "KYC aprobado",
   KYC_REJECTED: "KYC rechazado",
+  SUBSCRIPTION_CREATED: "Suscripción registrada",
+};
+const AUDIT_TONE: Record<AuditEntry["action"], string> = {
+  KYC_APPROVED: "text-aquaInk",
+  KYC_REJECTED: "text-[#B42318]",
+  SUBSCRIPTION_CREATED: "text-goldInk",
+};
+const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
+  KYC_APPROVED: "SHA-256 expediente",
+  KYC_REJECTED: "SHA-256 expediente",
+  SUBSCRIPTION_CREATED: "SHA-256 contrato de suscripción",
 };
 
 /** "Cumplimiento y Leads" tab, backed by Investor / KycCase through forTenant (RLS). */
@@ -317,14 +328,14 @@ function AuditTrail({ entries }: { entries: AuditEntry[] }) {
               <p className="font-mono text-[11px] text-muted">
                 {utc(e.at)}
                 {" · "}
-                <span className={e.action === "KYC_APPROVED" ? "text-aquaInk" : "text-[#B42318]"}>{AUDIT_LABEL[e.action]}</span>
+                <span className={AUDIT_TONE[e.action]}>{AUDIT_LABEL[e.action]}</span>
               </p>
               <p className="text-inkBody mt-0.5">
                 {e.investorName}
                 <span className="text-muted">{` · por ${e.actorEmail}`}</span>
               </p>
               <p className="font-mono text-[10.5px] text-muted mt-0.5 break-words">
-                {`SHA-256 expediente ${e.subjectHash ? shortHash(e.subjectHash, 14, 8) : "—"}`}
+                {`${AUDIT_HASH_LABEL[e.action]} ${e.subjectHash ? shortHash(e.subjectHash, 14, 8) : "—"}`}
                 {e.detail && ` · ${e.detail}`}
               </p>
             </li>

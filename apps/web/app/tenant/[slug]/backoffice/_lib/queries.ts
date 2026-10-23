@@ -99,7 +99,7 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
       kycCaseId: kyc?.id ?? null,
       name: inv.fullName,
       doc: formatDoc(inv.docType, inv.docNumber),
-      source: lead?.source ?? "DIRECT",
+      source: lead?.source === "REFERRAL" ? "RWAXI" : "DIRECT",
       token: lead?.referralToken ?? null,
       at: day(lead?.landedAt ?? inv.createdAt),
       nda: inv.ndas.length > 0,
@@ -121,7 +121,24 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
   });
 
   const entries: AuditEntry[] = audit.map((e) => {
-    const p = (e.payload ?? {}) as { investorName?: string; reason?: string; chainStatus?: string };
+    const p = (e.payload ?? {}) as {
+      investorName?: string;
+      reason?: string;
+      chainStatus?: string | null;
+      units?: number;
+      capitalUsd?: string;
+      feeUsd?: string | null;
+    };
+    const subscriptionDetail =
+      e.action === "SUBSCRIPTION_CREATED"
+        ? [
+            `${p.units ?? "?"} unidades · ${p.capitalUsd ?? "?"} USD`,
+            p.chainStatus ? `mintSubscription ${p.chainStatus}` : "reserva (token no emitido)",
+            p.feeUsd ? `fee RWAXI ${p.feeUsd} USD` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : null;
     return {
       id: e.id,
       at: e.createdAt.toISOString(),
@@ -129,7 +146,7 @@ async function readInbox(session: BackofficeSession): Promise<ComplianceInboxDat
       actorEmail: e.actorEmail,
       investorName: p.investorName ?? e.entityId,
       subjectHash: e.subjectHash,
-      detail: p.reason ?? (p.chainStatus ? `ChainTransaction ${p.chainStatus}` : null),
+      detail: subscriptionDetail ?? p.reason ?? (p.chainStatus ? `ChainTransaction ${p.chainStatus}` : null),
     };
   });
 

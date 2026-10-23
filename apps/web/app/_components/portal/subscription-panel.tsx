@@ -26,8 +26,11 @@ export function SubscriptionPanel({
         text={`La suscripción se habilita cuando el desarrollador emite tu AccessGrant (NDA + KYC/${REGIMES[e.regime].sys} aprobado).`}
       />
     );
+  // t.offering: availability and token state persisted in PostgreSQL (portal-screen applyPersisted).
   const d = simulate(a, n, 60),
-    p = e.mint.status === "minted",
+    p = t.offering ? t.offering.tokenDeployed : e.mint.status === "minted",
+    f = t.offering ? t.offering.tokenPaused : e.tokenPaused,
+    x = t.offering ? t.offering.totalUnits - t.offering.unitsSubscribed : null,
     m = 25e4;
   return (
     <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-6">
@@ -65,6 +68,7 @@ export function SubscriptionPanel({
             ["Contrato", `Suscripción · ${a.wrapper}`],
             ["Contraparte", `${e.legalName} · NIT ${e.nit}`],
             ["Token", p ? `${e.mint.symbol} · ${e.mint.network}` : "Pendiente de emisión (reserva)"],
+            ...(x === null ? [] : [["Disponibles", `${nf(0).format(x)} de ${nf(0).format(t.offering.totalUnits)} unidades`]]),
           ].map(([u, v], h) => (
             <div
               key={u}
@@ -77,7 +81,7 @@ export function SubscriptionPanel({
         </dl>
         {c ? (
           <LockedNote text="Nuevas suscripciones suspendidas temporalmente." />
-        ) : e.tokenPaused ? (
+        ) : f ? (
           <LockedNote
             text={`El emisor pausó el token ${e.mint.symbol} on-chain: no se pueden emitir nuevas unidades hasta que lo reanude.`}
           />
@@ -126,18 +130,18 @@ export function SubscriptionPanel({
                     <td className="px-3 py-3 text-right font-mono">{money(u.capital, o)}</td>
                     <td className="px-3 py-3">
                       <span
+                        data-holding={u.status}
                         className={`text-[10.5px] font-semibold px-2 py-0.5 ${u.status === "en_wallet" ? "bg-aquaTint text-aquaInk" : "bg-goldTint text-goldInk"}`}
                       >
-                        {u.status === "en_wallet" ? "En wallet" : "Reservado"}
+                        {u.status === "en_wallet" ? "En wallet" : u.status === "mint_pendiente" ? "Mint en cola" : "Reservado"}
                       </span>
                     </td>
                     <td className="px-3 py-3">
-                      <CopyChip
-                        text={u.tx}
-                        display={shortHash(u.tx, 8, 4)}
-                        toast={s}
-                        className="text-[11.5px]"
-                      />
+                      {u.tx ? (
+                        <CopyChip text={u.tx} display={shortHash(u.tx, 8, 4)} toast={s} className="text-[11.5px]" />
+                      ) : (
+                        <span className="text-[11px] text-muted">{u.status === "mint_pendiente" ? "en cola" : "—"}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -146,7 +150,8 @@ export function SubscriptionPanel({
                             name: "Certificado de participación",
                             project: a,
                             folder: "Certificados",
-                            hash: seededHex("cert" + u.id, 64),
+                            // Persisted subscriptions carry the SHA-256 of the signed agreement.
+                            hash: u.evidenceHash || seededHex("cert" + u.id, 64),
                             signed: true,
                             tenant: e,
                             holding: u,

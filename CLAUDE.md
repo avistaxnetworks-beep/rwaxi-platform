@@ -19,6 +19,8 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
     _lib/journey.ts      journey del visitante leído de PostgreSQL (sesión por cookie firmada)
     backoffice/          bandeja de cumplimiento persistida: _lib/queries.ts (lectura), actions.ts (Server Actions)
   app/_lib/server/       server-only: tenant-context, investor-session (HMAC), chain-queue (calldata viem)
+  app/_lib/referral.ts   tokens de referido firmados (HMAC-SHA256, Web Crypto: middleware y Server Actions)
+  app/superadmin/_lib/   métricas consolidadas con platformPrisma() (rol BYPASSRLS, sólo host admin)
   app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
@@ -62,8 +64,13 @@ Reglas:
    inspector se niegan. El inversionista se identifica con la cookie `rwaxi_inv` (HttpOnly, HMAC con
    `INVESTOR_SESSION_SECRET`, ligada a la organización del host) emitida al firmar el NDA. Sin verificación de email
    todavía: un email ya registrado en el tenant **nunca** se asocia a un navegador nuevo (se rechaza la firma).
-   La atribución RWAXI viaja en la cookie `rwaxi_ref` (primer contacto, la fija el middleware desde `?ref=`); un token
-   ya usado genera un Lead `DIRECT`, nunca doble atribución.
+   **Atribución firmada:** la vitrina emite en servidor (`app/vitrina/actions.ts`, sólo host `www`, sólo portales
+   ACTIVE) `ref_rwx_<nonce>.<slug>.<emitidoMs>.<HMAC-SHA256(REFERRAL_SECRET)>` (`app/_lib/referral.ts`, Web Crypto,
+   Edge y Node). El middleware guarda en `rwaxi_ref` sólo un token válido para el tenant del host (primer contacto) y
+   `signNda()` lo vuelve a verificar: válido, del tenant, no caducado (30 días) y con id no usado → Lead `REFERRAL`;
+   cualquier otra cosa → `DIRECT`. El id (`ref_rwx_<nonce>`) es `Lead.referralToken`: su unicidad impide reutilizarlo.
+   Super-Admin (`platformPrisma()`, BYPASSRLS) sólo en el host `admin` y nunca en producción sin MFA
+   (`requirePlatformAccess`).
 6. **RWAXI no custodia el valor emitido.** En contratos, RWAXI sólo tiene `RWAXI_OPERATOR_ROLE` (factory) y
    `MINTER_ROLE`; pausa, Data Room y recuperación forzosa son del emisor; la whitelist es del oficial de cumplimiento
    del tenant. No añadir roles a RWAXI sin revisión legal.
@@ -136,9 +143,18 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   cortos originales y lleva `// @ts-nocheck`. Al tocar un módulo, tiparlo y quitar el pragma; no reescribir en bloque.
   El estado de demo vive en `app/_components/shell/demo-provider.tsx` (antes `App`) y se renderiza sólo en cliente
   (`ClientOnly`) hasta migrar cada pantalla a datos de `@rwaxi/database` vía server actions.
-  Migrado a BD: portal del inversionista (Lead, NDA, KYC, estado y AccessGrant), bandeja "Cumplimiento y Leads" del
-  backoffice e Inspector pestaña 4 (cola `ChainTransaction`). Siguen en estado demo: suscripción/portafolio,
-  configuración White Label, Data Room y minting, Super-Admin y pestañas 1–3 del inspector.
+  Migrado a BD: portal del inversionista (Lead, NDA, KYC, AccessGrant, suscripción y portafolio), bandeja
+  "Cumplimiento y Leads" del backoffice, Inspector pestaña 4 (cola `ChainTransaction`) y Super-Admin (consolidado +
+  módulos B Atribución y C Tarifas/Libro mayor, sólo lectura). Siguen en estado demo: configuración White Label, Data
+  Room y minting del backoffice, módulo A (Gobierno) del Super-Admin y pestañas 1–3 del inspector.
+- **Suscripciones** (`subscribe()` en `app/tenant/[slug]/actions.ts`): KYC `APPROVED` + wallet; capital recalculado
+  en servidor (`unitPriceUsd × units`, ticket mínimo, máx. 250.000 USD); unidades comprometidas con `UPDATE`
+  condicional + `CHECK offerings_units_subscribed_range`. Token desplegado → `MINT_PENDING` + `ChainTransaction`
+  `mintSubscription(subscriptionId, investor, amount, paymentEvidenceRef)` (el contrato no tiene `mint(wallet, amount)`)
+  + `FeeLedgerEntry INFRASTRUCTURE_USAGE` (`feeUsagePct`, ACCRUED). Pre-venta (sin token) → `RESERVED`, sin comisión.
+  `paymentEvidenceRef` = `evidenceHash(acuerdo)`; el acuerdo queda en el `AuditEvent SUBSCRIPTION_CREATED`.
+- Enums de negocio: `LeadSource` REFERRAL | DIRECT · `FeeKind` ONBOARDING_SETUP | MONTHLY_SAAS | INFRASTRUCTURE_USAGE.
+  Renombrar valores con `ALTER TYPE … RENAME VALUE` escrito a mano (el diff de Prisma recrea el tipo y falla con datos).
   `PortalScreen` descarta el journey demo del prototipo y aplica el persistido antes de montar el portal.
 - Patrón de pantalla persistida: página server (`dynamic = "force-dynamic"`) → `_lib/queries.ts` (`server-only`,
   devuelve un resultado `ok/error`, nunca lanza) → componente cliente tipado → `actions.ts` (`withTenant`, transición

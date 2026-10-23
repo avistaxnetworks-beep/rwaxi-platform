@@ -11,14 +11,24 @@
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { evidenceHash } from "@rwaxi/blockchain-sdk";
+import { evidenceHash, toOnchainId } from "@rwaxi/blockchain-sdk";
+import { encodeFunctionData, type Address, type Hex } from "viem";
+import { rwaxiPropertyTokenAbi } from "@rwaxi/blockchain-sdk/abi";
 import { Prisma, withTenant, type RiskProfile } from "@rwaxi/database";
 import { ACTIVITIES, COUNTRIES, INCOME, REGIMES, RISK, validateStep } from "@/app/_lib/data/kyc";
-import { REF_COOKIE, parseRef } from "@/app/_lib/referral";
+import { REF_COOKIE, verifyReferral } from "@/app/_lib/referral";
 import { readInvestorSession, startInvestorSession } from "@/app/_lib/server/investor-session";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
-import { PORTAL_OFFERING, isoSeconds } from "./_lib/journey";
-import type { KycDocument, KycResult, KycSubmission, NdaResult, NdaSubmission } from "./_lib/journey-types";
+import { OFFERING_STATE_SELECT, PORTAL_OFFERING, isoSeconds, offeringState, toHolding, toHoldings } from "./_lib/journey";
+import type {
+  KycDocument,
+  KycResult,
+  KycSubmission,
+  NdaResult,
+  NdaSubmission,
+  SubscriptionResult,
+  SubscriptionSubmission,
+} from "./_lib/journey-types";
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -91,7 +101,12 @@ export async function signNda(input: NdaSubmission): Promise<NdaResult> {
 
     const tenant = await activeTenant();
     const session = await readInvestorSession(tenant.id);
-    const referral = parseRef((await cookies()).get(REF_COOKIE)?.value);
+    // HMAC-verified for this tenant and not expired; single use is enforced by Lead.referralToken.
+    const referralCheck = await verifyReferral((await cookies()).get(REF_COOKIE)?.value, {
+      slug: tenant.slug,
+      secret: process.env.REFERRAL_SECRET,
+    });
+    const referral = referralCheck.ok ? referralCheck.claims : null;
     const meta = await requestMeta();
 
     const { investor, nda, lead } = await withTenant(
@@ -138,11 +153,11 @@ export async function signNda(input: NdaSubmission): Promise<NdaResult> {
         });
         if (!lead) {
           const base = { organizationId: tenant.id, offeringId: offering.id, investorId: investor.id };
-          // Referral tokens are globally unique; a replayed token is ignored instead of failing.
+          // Referral ids are globally unique: a replayed token inserts nothing and falls back to DIRECT.
           const attributed = referral
             ? (
                 await tx.lead.createMany({
-                  data: [{ ...base, referralToken: referral.token, source: "RWAXI", landedAt: referral.landedAt }],
+                  data: [{ ...base, referralToken: referral.referralId, source: "REFERRAL", landedAt: referral.issuedAt }],
                   skipDuplicates: true,
                 })
               ).count === 1
@@ -160,7 +175,11 @@ export async function signNda(input: NdaSubmission): Promise<NdaResult> {
     return {
       ok: true,
       nda: { id: nda.id, signer: nda.signerName, email: nda.signerEmail, at: isoSeconds(nda.acceptedAt), hash: nda.documentHash },
-      lead: { token: lead.referralToken, at: isoSeconds(lead.landedAt), source: lead.source },
+      lead: {
+        token: lead.referralToken,
+        at: isoSeconds(lead.landedAt),
+        source: lead.source === "REFERRAL" ? "RWAXI" : "DIRECT",
+      },
     };
   } catch (e) {
     return failure(e);
@@ -358,6 +377,185 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
         whitelistTx: null,
         whitelistQueued: false,
       },
+    };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+// ───────────────────────────────────────────────────────────── Paso 4 · Suscripción
+
+/** Ceiling of the prototype's amount slider (SubscriptionPanel), enforced server-side. */
+const MAX_SUBSCRIPTION_USD = 250_000;
+const usd = (n: Prisma.Decimal | number) =>
+  `${new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 }).format(Number(n))} USD`;
+
+/**
+ * Subscribes an approved investor: Subscription + units committed on the Offering, and — when
+ * the token is deployed — mintSubscription() queued as ChainTransaction PENDING plus RWAXI's
+ * INFRASTRUCTURE_USAGE fee. Pre-sale offerings (no token yet) only reserve units, with no fee,
+ * as in the prototype ledger. Always records an AuditEvent.
+ */
+export async function subscribe(input: SubscriptionSubmission): Promise<SubscriptionResult> {
+  try {
+    const units = Number(input?.units);
+    if (!Number.isSafeInteger(units) || units < 1) throw new OnboardingError("Cantidad de unidades inválida.");
+    const ack = input?.acknowledgments;
+    if (!ack || ack.contract !== true || ack.risk !== true || ack.layers !== true) {
+      throw new OnboardingError("Debes aceptar el contrato, los riesgos y las 4 capas estructurales.");
+    }
+    const tenant = await activeTenant();
+    const session = await readInvestorSession(tenant.id);
+    if (!session) throw new OnboardingError("Tu sesión no es válida; firma de nuevo el NDA.");
+    const meta = await requestMeta();
+
+    const out = await withTenant(
+      tenant.id,
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM investors WHERE id = ${session.investorId} FOR UPDATE`;
+        const investor = await tx.investor.findUnique({ where: { id: session.investorId } });
+        if (!investor) throw new OnboardingError("Tu sesión ya no es válida; firma de nuevo el NDA.");
+        const org = await tx.organization.findUniqueOrThrow({
+          where: { id: tenant.id },
+          select: { taxId: true, feeUsagePct: true },
+        });
+        const offering = await tx.offering.findFirst({ ...PORTAL_OFFERING, select: OFFERING_STATE_SELECT });
+        if (!offering) throw new OnboardingError("Este portal no tiene una oferta publicada.");
+        const kyc = await tx.kycCase.findFirst({
+          where: { investorId: investor.id, offeringId: offering.id },
+          orderBy: { createdAt: "desc" },
+          select: { status: true, dossierHash: true },
+        });
+        if (kyc?.status !== "APPROVED") {
+          throw new OnboardingError("Tu KYC debe estar aprobado por el Oficial de Cumplimiento para suscribir.");
+        }
+        const wallet = investor.walletAddress;
+        if (!wallet || !ADDRESS.test(wallet)) throw new OnboardingError("No tienes una wallet registrada.");
+        const state = offeringState(offering);
+        if (state.tokenPaused) throw new OnboardingError("El emisor pausó el token: no se pueden emitir nuevas unidades.");
+
+        const capital = offering.unitPriceUsd.mul(units);
+        if (capital.lt(offering.minTicketUsd)) throw new OnboardingError(`El ticket mínimo es ${usd(offering.minTicketUsd)}.`);
+        if (capital.gt(MAX_SUBSCRIPTION_USD)) throw new OnboardingError(`El máximo por suscripción es ${usd(MAX_SUBSCRIPTION_USD)}.`);
+
+        // Atomic availability check (backed by the offerings_units_subscribed_range CHECK).
+        const committed = await tx.$executeRaw`
+          UPDATE offerings SET units_subscribed = units_subscribed + ${units}::int
+          WHERE id = ${offering.id} AND units_subscribed + ${units}::int <= total_units`;
+        if (committed !== 1) {
+          throw new OnboardingError(`No hay unidades suficientes: quedan ${state.totalUnits - state.unitsSubscribed}.`);
+        }
+
+        const now = new Date();
+        const tokenAddress = state.tokenDeployed ? (offering.token?.contractAddress ?? null) : null;
+        const created = await tx.subscription.create({
+          data: {
+            organizationId: tenant.id,
+            offeringId: offering.id,
+            investorId: investor.id,
+            units,
+            capitalUsd: capital,
+            status: tokenAddress ? "MINT_PENDING" : "RESERVED",
+          },
+        });
+        const onchainId = toOnchainId(created.id);
+        // The agreement the investor signed: its SHA-256 is the on-chain paymentEvidenceRef.
+        const agreement = {
+          version: 1,
+          subscription: { id: created.id, onchainId },
+          organization: { id: tenant.id, taxId: org.taxId },
+          offering: { id: offering.id, code: offering.code },
+          investor: { id: investor.id, wallet, docType: investor.docType, docNumber: investor.docNumber },
+          units,
+          unitPriceUsd: offering.unitPriceUsd.toFixed(2),
+          capitalUsd: capital.toFixed(2),
+          acknowledgments: { contract: true, risk: true, layers: true },
+          kycDossierHash: kyc.dossierHash,
+          createdAt: now.toISOString(),
+        };
+        const evidence = evidenceHash(agreement);
+
+        let chainTx: { id: string; status: string } | null = null;
+        let fee: { id: string; amountUsd: Prisma.Decimal } | null = null;
+        if (tokenAddress) {
+          const args = [onchainId, wallet as Address, BigInt(units), evidence as Hex] as const;
+          encodeFunctionData({ abi: rwaxiPropertyTokenAbi, functionName: "mintSubscription", args }); // fail fast on bad args
+          chainTx = await tx.chainTransaction.create({
+            data: {
+              organizationId: tenant.id,
+              offeringId: offering.id,
+              network: offering.network,
+              kind: "SUBSCRIPTION_MINTED",
+              contractAddress: tokenAddress,
+              method: "mintSubscription(bytes32,address,uint256,bytes32)",
+              args: { subscriptionId: onchainId, investor: wallet, amount: units, paymentEvidenceRef: evidence },
+              status: "PENDING",
+            },
+            select: { id: true, status: true },
+          });
+          fee = await tx.feeLedgerEntry.create({
+            data: {
+              organizationId: tenant.id,
+              subscriptionId: created.id,
+              kind: "INFRASTRUCTURE_USAGE",
+              amountUsd: capital.mul(org.feeUsagePct).div(100).toDecimalPlaces(2),
+              baseUsd: capital,
+              accruedOn: now,
+              evidence: `ChainTransaction ${chainTx.id} · mintSubscription ${onchainId}`,
+              status: "ACCRUED",
+            },
+            select: { id: true, amountUsd: true },
+          });
+        }
+
+        const subscription = await tx.subscription.update({
+          where: { id: created.id },
+          data: { onchainId, paymentEvidenceRef: evidence },
+        });
+        await tx.auditEvent.create({
+          data: {
+            organizationId: tenant.id,
+            action: "SUBSCRIPTION_CREATED",
+            actorUserId: null,
+            actorEmail: investor.email ?? "inversionista",
+            entityType: "Subscription",
+            entityId: created.id,
+            subjectHash: evidence,
+            payload: {
+              investorId: investor.id,
+              investorName: investor.fullName,
+              units,
+              capitalUsd: capital.toFixed(2),
+              status: subscription.status,
+              chainTransactionId: chainTx?.id ?? null,
+              chainStatus: chainTx?.status ?? null,
+              feeLedgerEntryId: fee?.id ?? null,
+              feeUsd: fee ? fee.amountUsd.toFixed(2) : null,
+              agreement,
+            },
+            ...meta,
+            createdAt: now,
+          },
+        });
+
+        const all = await tx.subscription.findMany({
+          where: { investorId: investor.id, offeringId: offering.id },
+          orderBy: { createdAt: "asc" },
+        });
+        const fresh = await tx.offering.findUniqueOrThrow({ where: { id: offering.id }, select: OFFERING_STATE_SELECT });
+        return { holding: toHolding(subscription)!, holdings: toHoldings(all), offering: offeringState(fresh), queued: !!chainTx };
+      },
+      TX_OPTIONS,
+    );
+
+    refresh();
+    const { queued, ...data } = out;
+    return {
+      ok: true,
+      message: queued
+        ? `Suscripción registrada: ${units} unidades · mintSubscription() en cola`
+        : `Reserva registrada: ${units} unidades (el token aún no está emitido)`,
+      ...data,
     };
   } catch (e) {
     return failure(e);

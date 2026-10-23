@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { internalPath, resolveHost } from "@/app/_lib/hosts";
-import { REF_COOKIE, REF_MAX_AGE_S, REF_TOKEN_RE, encodeRef } from "@/app/_lib/referral";
+import { REF_COOKIE, REF_MAX_AGE_S, verifyReferral } from "@/app/_lib/referral";
 
 /**
  * Edge Middleware — multi-tenant routing by host.
@@ -9,7 +9,7 @@ import { REF_COOKIE, REF_MAX_AGE_S, REF_TOKEN_RE, encodeRef } from "@/app/_lib/r
  * and route handlers. Internal prefixes (/vitrina, /superadmin, /tenant) are never reachable
  * directly because every request is prefixed again.
  */
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
   let ctx = resolveHost(host);
 
@@ -35,10 +35,15 @@ export function middleware(req: NextRequest) {
   url.search = search;
   const res = NextResponse.rewrite(url, { request: { headers } });
 
-  // LeadReferral from the vitrina: first touch wins, persisted as a Lead when the NDA is signed.
+  // Signed LeadReferral from the vitrina. Only a token valid for this tenant is kept (first touch
+  // wins), so a tampered link cannot displace a genuine one; signNda() verifies it again.
   const ref = ctx.kind === "tenant" ? req.nextUrl.searchParams.get("ref") : null;
-  if (ref && REF_TOKEN_RE.test(ref) && !req.cookies.has(REF_COOKIE)) {
-    res.cookies.set(REF_COOKIE, encodeRef(ref, Date.now()), {
+  const valid =
+    ref && ctx.kind === "tenant" && !req.cookies.has(REF_COOKIE)
+      ? (await verifyReferral(ref, { slug: ctx.slug, secret: process.env.REFERRAL_SECRET })).ok
+      : false;
+  if (ref && valid) {
+    res.cookies.set(REF_COOKIE, ref, {
       httpOnly: true,
       sameSite: "lax",
       secure: req.nextUrl.protocol === "https:",

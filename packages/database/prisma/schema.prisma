@@ -79,8 +79,8 @@ enum TokenStatus {
 }
 
 enum LeadSource {
-  RWAXI // atribuido desde la vitrina www.rwaxi.com
-  DIRECT // tráfico propio del desarrollador
+  REFERRAL // referido por la vitrina www.rwaxi.com (token HMAC verificado y de un solo uso)
+  DIRECT // tráfico propio del desarrollador, o referido sin firma válida
 }
 
 enum KycStatus {
@@ -98,6 +98,7 @@ enum RiskProfile {
 
 enum SubscriptionStatus {
   RESERVED // reserva sin token emitido (pre-venta)
+  MINT_PENDING // token emitido: mintSubscription() en cola (ChainTransaction PENDING)
   PAYMENT_VERIFIED
   MINTED // tokens en wallet del inversionista
   CANCELLED
@@ -123,9 +124,9 @@ enum ChainTxStatus {
 }
 
 enum FeeKind {
-  SETUP // Setup / Onboarding
-  SAAS // Suscripción SaaS
-  USAGE // Uso · operación verificada
+  ONBOARDING_SETUP // Setup / Onboarding White Label
+  MONTHLY_SAAS // Suscripción SaaS mensual
+  INFRASTRUCTURE_USAGE // Uso de infraestructura · % del capital de cada operación de emisión
 }
 
 enum FeeStatus {
@@ -137,6 +138,7 @@ enum FeeStatus {
 enum AuditAction {
   KYC_APPROVED
   KYC_REJECTED
+  SUBSCRIPTION_CREATED
 }
 
 // ─────────────────────────────────────────────────────────────── 1. tenant
@@ -230,6 +232,8 @@ model Offering {
   raiseTargetUsd       Decimal          @map("raise_target_usd") @db.Decimal(18, 2)
   assetValueUsd        Decimal          @map("asset_value_usd") @db.Decimal(18, 2)
   totalUnits           Int              @map("total_units")
+  /// units already committed (subscriptions + historic placements); CHECK 0 ≤ units_subscribed ≤ total_units
+  unitsSubscribed      Int              @default(0) @map("units_subscribed")
   rentStartMonths      Int              @map("rent_start_months")
   network              ChainNetwork
   /// [legal, financiero, tecnologia, capital] → done | active | pending

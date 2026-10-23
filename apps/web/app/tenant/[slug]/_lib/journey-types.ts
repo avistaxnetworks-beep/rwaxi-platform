@@ -27,14 +27,44 @@ export interface PersistedKyc {
   whitelistQueued: boolean;
 }
 
+/** A Subscription as the prototype's portfolio table renders it ("holdings"). */
+export interface PersistedHolding {
+  id: string;
+  units: number;
+  /** USD */
+  capital: number;
+  /** distributions paid — not tracked in the database yet */
+  accrued: number;
+  /** YYYY-MM-DD */
+  since: string;
+  status: "en_wallet" | "mint_pendiente" | "reservado";
+  /** mint transaction hash, once confirmed on-chain */
+  tx: string | null;
+  /** SHA-256 of the subscription agreement (paymentEvidenceRef on-chain) */
+  evidenceHash: string | null;
+}
+
+/** Offering availability as stored in PostgreSQL. */
+export interface PortalOfferingState {
+  code: string;
+  totalUnits: number;
+  unitsSubscribed: number;
+  unitPriceUsd: number;
+  minTicketUsd: number;
+  tokenDeployed: boolean;
+  tokenPaused: boolean;
+}
+
 export interface PersistedJourney {
   /** null for an anonymous visitor (no investor session on this host) */
   investor: { name: string; email: string | null } | null;
-  /** persisted Lead, or the pending RWAXI referral of an anonymous visitor */
+  /** persisted Lead, or the verified pending referral of an anonymous visitor */
   lead: PersistedLead | null;
   nda: PersistedNda | null;
   kyc: PersistedKyc | null;
   grant: { id: string; at: string; ttlH: number } | null;
+  holdings: PersistedHolding[];
+  offering: PortalOfferingState | null;
 }
 
 export type PersistedJourneyResult = { ok: true; data: PersistedJourney } | { ok: false; error: string };
@@ -80,3 +110,13 @@ export interface KycSubmission {
 }
 
 export type KycResult = { ok: true; kyc: PersistedKyc } | { ok: false; error: string };
+
+export interface SubscriptionSubmission {
+  units: number;
+  /** the three acknowledgements of the subscription contract modal */
+  acknowledgments: { contract: boolean; risk: boolean; layers: boolean };
+}
+
+export type SubscriptionResult =
+  | { ok: true; message: string; holding: PersistedHolding; holdings: PersistedHolding[]; offering: PortalOfferingState }
+  | { ok: false; error: string };

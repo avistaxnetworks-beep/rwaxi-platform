@@ -7,9 +7,20 @@ import { Hero } from "@/app/_components/vitrina/hero";
 import { Catalog } from "@/app/_components/vitrina/catalog";
 import { HowItWorks } from "@/app/_components/vitrina/how-it-works";
 import { LegalFrontier } from "@/app/_components/vitrina/legal-frontier";
+import { issueReferral } from "../actions";
 
 export function VitrinaScreen() {
   const d = useDemo();
+
+  // Every click to a developer portal carries a referral signed on the server (HMAC-SHA256).
+  const openPortal = async (projectId: string) => {
+    const result = await issueReferral(d.tenants[projectId].slug);
+    if (!result.ok) {
+      d.toast(result.error);
+      return;
+    }
+    d.openLead(projectId, result);
+  };
   return (
     <EnvironmentFrame env="vitrina">
       <VitrinaNav currency={d.currency} setCurrency={d.setCurrency} toBackoffice={() => d.navigate("backoffice")} />
@@ -22,7 +33,7 @@ export function VitrinaScreen() {
             setFilter={d.setFilter}
             currency={d.currency}
             setCurrency={d.setCurrency}
-            onOpen={d.openLead}
+            onOpen={openPortal}
             tenants={d.tenants}
           />
         </div>

@@ -20,6 +20,8 @@ export interface ChainQueueItem {
   expectedEvent: { signature: string; topic0: string } | null;
   /** on-chain role that must sign it */
   signerRole: string;
+  /** ordering / precondition the signer must respect (PENDING rows only) */
+  note: string | null;
   investorName: string | null;
   offeringCode: string | null;
   txHash: string | null;

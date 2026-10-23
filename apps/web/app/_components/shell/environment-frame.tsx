@@ -10,8 +10,23 @@ import { Icon } from "@/app/_components/ui/icon";
 import { byId } from "@/app/_lib/data/projects";
 import { useDemo, type EnvId } from "./demo-provider";
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- the subscription draft comes from the untyped prototype */
+/** Persisted subscription flow, provided by the portal (Server Action) instead of the demo store. */
+export interface SubscriptionHandler {
+  persist: (draft: any) => Promise<{ ok: true } | { ok: false; error: string }>;
+  onPersisted: (result: any) => void;
+}
+
 /** Chrome shared by the 4 environments: architecture bar, on-chain inspector, modals and toast. */
-export function EnvironmentFrame({ env, children }: { env: EnvId; children: ReactNode }) {
+export function EnvironmentFrame({
+  env,
+  children,
+  subscription,
+}: {
+  env: EnvId;
+  children: ReactNode;
+  subscription?: SubscriptionHandler;
+}) {
   const d = useDemo();
   const tenant = d.tenants[d.tenantId];
   const project = byId(d.tenantId);
@@ -56,7 +71,8 @@ export function EnvironmentFrame({ env, children }: { env: EnvId; children: Reac
           draft={d.modal.draft}
           currency={d.currency}
           onClose={() => d.setModal(null)}
-          onConfirm={d.confirmSubscription}
+          onConfirm={subscription ? subscription.onPersisted : d.confirmSubscription}
+          persist={subscription?.persist}
         />
       )}
       {d.modal?.type === "doc" && (

@@ -8,20 +8,44 @@ import { LEGAL_LAYERS, legalVars } from "@/app/_lib/data/legal";
 import { alt, money, nf, onColor } from "@/app/_lib/format";
 import { seededHex } from "@/app/_lib/hash";
 
-export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClose: n, onConfirm: l }) {
+export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClose: n, onConfirm: l, persist: g }) {
   const [r, i] = useState(false),
     [s, c] = useState(false),
     [d, p] = useState(false),
     [m, u] = useState(0),
+    [w, A] = useState(null),
     v = e.mint.status === "minted",
     h = useRef([]);
   useEffect(() => () => h.current.forEach(clearTimeout), []);
-  const b = [
-      "Firma electrónica del contrato de suscripción",
-      v ? "Transferencia de tokens a tu wallet" : "Reserva de unidades en el registro del vehículo",
-      "Registro on-chain y certificado",
-    ],
-    y = () => {
+  const b = g
+      ? [
+          "Firma del contrato y registro en PostgreSQL",
+          v ? "mintSubscription() en cola · ChainTransaction PENDING" : "Reserva de unidades en el registro del vehículo",
+          "Certificado con el SHA-256 del contrato",
+        ]
+      : [
+          "Firma electrónica del contrato de suscripción",
+          v ? "Transferencia de tokens a tu wallet" : "Reserva de unidades en el registro del vehículo",
+          "Registro on-chain y certificado",
+        ],
+    y = async () => {
+      if (g) {
+        // Persisted path: the server validates and commits before the steps animate.
+        u(1), A(null);
+        const P = await g({ ...t, acknowledgments: { contract: r, risk: s, layers: d } });
+        if (!P.ok) {
+          u(0), A(P.error);
+          return;
+        }
+        [2, 3, 4].forEach((N, x) =>
+          h.current.push(
+            setTimeout(() => {
+              u(N), N === 4 && l(P);
+            }, 600 * (x + 1)),
+          ),
+        );
+        return;
+      }
       u(1);
       const f = "0x" + seededHex("tx" + a.id + Date.now(), 64);
       [2, 3, 4].forEach((N, x) =>
@@ -104,6 +128,11 @@ export function PortalSubscribeModal({ t: e, p: a, draft: t, currency: o, onClos
               Reconozco expresamente las 4 Capas Estructurales de esta inversión y la función de recuperación
               judicial o administrativa (forcedTransfer) descritas arriba.
             </label>
+            {w && (
+              <p role="alert" className="border border-[#F3C5C0] bg-[#FDECEA] text-[#B42318] text-[12.5px] px-4 py-3">
+                {w}
+              </p>
+            )}
             <button
               disabled={!r || !s || !d}
               onClick={y}

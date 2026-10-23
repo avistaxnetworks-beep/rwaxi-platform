@@ -7,20 +7,25 @@ import { Portal } from "@/app/_components/portal/portal";
 import { Icon } from "@/app/_components/ui/icon";
 import { byId } from "@/app/_lib/data/projects";
 import { EMPTY_KYC } from "@/app/_lib/data/kyc";
-import { signNda, submitKyc } from "../actions";
+import { signNda, submitKyc, subscribe } from "../actions";
 import { toKycSubmission } from "../_lib/kyc-submission";
-import type { NdaSubmission, PersistedJourney, PersistedJourneyResult } from "../_lib/journey-types";
+import type {
+  NdaSubmission,
+  PersistedJourney,
+  PersistedJourneyResult,
+  SubscriptionResult,
+} from "../_lib/journey-types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the journey shape comes from the untyped prototype */
 const freshKyc = () => ({ stage: "form", step: 0, data: { ...EMPTY_KYC }, status: null, reason: null, whitelistTx: null });
 
 /**
- * PostgreSQL is the source of truth for lead, NDA, KYC status and Data Room grant. The demo
- * journey of the prototype is discarded; only state the database does not hold yet survives:
- * an in-progress KYC form for the same NDA, and in-session subscriptions (holdings).
+ * PostgreSQL is the source of truth for lead, NDA, KYC status, Data Room grant, subscriptions
+ * (portfolio) and offering availability. The demo journey of the prototype is discarded; only
+ * an in-progress KYC form for the same NDA survives, since the database does not hold drafts.
  */
 function applyPersisted(j: any, p: PersistedJourney | null, firstApply: boolean): any {
-  if (!p) return { ...j, lead: null, nda: null, kyc: freshKyc(), grant: null, holdings: [] };
+  if (!p) return { ...j, lead: null, nda: null, kyc: freshKyc(), grant: null, holdings: [], offering: null };
   const sameNda = !!p.nda && j.nda?.id === p.nda.id;
   const kyc = p.kyc
     ? {
@@ -43,7 +48,8 @@ function applyPersisted(j: any, p: PersistedJourney | null, firstApply: boolean)
     nda: p.nda,
     kyc,
     grant: p.grant,
-    holdings: !firstApply && p.kyc?.status === "aprobado" ? j.holdings : [],
+    holdings: p.holdings,
+    offering: p.offering,
   };
 }
 
@@ -76,6 +82,15 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
     return result;
   };
 
+  const subscription = {
+    persist: (draft: any) =>
+      subscribe({ units: Number(draft?.units), acknowledgments: draft?.acknowledgments ?? {} }),
+    onPersisted: (result: Extract<SubscriptionResult, { ok: true }>) => {
+      d.setJourney((j: any) => ({ ...j, holdings: result.holdings, offering: result.offering }));
+      d.toast(result.message);
+    },
+  };
+
   const persistKyc = async (data: unknown) => {
     try {
       return await submitKyc(await toKycSubmission(data));
@@ -85,7 +100,7 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
   };
 
   return (
-    <EnvironmentFrame env="portal">
+    <EnvironmentFrame env="portal" subscription={subscription}>
       {!persisted.ok && (
         <div role="alert" className="bg-[#FDECEA] text-[#B42318] border-b border-[#F3C5C0]">
           <p className="gutter max-w-[1240px] mx-auto py-3 text-[12.5px] flex gap-2 items-center">

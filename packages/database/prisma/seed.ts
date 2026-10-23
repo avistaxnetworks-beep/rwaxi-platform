@@ -113,6 +113,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       raiseTargetUsd: o.raiseTargetUsd,
       assetValueUsd: o.assetValueUsd,
       totalUnits: Math.round(o.raiseTargetUsd / o.unitPriceUsd),
+      unitsSubscribed: Math.round((o.raiseTargetUsd / o.unitPriceUsd) * o.subscribedFraction),
       rentStartMonths: o.rentStartMonths,
       network: o.network,
       pipeline: o.pipeline,
@@ -278,7 +279,12 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
           kind: "SUBSCRIPTION_MINTED",
           contractAddress: tokenAddress,
           method: "mintSubscription(bytes32,address,uint256,bytes32)",
-          args: { subscriptionId: toOnchainId(sub.id), investor: investor.walletAddress, amount: units },
+          args: {
+            subscriptionId: toOnchainId(sub.id),
+            investor: investor.walletAddress,
+            amount: units,
+            paymentEvidenceRef: sub.paymentEvidenceRef,
+          },
           txHash: sub.mintTxHash,
           status: "CONFIRMED",
           createdAt: landedAt,
@@ -286,7 +292,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
         fees.push({
           organizationId: orgId,
           subscriptionId: sub.id,
-          kind: "USAGE",
+          kind: "INFRASTRUCTURE_USAGE",
           amountUsd: (lead.subscriptionUsd * dev.fees.usagePct) / 100,
           baseUsd: lead.subscriptionUsd,
           accruedOn: landedAt,
@@ -316,7 +322,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
   // 13 · RWAXI fees: setup + monthly SaaS (last month invoiced)
   fees.push({
     organizationId: orgId,
-    kind: "SETUP",
+    kind: "ONBOARDING_SETUP",
     amountUsd: dev.fees.setup,
     accruedOn: new Date(dev.onboardedAt),
     evidence: `Contrato de implementación White Label · ${dev.slug}`,
@@ -326,7 +332,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
   months.forEach((period, idx) =>
     fees.push({
       organizationId: orgId,
-      kind: "SAAS",
+      kind: "MONTHLY_SAAS",
       amountUsd: dev.fees.monthly,
       period,
       accruedOn: new Date(`${period}-01`),

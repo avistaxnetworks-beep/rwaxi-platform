@@ -1,10 +1,17 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { forTenant, type KycStatus } from "@rwaxi/database";
-import { REF_COOKIE, REF_TOKEN_RE, parseRef } from "@/app/_lib/referral";
+import { forTenant, type KycStatus, type Prisma, type Subscription } from "@rwaxi/database";
+import { REF_COOKIE, verifyReferral, type ReferralClaims } from "@/app/_lib/referral";
 import { readInvestorSession } from "@/app/_lib/server/investor-session";
 import { TenantAccessError, requireHostTenant } from "@/app/_lib/server/tenant-context";
-import type { KycStatusView, PersistedJourney, PersistedJourneyResult, PersistedLead } from "./journey-types";
+import type {
+  KycStatusView,
+  PersistedHolding,
+  PersistedJourney,
+  PersistedJourneyResult,
+  PersistedLead,
+  PortalOfferingState,
+} from "./journey-types";
 
 /** ISO 8601 without milliseconds, as the prototype displays timestamps. */
 export const isoSeconds = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -18,6 +25,67 @@ export const KYC_STATUS_VIEW: Partial<Record<KycStatus, KycStatusView>> = {
 /** The offering a tenant portal presents: its first published offering. */
 export const PORTAL_OFFERING = { where: { published: true }, orderBy: { code: "asc" as const } };
 
+/** Offering fields needed for availability and minting. */
+export const OFFERING_STATE_SELECT = {
+  id: true,
+  code: true,
+  network: true,
+  totalUnits: true,
+  unitsSubscribed: true,
+  unitPriceUsd: true,
+  minTicketUsd: true,
+  token: { select: { status: true, contractAddress: true, symbol: true } },
+} satisfies Prisma.OfferingSelect;
+
+type OfferingStateRow = Prisma.OfferingGetPayload<{ select: typeof OFFERING_STATE_SELECT }>;
+
+export function offeringState(o: OfferingStateRow): PortalOfferingState {
+  return {
+    code: o.code,
+    totalUnits: o.totalUnits,
+    unitsSubscribed: o.unitsSubscribed,
+    unitPriceUsd: Number(o.unitPriceUsd),
+    minTicketUsd: Number(o.minTicketUsd),
+    tokenDeployed: !!o.token?.contractAddress && (o.token.status === "DEPLOYED" || o.token.status === "PAUSED"),
+    tokenPaused: o.token?.status === "PAUSED",
+  };
+}
+
+const HOLDING_STATUS: Record<Subscription["status"], PersistedHolding["status"] | null> = {
+  MINTED: "en_wallet",
+  MINT_PENDING: "mint_pendiente",
+  PAYMENT_VERIFIED: "mint_pendiente",
+  RESERVED: "reservado",
+  CANCELLED: null,
+};
+
+export function toHolding(s: Subscription): PersistedHolding | null {
+  const status = HOLDING_STATUS[s.status];
+  if (!status) return null;
+  return {
+    id: s.id,
+    units: s.units,
+    capital: Number(s.capitalUsd),
+    accrued: 0,
+    since: s.createdAt.toISOString().slice(0, 10),
+    status,
+    tx: s.mintTxHash,
+    evidenceHash: s.paymentEvidenceRef,
+  };
+}
+
+export const toHoldings = (subs: Subscription[]) => subs.flatMap((s) => toHolding(s) ?? []);
+
+/** A referral is shown (and later persisted) only if its HMAC verifies for this tenant. */
+async function verifiedReferral(slug: string, ...candidates: (string | undefined)[]): Promise<ReferralClaims | null> {
+  for (const token of candidates) {
+    if (!token) continue;
+    const check = await verifyReferral(token, { slug, secret: process.env.REFERRAL_SECRET });
+    if (check.ok) return check.claims;
+  }
+  return null;
+}
+
 /**
  * Investor journey of the current visitor on this tenant host, read from PostgreSQL.
  * `refParam` covers the landing request itself, before the referral cookie exists.
@@ -26,18 +94,24 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
   try {
     const tenant = await requireHostTenant();
     const db = forTenant(tenant.id);
-    const refCookie = parseRef((await cookies()).get(REF_COOKIE)?.value);
-    const referral: PersistedLead | null = refCookie
-      ? { token: refCookie.token, at: isoSeconds(refCookie.landedAt), source: "RWAXI" }
-      : refParam && REF_TOKEN_RE.test(refParam)
-        ? { token: refParam, at: isoSeconds(new Date()), source: "RWAXI" }
-        : null;
-    const anonymous: PersistedJourney = { investor: null, lead: referral, nda: null, kyc: null, grant: null };
+    const claims = await verifiedReferral(tenant.slug, (await cookies()).get(REF_COOKIE)?.value, refParam);
+    const referral: PersistedLead | null = claims
+      ? { token: claims.referralId, at: isoSeconds(claims.issuedAt), source: "RWAXI" }
+      : null;
+
+    const offering = await db.offering.findFirst({ ...PORTAL_OFFERING, select: OFFERING_STATE_SELECT });
+    const anonymous: PersistedJourney = {
+      investor: null,
+      lead: referral,
+      nda: null,
+      kyc: null,
+      grant: null,
+      holdings: [],
+      offering: offering ? offeringState(offering) : null,
+    };
 
     const session = await readInvestorSession(tenant.id);
-    if (!session) return { ok: true, data: anonymous };
-    const offering = await db.offering.findFirst({ ...PORTAL_OFFERING, select: { id: true } });
-    if (!offering) return { ok: true, data: anonymous };
+    if (!session || !offering) return { ok: true, data: anonymous };
 
     const investor = await db.investor.findUnique({
       where: { id: session.investorId },
@@ -50,6 +124,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
           orderBy: { grantedAt: "desc" },
           take: 1,
         },
+        subscriptions: { where: { offeringId: offering.id }, orderBy: { createdAt: "asc" } },
       },
     });
     // Stale cookie (e.g. the database was re-seeded): behave as a new visitor.
@@ -77,7 +152,9 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
       ok: true,
       data: {
         investor: { name: investor.fullName, email: investor.email },
-        lead: lead ? { token: lead.referralToken, at: isoSeconds(lead.landedAt), source: lead.source } : referral,
+        lead: lead
+          ? { token: lead.referralToken, at: isoSeconds(lead.landedAt), source: lead.source === "REFERRAL" ? "RWAXI" : "DIRECT" }
+          : referral,
         nda: nda
           ? { id: nda.id, signer: nda.signerName, email: nda.signerEmail, at: isoSeconds(nda.acceptedAt), hash: nda.documentHash }
           : null,
@@ -100,6 +177,8 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
               ttlH: Math.round((grant.expiresAt.getTime() - grant.grantedAt.getTime()) / 3_600_000),
             }
           : null,
+        holdings: toHoldings(investor.subscriptions),
+        offering: offeringState(offering),
       },
     };
   } catch (e) {

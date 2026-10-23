@@ -36,7 +36,7 @@ export interface ComplianceRow {
 export interface AuditEntry {
   id: string;
   at: string;
-  action: "KYC_APPROVED" | "KYC_REJECTED";
+  action: "KYC_APPROVED" | "KYC_REJECTED" | "SUBSCRIPTION_CREATED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;

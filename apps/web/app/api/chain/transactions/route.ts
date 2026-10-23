@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { forTenant } from "@rwaxi/database";
 import type { ChainQueueResponse } from "@/app/_lib/chain-queue-types";
-import { toQueueItem } from "@/app/_lib/server/chain-queue";
+import { toQueueItem, walletOf } from "@/app/_lib/server/chain-queue";
 import { TenantAccessError, demoAccessEnabled, requireHostTenant } from "@/app/_lib/server/tenant-context";
 
 export const dynamic = "force-dynamic";
@@ -32,14 +32,7 @@ export async function GET(req: NextRequest) {
       db.chainTransaction.count(),
     ]);
 
-    const wallets = [
-      ...new Set(
-        txs.flatMap((t) => {
-          const w = (t.args as { wallet?: unknown } | null)?.wallet;
-          return typeof w === "string" ? [w.toLowerCase()] : [];
-        }),
-      ),
-    ];
+    const wallets = [...new Set(txs.flatMap((t) => walletOf(t.args) ?? []))];
     const investors = wallets.length
       ? await db.investor.findMany({ where: { walletAddress: { in: wallets } }, select: { walletAddress: true, fullName: true } })
       : [];
