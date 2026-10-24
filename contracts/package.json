@@ -2,6 +2,7 @@
   "name": "@rwaxi/contracts",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "description": "RWAXI on-chain infrastructure: tenant factory, compliance registry and permissioned property token (OpenZeppelin v5).",
   "scripts": {
     "compile": "hardhat compile && node scripts/export-abis.mjs",
@@ -12,7 +13,7 @@
     "node": "hardhat node"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.2"
+    "@openzeppelin/contracts": "5.6.1"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-viem": "^2.1.5",

@@ -1343,6 +1343,40 @@ const catalog: Catalog = {
     "Você já pode ver os detalhes reservados do projeto. A próxima etapa é sua verificação KYC/AML com o Oficial de Compliance da incorporadora.",
   "YouTube (no listado)": "YouTube (não listado)",
   "Zona Común": "Área Comum",
+  "Cada raíz de distribución la ancla el emisor (DISTRIBUTION_ROLE) una sola vez y nunca vacía (DistributionAlreadyAnchored, EmptyDistributionRoot).":
+    "Cada raiz de distribuição é ancorada pelo emissor (DISTRIBUTION_ROLE) uma única vez e nunca vazia (DistributionAlreadyAnchored, EmptyDistributionRoot).",
+  "Cada suscripción se acuña una sola vez y nunca por encima del tope de emisión (SubscriptionAlreadyProcessed, SupplyCapExceeded).":
+    "Cada subscrição é emitida uma única vez e nunca acima do teto de emissão (SubscriptionAlreadyProcessed, SupplyCapExceeded).",
+  "Código fuente": "Código fonte",
+  "Código fuente propietario y confidencial: visible con sesión del backoffice del desarrollador o de la consola RWAXI, o con la demo técnica habilitada.":
+    "Código fonte proprietário e confidencial: visível com sessão do backoffice da incorporadora ou do console RWAXI, ou com a demo técnica habilitada.",
+  Errores: "Erros",
+  Eventos: "Eventos",
+  Funciones: "Funções",
+  "Interfaz pública": "Interface pública",
+  "Invariantes de seguridad": "Invariantes de segurança",
+  "La organización, su NIT y su régimen de cumplimiento quedan fijados al desplegar el registro.":
+    "A organização, seu NIT e seu regime de compliance ficam fixados ao implantar o registro.",
+  "La recuperación forzosa exige LEGAL_ENFORCEMENT_ROLE del emisor y el hash del acto legal que la respalda (LegalActHashRequired); el receptor debe estar en la whitelist.":
+    "A recuperação forçada exige o LEGAL_ENFORCEMENT_ROLE do emissor e o hash do ato legal que a respalda (LegalActHashRequired); o destinatário deve estar na whitelist.",
+  "Los roles de administración del registro y del token quedan en las wallets del tenant, no en las de RWAXI.":
+    "Os papéis de administração do registro e do token ficam nas wallets do tenant, não nas da RWAXI.",
+  "Pausar y reanudar es exclusivo del emisor y del oficial de cumplimiento (ISSUER_ADMIN_ROLE, COMPLIANCE_OFFICER_ROLE).":
+    "Pausar e reativar é exclusivo do emissor e do Oficial de Compliance (ISSUER_ADMIN_ROLE, COMPLIANCE_OFFICER_ROLE).",
+  "RWAXI solo tiene MINTER_ROLE: no puede pausar el token, anclar el Data Room o distribuciones ni ejecutar recuperaciones.":
+    "A RWAXI só tem o MINTER_ROLE: não pode pausar o token, ancorar o Data Room ou distribuições nem executar recuperações.",
+  "Solo el oficial de cumplimiento del tenant aprueba, revoca o congela wallets (COMPLIANCE_OFFICER_ROLE).":
+    "Só o Oficial de Compliance do tenant aprova, revoga ou congela wallets (COMPLIANCE_OFFICER_ROLE).",
+  "Solo el operador RWAXI (RWAXI_OPERATOR_ROLE) despliega registros y tokens: uno por organización y uno por oferta (TenantAlreadyRegistered, OfferingAlreadyDeployed).":
+    "Só o operador RWAXI (RWAXI_OPERATOR_ROLE) implanta registros e tokens: um por organização e um por oferta (TenantAlreadyRegistered, OfferingAlreadyDeployed).",
+  "Solo una wallet aprobada y no congelada en el registro del tenant puede recibir tokens: el hook _update consulta isEligible() en cada emisión y transferencia.":
+    "Só uma wallet aprovada e não congelada no registro do tenant pode receber tokens: o hook _update consulta isEligible() em cada emissão e transferência.",
+  "Toda aprobación registra el hash del expediente KYC; una aprobación sin hash se rechaza (EmptyDossierHash).":
+    "Toda aprovação registra o hash do dossiê KYC; uma aprovação sem hash é rejeitada (EmptyDossierHash).",
+  "Un token solo se despliega sobre el registro de su propio tenant (UnknownTenant), aislado de los demás desarrolladores.":
+    "Um token só é implantado sobre o registro do seu próprio tenant (UnknownTenant), isolado das demais incorporadoras.",
+  "Una wallet congelada no puede transferir; únicamente la recuperación forzosa omite ese bloqueo.":
+    "Uma wallet congelada não pode transferir; só a recuperação forçada ignora esse bloqueio.",
 };
 
 export default catalog;

@@ -1,5 +1,5 @@
 import "server-only";
-import { platformPrisma, type Prisma } from "@rwaxi/database";
+import { platformPrisma, retryTransient, type Prisma } from "@rwaxi/database";
 import { PLATFORM_AUDIT_ACTIONS, platformAuditSummary } from "@/app/_lib/server/platform-audit";
 import { TenantAccessError, requirePlatformAccess } from "@/app/_lib/server/tenant-context";
 import { onboardingNetworks } from "./onboarding";
@@ -47,7 +47,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
     const session = await requirePlatformSession().catch(() => null); // actions need it; reading does not
     const db = platformPrisma();
     const [orgs, leadGroups, ndaGroups, kycGroups, investorGroups, subGroups, feeGroups, referralLeads, ledger, invoices, audit, registryTxs, codes] =
-      await Promise.all([
+      await retryTransient(() => Promise.all([
         db.organization.findMany({
           orderBy: { onboardedAt: "asc" },
           select: {
@@ -136,7 +136,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
           select: { organizationId: true, status: true, network: true },
         }),
         db.offering.findMany({ select: { code: true } }),
-      ]);
+      ]), { repeatable: true });
 
     const count = <T extends { organizationId: string; _count: { _all: number } }>(rows: T[], orgId: string, pick?: (r: T) => boolean) =>
       rows.filter((r) => r.organizationId === orgId && (!pick || pick(r))).reduce((s, r) => s + r._count._all, 0);

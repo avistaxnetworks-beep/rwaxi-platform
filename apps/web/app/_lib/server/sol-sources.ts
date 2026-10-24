@@ -1,6 +1,12 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
-export const SOL_SOURCES = {
-  RwaxiTenantFactory: `// SPDX-License-Identifier: MIT
+// Solidity source of RWAXI's contracts (contracts/src, verbatim): proprietary and confidential. Server-only:
+// /api/inspector/sources serves it to an authorized session (see inspector-access.ts); browsers only ever get
+// the public interface. sol-sources.test.ts keeps this copy equal to contracts/src.
+import "server-only";
+import type { ContractName } from "@/app/_lib/chain/contracts";
+
+export const SOL_SOURCES: Record<ContractName, string> = {
+  RwaxiTenantFactory: `// SPDX-License-Identifier: UNLICENSED
+// Copyright (c) 2026 RWAXI. All rights reserved. Proprietary and confidential.
 pragma solidity ^0.8.24;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
@@ -61,7 +67,8 @@ contract RwaxiTenantFactory is AccessControl {
     }
 }
 `,
-  RwaxiComplianceRegistry: `// SPDX-License-Identifier: MIT
+  RwaxiComplianceRegistry: `// SPDX-License-Identifier: UNLICENSED
+// Copyright (c) 2026 RWAXI. All rights reserved. Proprietary and confidential.
 pragma solidity ^0.8.24;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
@@ -149,7 +156,8 @@ contract RwaxiComplianceRegistry is AccessControl {
     }
 }
 `,
-  RwaxiPropertyToken: `// SPDX-License-Identifier: MIT
+  RwaxiPropertyToken: `// SPDX-License-Identifier: UNLICENSED
+// Copyright (c) 2026 RWAXI. All rights reserved. Proprietary and confidential.
 pragma solidity ^0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -170,6 +178,7 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant DATA_ROOM_ROLE = keccak256("DATA_ROOM_ROLE");
     bytes32 public constant LEGAL_ENFORCEMENT_ROLE = keccak256("LEGAL_ENFORCEMENT_ROLE");
+    bytes32 public constant DISTRIBUTION_ROLE = keccak256("DISTRIBUTION_ROLE");
 
     IRwaxiComplianceRegistry public immutable complianceRegistry;
     uint256 public immutable maxSupplyCap;
@@ -178,6 +187,8 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
     bytes32 public dataRoomMerkleRoot;
 
     mapping(bytes32 subscriptionId => bool) public processedSubscriptionIds;
+    /// @notice Raíz de Merkle (SHA-256) de las asignaciones de cada distribución de rendimientos.
+    mapping(bytes32 distributionId => bytes32 merkleRoot) public distributionRoots;
 
     bool private _forcedRecovery;
 
@@ -186,11 +197,16 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
     );
     event DataRoomMerkleRootAnchored(bytes32 previousRoot, bytes32 newRoot);
     event ForcedRecoveryExecuted(address indexed from, address indexed to, uint256 amount, bytes32 legalActHash);
+    event DistributionRootAnchored(
+        bytes32 indexed distributionId, bytes32 merkleRoot, uint256 totalAmountCents, uint256 snapshotSupply
+    );
 
     error SubscriptionAlreadyProcessed(bytes32 subscriptionId);
     error SupplyCapExceeded(uint256 requested, uint256 available);
     error LegalActHashRequired();
     error NotIssuerOrComplianceOfficer(address account);
+    error EmptyDistributionRoot();
+    error DistributionAlreadyAnchored(bytes32 distributionId);
 
     struct TokenConfig {
         string name;
@@ -216,8 +232,9 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
         _grantRole(ISSUER_ADMIN_ROLE, tenantAdmin);
         _grantRole(DATA_ROOM_ROLE, tenantAdmin);
         _grantRole(LEGAL_ENFORCEMENT_ROLE, tenantAdmin);
+        _grantRole(DISTRIBUTION_ROLE, tenantAdmin);
         _grantRole(COMPLIANCE_OFFICER_ROLE, complianceOfficer);
-        // RWAXI no administra el valor emitido: no recibe roles de pausa, recuperación ni Data Room.
+        // RWAXI no administra el valor emitido: no recibe roles de pausa, recuperación, Data Room ni distribuciones.
         _grantRole(MINTER_ROLE, rwaxiMinter);
     }
 
@@ -236,6 +253,18 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
         processedSubscriptionIds[subscriptionId] = true;
         _mint(investor, amount); // _update valida la whitelist del receptor
         emit SubscriptionTokensMinted(subscriptionId, investor, amount, paymentEvidenceRef);
+    }
+
+    /// @notice El emisor ancla la raíz de las asignaciones prorrata de una distribución (pagada off-chain por
+    ///         el vehículo). Cada inversionista verifica su asignación con su prueba de Merkle contra esta raíz.
+    function anchorDistributionRoot(bytes32 distributionId, bytes32 merkleRoot, uint256 totalAmountCents, uint256 snapshotSupply)
+        external
+        onlyRole(DISTRIBUTION_ROLE)
+    {
+        if (merkleRoot == bytes32(0)) revert EmptyDistributionRoot();
+        if (distributionRoots[distributionId] != bytes32(0)) revert DistributionAlreadyAnchored(distributionId);
+        distributionRoots[distributionId] = merkleRoot;
+        emit DistributionRootAnchored(distributionId, merkleRoot, totalAmountCents, snapshotSupply);
     }
 
     function updateDataRoomMerkleRoot(bytes32 newRoot) external onlyRole(DATA_ROOM_ROLE) {
@@ -286,10 +315,4 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
     }
 }
 `,
-};
-
-export const SOL_SIZES = {
-  RwaxiTenantFactory: 13820,
-  RwaxiComplianceRegistry: 2816,
-  RwaxiPropertyToken: 5385,
 };

@@ -2,7 +2,7 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "stream",
   "globalDependencies": [".env"],
-  "globalEnv": ["NODE_ENV", "NEXT_PUBLIC_ROOT_DOMAIN", "RWAXI_CUSTOM_DOMAINS", "DATABASE_URL", "PLATFORM_DATABASE_URL", "DIRECT_URL", "RWAXI_DEMO_AUTH"],
+  "globalEnv": ["NODE_ENV", "NEXT_PUBLIC_ROOT_DOMAIN", "RWAXI_CUSTOM_DOMAINS", "DATABASE_URL", "PLATFORM_DATABASE_URL", "DIRECT_URL", "RWAXI_DEMO_AUTH", "RWAXI_INSPECTOR_SOURCE"],
   "tasks": {
     "db:generate": {
       "cache": false

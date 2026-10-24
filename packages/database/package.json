@@ -2,6 +2,7 @@
   "name": "@rwaxi/database",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -16,7 +17,8 @@
     "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
     "db:provision-app-role": "tsx --env-file-if-exists=.env scripts/provision-app-role.ts",
     "db:studio": "prisma studio",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -181,6 +181,75 @@ const apiQueue = (page) =>
   );
 const cookie = async (page, host, name) => (await page.cookies(url(host))).find((c) => c.name === name);
 
+/** State of the inspector's contract viewer: source or public interface, and what it shows. */
+const codeViewer = (page) =>
+  page.evaluate(() => {
+    const root = document.querySelector("[data-code-view]");
+    return {
+      view: root?.dataset.codeView,
+      access: root?.dataset.sourceAccess,
+      notice: !!root?.querySelector("[data-source-restricted]"),
+      source: /pragma solidity|SPDX-License-Identifier: UNLICENSED/.test(root?.innerText ?? ""),
+      functions: (root?.innerText.match(/\) · (view|pure|nonpayable|payable)/g) ?? []).length,
+      invariants: root?.querySelectorAll("li").length ?? 0,
+    };
+  });
+const openInspectorTab = (page, label) =>
+  page.evaluate(
+    (l) =>
+      [...document.querySelectorAll('[role="dialog"] [role="tab"]')]
+        .find((t) => t.textContent.includes(l))
+        .click(),
+    label,
+  );
+/** GET on the dev server with a chosen Host header (Node's fetch cannot set it): status of the response. */
+const hostStatus = (host, pathname) =>
+  new Promise((resolve, reject) => {
+    const req = require("http").request(
+      {
+        host: "127.0.0.1",
+        port: new URL(url(null)).port,
+        path: pathname,
+        headers: { host: new URL(url(host)).host },
+      },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode);
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+
+/** Visible layers of the portal's pitch video that intersect (badge, chip, title, chapter card, subtitles, controls). */
+const videoOverlaps = (page) =>
+  page.evaluate(() => {
+    const box = document.querySelector(".vp-box");
+    const slider = box.querySelector('[role="slider"]');
+    const layers = {
+      badge: box.querySelector(".pointer-events-none > span"),
+      chip: box.querySelector(".pointer-events-none > span + span"),
+      title: box.querySelector('[data-video-title="overlay"]'),
+      card: box.querySelector(".vp-card"),
+      subtitle: box.querySelector('p[class*="bottom-["]'),
+      play: box.querySelector("button.vp-play"),
+      progress: slider,
+      buttons: slider?.nextElementSibling,
+    };
+    const rects = Object.entries(layers)
+      .filter(([, el]) => el && el.getClientRects().length)
+      .map(([name, el]) => [name, el.getBoundingClientRect()]);
+    const hits = [];
+    for (let i = 0; i < rects.length; i++)
+      for (let j = i + 1; j < rects.length; j++) {
+        const [an, a] = rects[i];
+        const [bn, b] = rects[j];
+        if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1)
+          hits.push(`${an}∩${bn}`);
+      }
+    return hits;
+  });
+
 (async () => {
   const browser = await launch();
   try {
@@ -317,6 +386,53 @@ const cookie = async (page, host, name) => (await page.cookies(url(host))).find(
             dialog.tabs.some((t) => t.includes(tr("en", "Cola PostgreSQL · ChainTransaction"))),
           `${dialog.lang} ${dialog.tabs.join(" | ")}`,
         );
+
+        // Contracts from the public vitrina: public interface and invariants, never the Solidity source.
+        await openInspectorTab(v, tr("en", "Compliance Simulator"));
+        await v.waitForSelector("[data-code-view]", { timeout: 30000 });
+        await v.waitForFunction(
+          () => /\) · (view|nonpayable)/.test(document.querySelector("[data-code-view]")?.innerText ?? ""),
+          {
+            timeout: 30000,
+          },
+        );
+        const viewer = await codeViewer(v);
+        ok(
+          "[vitrina] Inspector: interfaz pública (ABI) e invariantes de seguridad, sin código fuente .sol",
+          viewer.access === "restricted" &&
+            viewer.notice &&
+            !viewer.source &&
+            viewer.functions > 0 &&
+            viewer.invariants > 0,
+          JSON.stringify(viewer),
+        );
+        const status = (q) =>
+          v.evaluate(
+            (s) => fetch(`/api/inspector/sources${s}`, { cache: "no-store" }).then((r) => r.status),
+            q,
+          );
+        ok(
+          "[vitrina] /api/inspector/sources → 403, también pidiendo la sesión del backoffice o de la consola",
+          (await status("")) === 403 &&
+            (await status("?as=backoffice")) === 403 &&
+            (await status("?as=platform")) === 403,
+        );
+        // Every script the browser loaded (initial and lazy chunks): none carries the Solidity source.
+        const chunks = await v.evaluate(() =>
+          performance
+            .getEntriesByType("resource")
+            .map((e) => e.name)
+            .filter((n) => /\.js(\?|$)/.test(n)),
+        );
+        const leaked = [];
+        for (const chunk of chunks)
+          if (/pragma solidity|SPDX-License-Identifier: UNLICENSED/.test(await (await fetch(chunk)).text()))
+            leaked.push(chunk);
+        ok(
+          "ningún bundle JavaScript del navegador contiene el código Solidity",
+          chunks.length > 5 && !leaked.length,
+          leaked.join(" ") || `${chunks.length} scripts`,
+        );
         await v.keyboard.press("Escape");
       }
     }
@@ -425,6 +541,28 @@ const cookie = async (page, host, name) => (await page.cookies(url(host))).find(
       "portal: el portugués persiste tras recargar",
       await p.evaluate((t) => document.body.innerText.includes(t), tr("pt", "Firmar NDA con un clic")),
     );
+
+    // Pitch video on a phone (390 px): badge, title, play button, subtitles and controls never overlap.
+    await p.setViewport({ width: 390, height: 900 });
+    for (const lang of ["pt", "es"]) {
+      if (lang !== "pt") await chooseTenantLanguage(p, lang);
+      await p.reload({ waitUntil: "domcontentloaded", timeout: 180000 });
+      await p.waitForSelector(".vp-box button.vp-play", { timeout: 180000 });
+      const paused = await videoOverlaps(p);
+      const below = await p.$eval(
+        '[data-video-title="below"]',
+        (n) => n.getClientRects().length > 0 && n.textContent.trim(),
+      );
+      await p.click(".vp-box button.vp-play");
+      await new Promise((r) => setTimeout(r, 2500));
+      const playing = await videoOverlaps(p);
+      ok(
+        `[${lang}] video a 390 px: título bajo el reproductor y ninguna capa solapada (pausa y reproducción)`,
+        !!below && !paused.length && !playing.length,
+        [...paused, ...playing.map((h) => `▶ ${h}`)].join(" ") || String(below).slice(0, 40),
+      );
+    }
+    await p.setViewport({ width: 1360, height: 1000 });
     await ctxP.close();
 
     // ── C · backoffice + On-Chain queue: blockers and notes in EN and PT ────
@@ -509,7 +647,31 @@ const cookie = async (page, host, name) => (await page.cookies(url(host))).find(
           tr(lang, "Procesar cola en orden"),
         ),
       );
-      if (lang === "en") await shot(off, "i18n-inspector-en");
+      if (lang === "en") {
+        await shot(off, "i18n-inspector-en");
+        // The backoffice session unlocks the contracts' source; without naming it, the same host gets 403.
+        await openInspectorTab(off, tr("en", "Compliance Simulator"));
+        await off.waitForSelector('[data-code-view="source"]', { timeout: 30000 });
+        const viewer = await codeViewer(off);
+        const status = (q) =>
+          off.evaluate(
+            (s) => fetch(`/api/inspector/sources${s}`, { cache: "no-store" }).then((r) => r.status),
+            q,
+          );
+        ok(
+          "[backoffice] Inspector: código fuente .sol con su cabecera UNLICENSED (sesión del backoffice)",
+          viewer.access === "granted" &&
+            viewer.source &&
+            (await status("?as=backoffice")) === 200 &&
+            (await status("")) === 403,
+          JSON.stringify(viewer),
+        );
+        ok(
+          "[consola] /api/inspector/sources?as=platform → 200 en admin, 403 en un host de tenant",
+          (await hostStatus("admin", "/api/inspector/sources?as=platform")) === 200 &&
+            (await hostStatus("avista", "/api/inspector/sources?as=platform")) === 403,
+        );
+      }
       await off.keyboard.press("Escape");
     }
 

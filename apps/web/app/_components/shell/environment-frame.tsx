@@ -65,6 +65,7 @@ export function EnvironmentFrame({
           setTab={d.setInspectorTab}
           toast={d.toast}
           canExecute={env === "backoffice"}
+          sourceSession={env === "backoffice" ? "backoffice" : env === "superadmin" ? "platform" : null}
         />
       </TenantLanguages>
       {d.leadOverlay && (

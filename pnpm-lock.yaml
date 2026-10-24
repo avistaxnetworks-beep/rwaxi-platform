@@ -76,7 +76,7 @@ importers:
   contracts:
     dependencies:
       '@openzeppelin/contracts':
-        specifier: ^5.0.2
+        specifier: 5.6.1
         version: 5.6.1
     devDependencies:
       '@nomicfoundation/hardhat-viem':

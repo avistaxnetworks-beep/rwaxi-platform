@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const lib = require("./lib.cjs");
-const { launch, ownerDb, PrismaClient, ok, fail, shot, url, viem, viemAccounts, viemChains, abi, canon, sha256, merkleRoot, webEnv } = lib;
+const { launch, ownerDb, PrismaClient, poolUrl, ok, fail, shot, url, viem, viemAccounts, viemChains, abi, canon, sha256, merkleRoot, webEnv } = lib;
 const { nitDv, nitOf, randomNitBase: randomBase } = lib;
 const { waitText, clickText, clickIn, fill, toastText, alertText, waitAlert, openGovernance, openBackofficeTab, replayAction, ARTIFACTS } = lib;
 
@@ -233,7 +233,7 @@ const waitSlug = (page, state) => page.waitForFunction((s) => document.querySele
     ok("su cola muestra deployTenantRegistry() reservado al operador RWAXI (no ejecutable desde el tenant)", registryItem.blocked === "true" && /operador RWAXI/i.test(registryItem.text), registryItem.text.split("\n").find((l) => /operador/i.test(l)));
 
     // ── 6 · RLS: the app role sees only the new tenant (and other tenants never see it) ──
-    const app = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+    const app = new PrismaClient({ datasourceUrl: poolUrl(process.env.DATABASE_URL) });
     const scoped = (orgId, sql) => app.$transaction([app.$executeRaw`SELECT set_config('app.current_organization_id', ${orgId}, TRUE)`, sql]).then(([, r]) => r);
     const mine = await scoped(org.id, app.$queryRaw`SELECT (SELECT count(*) FROM organizations)::int AS orgs, (SELECT count(*) FROM users)::int AS users, (SELECT count(*) FROM data_room_documents)::int AS docs, (SELECT count(*) FROM kyc_cases)::int AS kyc, (SELECT count(*) FROM fee_ledger_entries)::int AS fees`);
     const fromAvista = await scoped(avista.id, app.$queryRaw`SELECT (SELECT count(*) FROM organizations WHERE id = ${org.id})::int AS orgs, (SELECT count(*) FROM data_room_documents WHERE organization_id = ${org.id})::int AS docs, (SELECT count(*) FROM users WHERE organization_id = ${org.id})::int AS users`);

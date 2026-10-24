@@ -19,6 +19,8 @@ import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
 import {
   isUniqueViolation,
   platformPrisma,
+  retryTransient,
+  transaction,
   withTenant,
   type AuditAction,
   type ChainNetwork,
@@ -91,7 +93,7 @@ async function audit(
   });
 }
 
-const platformTx = <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => platformPrisma().$transaction(fn, TX_OPTIONS);
+const platformTx = <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>) => transaction(platformPrisma(), fn, TX_OPTIONS);
 
 // ───────────────────────────────────────────────────────── Module A · governance
 
@@ -404,7 +406,9 @@ export async function checkSlugAvailability(slug: string): Promise<{ ok: true; a
     const value = typeof slug === "string" ? slug.trim().toLowerCase() : "";
     if (!SLUG_RULE.test(value)) return { ok: true, available: false, reason: "3 a 32 caracteres: minúsculas, números y guiones." };
     if (RESERVED_SLUGS.has(value)) return { ok: true, available: false, reason: "Subdominio reservado." };
-    const taken = await platformPrisma().organization.findUnique({ where: { slug: value }, select: { id: true } });
+    const taken = await retryTransient(() => platformPrisma().organization.findUnique({ where: { slug: value }, select: { id: true } }), {
+      repeatable: true,
+    });
     return { ok: true, available: !taken, reason: taken ? "Ya pertenece a otro desarrollador." : null };
   } catch (e) {
     return failure(e) as { ok: false; error: string };
@@ -426,7 +430,8 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
     const session = await requirePlatformSession();
     const meta = await requestMeta();
 
-    const message = await platformPrisma().$transaction(
+    const message = await transaction(
+      platformPrisma(),
       async (tx) => {
         if (await tx.offering.findFirst({ where: { code: o.code }, select: { id: true } })) {
           throw new PlatformError(`El código ${o.code} ya se usa en la plataforma: elige otro.`);

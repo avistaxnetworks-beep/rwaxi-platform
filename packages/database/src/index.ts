@@ -1,5 +1,13 @@
 export * from "@prisma/client";
 export { prisma, platformPrisma, forTenant, withTenant, tenantExtension, type TenantClient } from "./client";
+export {
+  POOL_DEFAULTS,
+  poolUrl,
+  retryTransient,
+  transaction,
+  transientKind,
+  type RetryOptions,
+} from "./pool";
 export { resolveTenant, type ResolvedTenant } from "./tenant";
 export {
   listPublicOfferings,

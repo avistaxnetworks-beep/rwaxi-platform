@@ -61,8 +61,62 @@ const launch = () =>
     defaultViewport: { width: 1360, height: 1000 },
   });
 
+/**
+ * Pool settings of packages/database/src/pool.ts: a suite's client idles while the browser works, and an idle
+ * connection Neon or the network has dropped is closed by Prisma before it is reused.
+ */
+const POOL_DEFAULTS = { pool_timeout: "15", max_idle_connection_lifetime: "30" };
+function poolUrl(raw) {
+  if (!raw) return raw;
+  const url = new URL(raw);
+  for (const [key, value] of Object.entries(POOL_DEFAULTS)) if (!url.searchParams.has(key)) url.searchParams.set(key, value);
+  return url.toString();
+}
+
+const READS = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "findFirstOrThrow", "findMany", "count", "aggregate", "groupBy"]);
+const TRANSIENT =
+  /P2024|P1001|P1002|P1017|Timed out fetching a new connection|Server has closed the connection|ConnectionReset|connection reset|ECONNRESET/i;
+
+/**
+ * The client with its model reads repeated after a transient connection failure (Neon pool or a dropped idle
+ * connection). Writes, raw queries and batch transactions pass through untouched: they are never repeated.
+ */
+function resilientReads(client) {
+  const retry = async (read) => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await read();
+      } catch (e) {
+        if (attempt === 3 || !TRANSIENT.test(`${e?.code ?? ""} ${e?.message ?? ""}`)) throw e;
+        await new Promise((r) => setTimeout(r, 500 * attempt));
+      }
+    }
+  };
+  const models = new Map();
+  return new Proxy(client, {
+    get(target, prop) {
+      const value = target[prop];
+      if (typeof value === "function") return value.bind(target);
+      if (typeof prop !== "string" || /^[$_]/.test(prop) || value === null || typeof value !== "object") return value;
+      if (!models.has(prop)) {
+        models.set(
+          prop,
+          new Proxy(value, {
+            get(model, op) {
+              const fn = model[op];
+              if (typeof fn !== "function") return fn;
+              return READS.has(op) ? (...args) => retry(() => fn.apply(model, args)) : fn.bind(model);
+            },
+          }),
+        );
+      }
+      return models.get(prop);
+    },
+  });
+}
+
 /** Owner connection (BYPASSRLS): the suites verify every tenant's rows independently of the app. */
-const ownerDb = () => new PrismaClient({ datasourceUrl: process.env.DIRECT_URL });
+const ownerDb = () => resilientReads(new PrismaClient({ datasourceUrl: poolUrl(process.env.DIRECT_URL) }));
 
 const ok = (label, pass, detail = "") => {
   console.log(`${pass ? "PASS" : "FAIL"}  ${label}${detail ? " · " + detail : ""}`);
@@ -318,6 +372,7 @@ module.exports = {
   shot,
   launch,
   ownerDb,
+  poolUrl,
   PrismaClient,
   viem,
   viemAccounts,

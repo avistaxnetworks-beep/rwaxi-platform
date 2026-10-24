@@ -29,13 +29,14 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
                          marks (msg, vmsg, reason, LocalizedError), messages/<idioma>.ts, extract.ts + catalogs.test.ts
   app/superadmin/_lib/   métricas consolidadas con platformPrisma() (rol BYPASSRLS, sólo host admin)
   app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
+  app/api/inspector/sources   fuente .sol de los contratos, sólo con sesión de backoffice/consola (inspector-access.ts)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
 packages/database        Prisma 6 · esquema multi-tenant (17 entidades) · RLS · cliente con tenant · seed
   scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente)
 packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · distribution.ts (prorrata en centavos + árbol de asignaciones)
                          canonical.ts (evidenceHash) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
-contracts                Hardhat 2 · solc 0.8.24 · @openzeppelin/contracts 5.0.2
+contracts                Hardhat 2 · solc 0.8.24 · @openzeppelin/contracts 5.6.1 (versión exacta: bytecode determinista)
 ```
 
 ## Arquitectura multi-tenant: 4 entornos
@@ -174,6 +175,7 @@ pnpm dev                                       # Next en http://localhost:3000 (
 pnpm build                                     # db:generate + contratos + next build
 pnpm typecheck                                 # tsc en todos los paquetes
 pnpm test                                      # contratos, SDK (Merkle, distribuciones), hosts, referidos, invariantes, alta B2B
+pnpm audit:licenses                            # licencias del árbol de dependencias: falla con GPL/AGPL/SSPL en producción
 
 pnpm --filter @rwaxi/database prisma generate  # cliente Prisma (alias: pnpm db:generate)
 pnpm db:up                                     # Postgres 16 en Docker (crea roles rwaxi_app / rwaxi_platform)
@@ -195,7 +197,8 @@ pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local (r
 ```
 
 E2E (`scripts/e2e`, paquete `@rwaxi/e2e`): cada suite verifica la UI y, por separado, las filas en la BD con
-`DIRECT_URL` (recalcula hashes, firmas y nonces). Requieren `pnpm dev` corriendo (salvo `e2e:rpc`, que exige el
+`DIRECT_URL` (recalcula hashes, firmas y nonces; `ownerDb()` repite sus lecturas tras un corte transitorio de Neon,
+nunca sus escrituras). Requieren `pnpm dev` corriendo (salvo `e2e:rpc`, que exige el
 puerto 3000 libre y levanta sus propios servicios), contratos compilados y Chrome/Edge (`CHROME_PATH` para otro).
 Los secretos se leen en tiempo de ejecución de `packages/database/.env` y `apps/web/.env.local`; las cuentas de
 Hardhat salen de su mnemónico público. Capturas en `scripts/e2e/.artifacts/` (ignorado por git). Reseedean la BD.
@@ -269,6 +272,12 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   (append-only, con su `merkleProof`), `anchorDistributionRoot(distributionId, root, totalAmountCents,
   snapshotSupply)` `PENDING` y `DISTRIBUTION_DECLARED` (subjectHash = raíz). Al confirmarse → `ANCHORED`. El
   portafolio muestra las asignaciones del inversionista y verifica su prueba en el navegador.
+- **Conexiones con Neon** (`packages/database/src/pool.ts`): `poolUrl()` añade a las URL de Prisma
+  `pool_timeout=15` y `max_idle_connection_lifetime=30` salvo que la URL los fije (igual `connection_limit`; por
+  defecto 2×CPU+1). Tras un fallo transitorio —pool agotado (P2024), servidor inalcanzable, conexión caída (P1017,
+  `ConnectionReset`)— las lecturas de `forTenant` se repiten una vez y las escrituras sólo si nunca llegaron a la base;
+  `withTenant()` y `transaction(client, fn)` sólo si la transacción no llegó a empezar: una escritura nunca se aplica
+  dos veces. Lecturas directas (`$queryRaw`, cliente de plataforma): `retryTransient(fn, { repeatable: true })`.
 - Errores únicos de Prisma (P2002): `isUniqueViolation(e)` de `@rwaxi/database`, nunca `instanceof
   Prisma.PrismaClientKnownRequestError` (con `transpilePackages` el cliente compartido y el namespace importado pueden
   ser copias distintas y el `instanceof` falla).
@@ -280,6 +289,15 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   condicional de estado, `AuditEvent`, `revalidatePath`).
 - Código nuevo: TypeScript estricto. Componentes de un solo entorno van colocados en `app/<entorno>/_components`.
 - `packages/blockchain-sdk/src/abi/*` es generado: no editar; correr `pnpm contracts:compile` tras cambiar `.sol`.
+  El fuente `.sol` es propietario: `app/_lib/server/sol-sources.ts` (`server-only`, copia literal de `contracts/src`)
+  sólo sale por `/api/inspector/sources?as=backoffice|platform` hacia una sesión del backoffice (host del tenant) o de
+  la consola (host admin), o con `RWAXI_INSPECTOR_SOURCE=1` (demo técnica). Los demás —vitrina, portal— ven la
+  interfaz pública (ABI) y las invariantes de `app/_lib/chain/contracts.ts` (con los tamaños de runtime). Al cambiar
+  un contrato, regenerar esa copia: `sol-sources.test.ts` falla si difiere.
+- **Propiedad intelectual** (`PROPRIETARY.md`): el código es propietario de RWAXI. Todo paquete del workspace declara
+  `"private": true` y `"license": "UNLICENSED"`; todo contrato propio empieza con `// SPDX-License-Identifier:
+  UNLICENSED` y `// Copyright (c) 2026 RWAXI. All rights reserved. Proprietary and confidential.` Al añadir una
+  dependencia, `pnpm audit:licenses` debe seguir pasando (sin copyleft fuerte en producción).
 - Cambios de esquema: editar `schema.prisma` y crear migración con `pnpm db:migrate`. Toda tabla nueva de tenant
   necesita `organization_id`, `ENABLE`/`FORCE ROW LEVEL SECURITY` + política en su migración y, si referencia otra
   tabla de tenant, trigger `same_tenant`. Los privilegios por defecto dan SELECT/INSERT/UPDATE/DELETE a `rwaxi_app`:

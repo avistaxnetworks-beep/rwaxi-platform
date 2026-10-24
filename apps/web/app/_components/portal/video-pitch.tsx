@@ -133,7 +133,7 @@ export function VideoPitch({ t: e, p: a, photos: t, currency: o, toast: n, onPho
             <div className="absolute inset-0 bg-gradient-to-t from-[#0B0518]/85 via-[#0B0518]/10 to-[#0B0518]/45 pointer-events-none" />
             {_ && (
               <div
-                className="absolute right-4 top-14 sm:right-6 sm:top-16 w-[min(300px,60%)] bg-white/95 p-4 flex flex-col gap-2 pointer-events-none vp-card"
+                className="absolute right-4 top-14 sm:right-6 sm:top-16 w-[min(300px,60%)] bg-white/95 p-4 hidden md:flex flex-col gap-2 pointer-events-none vp-card"
                 key={I}
               >
                 <p className="font-mono text-[10px] tracking-[0.12em] tc-text">{tr("CAPÍTULO {n}", { n: `0${I + 1}` })}</p>
@@ -152,19 +152,21 @@ export function VideoPitch({ t: e, p: a, photos: t, currency: o, toast: n, onPho
               </div>
             )}
             {_ && (
-              <p className="absolute left-1/2 -translate-x-1/2 bottom-[86px] w-[min(680px,88%)] text-center text-white text-[13px] sm:text-[14px] leading-snug bg-black/55 px-3 py-1.5 pointer-events-none">
+              <p className="absolute left-1/2 -translate-x-1/2 bottom-[76px] sm:bottom-[86px] w-[min(680px,88%)] text-center text-white text-[12px] sm:text-[14px] leading-snug bg-black/55 px-3 py-1 sm:py-1.5 pointer-events-none">
                 {SUBTITLES[I](e, a, tr)}
               </p>
             )}
           </div>
         )}
         <div className="absolute top-3 left-3 right-3 flex flex-wrap gap-2 justify-between items-start pointer-events-none">
-          <span className="bg-white/95 text-rxPurple text-[10px] sm:text-[10.5px] font-semibold tracking-[0.1em] px-2.5 py-1.5 inline-flex items-center gap-1.5 rounded-[6px]">
+          <span
+            className={`bg-white/95 text-rxPurple text-[10px] sm:text-[10.5px] font-semibold tracking-[0.1em] px-2.5 py-1.5 items-center gap-1.5 rounded-[6px] ${_ ? "hidden sm:inline-flex" : "inline-flex"}`}
+          >
             <Icon name="Video" size={13} className="tc-text" />
             {tr("PRESENTACIÓN OFICIAL DEL DESARROLLADOR · 03:00 MIN")}
           </span>
           {s === "interactivo" && (
-            <span className="bg-black/50 text-white/85 text-[10px] font-mono px-2 py-1 rounded-[6px]">
+            <span className="hidden sm:inline bg-black/50 text-white/85 text-[10px] font-mono px-2 py-1 rounded-[6px]">
               {r.source === "url" && T ? tr("{provider} · vista previa", { provider: tr(B) }) : tr("Vista interactiva")}
             </span>
           )}
@@ -173,13 +175,13 @@ export function VideoPitch({ t: e, p: a, photos: t, currency: o, toast: n, onPho
           <button
             onClick={P}
             aria-label={tr("Reproducir video")}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[76px] h-[76px] rounded-full tc-btn grid place-items-center shadow-2xl focus-ring vp-play"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 sm:w-[76px] sm:h-[76px] rounded-full tc-btn grid place-items-center shadow-2xl focus-ring vp-play"
           >
             <Icon name="Play" size={32} className="ml-1" />
           </button>
         )}
         {!_ && (
-          <div className="absolute left-4 bottom-[74px] sm:left-6 text-white pointer-events-none max-w-[80%]">
+          <div className="hidden lg:block absolute left-6 bottom-[74px] text-white pointer-events-none max-w-[80%]" data-video-title="overlay">
             <p className="font-display font-semibold text-[22px] sm:text-[30px] leading-tight balance">
               {videoTitle(r, a, tr)}
             </p>
@@ -270,6 +272,16 @@ export function VideoPitch({ t: e, p: a, photos: t, currency: o, toast: n, onPho
             </div>
           </div>
         </div>
+      </div>
+      <div className="lg:hidden" data-video-title="below">
+        <p className="font-display font-semibold text-[21px] sm:text-[26px] leading-tight text-rxPurple balance">
+          {videoTitle(r, a, tr)}
+        </p>
+        <p className="text-[12.5px] text-muted mt-1">
+          <span className="font-semibold text-inkBody">{r.presenter}</span>
+          {" — "}
+          {tr(r.role)}
+        </p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div

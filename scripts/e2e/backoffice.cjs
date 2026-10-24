@@ -1,6 +1,6 @@
 // E2E · backoffice compliance inbox on real Neon data: per-tenant isolation (RLS), approve/reject,
 // tampered Server Action requests and the append-only audit trail.
-const { PrismaClient, launch, ownerDb, ok, fail, shot, openBackofficeTab, clickIn, toastText } = require("./lib.cjs");
+const { PrismaClient, poolUrl, launch, ownerDb, ok, fail, shot, openBackofficeTab, clickIn, toastText } = require("./lib.cjs");
 
 const CARLOS = "Carlos A. Méndez Pardo";
 const JORGE = "Jorge Iván Toro";
@@ -175,7 +175,7 @@ async function tamperedApprove(page, clickName, fromId, toId, spoofTenant) {
     );
 
     // 8 · Append-only audit trail for the app role
-    const app = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
+    const app = new PrismaClient({ datasourceUrl: poolUrl(process.env.DATABASE_URL) });
     try {
       for (const [verb, sql] of [
         ["UPDATE", `UPDATE audit_events SET actor_email = 'tampered@x.co'`],

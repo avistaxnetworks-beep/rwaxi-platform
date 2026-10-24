@@ -1322,6 +1322,40 @@ const catalog: Catalog = {
     "You can now view the project's confidential details. The next step is your KYC/AML verification with the developer's Compliance Officer.",
   "YouTube (no listado)": "YouTube (unlisted)",
   "Zona Común": "Common Area",
+  "Cada raíz de distribución la ancla el emisor (DISTRIBUTION_ROLE) una sola vez y nunca vacía (DistributionAlreadyAnchored, EmptyDistributionRoot).":
+    "Each distribution root is anchored by the issuer (DISTRIBUTION_ROLE) exactly once and never empty (DistributionAlreadyAnchored, EmptyDistributionRoot).",
+  "Cada suscripción se acuña una sola vez y nunca por encima del tope de emisión (SubscriptionAlreadyProcessed, SupplyCapExceeded).":
+    "Each subscription is minted exactly once and never beyond the supply cap (SubscriptionAlreadyProcessed, SupplyCapExceeded).",
+  "Código fuente": "Source code",
+  "Código fuente propietario y confidencial: visible con sesión del backoffice del desarrollador o de la consola RWAXI, o con la demo técnica habilitada.":
+    "Proprietary and confidential source code: visible with a developer backoffice or RWAXI console session, or with the technical demo enabled.",
+  Errores: "Errors",
+  Eventos: "Events",
+  Funciones: "Functions",
+  "Interfaz pública": "Public interface",
+  "Invariantes de seguridad": "Security invariants",
+  "La organización, su NIT y su régimen de cumplimiento quedan fijados al desplegar el registro.":
+    "The organization, its NIT and its compliance regime are fixed when the registry is deployed.",
+  "La recuperación forzosa exige LEGAL_ENFORCEMENT_ROLE del emisor y el hash del acto legal que la respalda (LegalActHashRequired); el receptor debe estar en la whitelist.":
+    "Forced recovery requires the issuer's LEGAL_ENFORCEMENT_ROLE and the hash of the legal act behind it (LegalActHashRequired); the receiver must be whitelisted.",
+  "Los roles de administración del registro y del token quedan en las wallets del tenant, no en las de RWAXI.":
+    "The admin roles of the registry and the token stay with the tenant's wallets, not RWAXI's.",
+  "Pausar y reanudar es exclusivo del emisor y del oficial de cumplimiento (ISSUER_ADMIN_ROLE, COMPLIANCE_OFFICER_ROLE).":
+    "Only the issuer and the Compliance Officer can pause and unpause (ISSUER_ADMIN_ROLE, COMPLIANCE_OFFICER_ROLE).",
+  "RWAXI solo tiene MINTER_ROLE: no puede pausar el token, anclar el Data Room o distribuciones ni ejecutar recuperaciones.":
+    "RWAXI only holds MINTER_ROLE: it cannot pause the token, anchor the Data Room or distributions, or execute recoveries.",
+  "Solo el oficial de cumplimiento del tenant aprueba, revoca o congela wallets (COMPLIANCE_OFFICER_ROLE).":
+    "Only the tenant's Compliance Officer approves, revokes or freezes wallets (COMPLIANCE_OFFICER_ROLE).",
+  "Solo el operador RWAXI (RWAXI_OPERATOR_ROLE) despliega registros y tokens: uno por organización y uno por oferta (TenantAlreadyRegistered, OfferingAlreadyDeployed).":
+    "Only the RWAXI operator (RWAXI_OPERATOR_ROLE) deploys registries and tokens: one per organization and one per offering (TenantAlreadyRegistered, OfferingAlreadyDeployed).",
+  "Solo una wallet aprobada y no congelada en el registro del tenant puede recibir tokens: el hook _update consulta isEligible() en cada emisión y transferencia.":
+    "Only a wallet approved and not frozen in the tenant's registry can receive tokens: the _update hook calls isEligible() on every mint and transfer.",
+  "Toda aprobación registra el hash del expediente KYC; una aprobación sin hash se rechaza (EmptyDossierHash).":
+    "Every approval records the KYC file hash; an approval without it is rejected (EmptyDossierHash).",
+  "Un token solo se despliega sobre el registro de su propio tenant (UnknownTenant), aislado de los demás desarrolladores.":
+    "A token is only deployed on its own tenant's registry (UnknownTenant), isolated from other developers.",
+  "Una wallet congelada no puede transferir; únicamente la recuperación forzosa omite ese bloqueo.":
+    "A frozen wallet cannot transfer; only forced recovery bypasses that block.",
 };
 
 export default catalog;

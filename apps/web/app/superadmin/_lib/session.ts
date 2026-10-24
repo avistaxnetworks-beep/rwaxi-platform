@@ -1,5 +1,5 @@
 import "server-only";
-import { platformPrisma } from "@rwaxi/database";
+import { platformPrisma, retryTransient } from "@rwaxi/database";
 import { TenantAccessError, requirePlatformAccess } from "@/app/_lib/server/tenant-context";
 
 export interface PlatformSession {
@@ -13,11 +13,15 @@ export interface PlatformSession {
 export async function requirePlatformSession(): Promise<PlatformSession> {
   await requirePlatformAccess();
   // TODO(auth): the signed-in RWAXI staff member (MFA), required to hold SUPER_ADMIN.
-  const admin = await platformPrisma().user.findFirst({
-    where: { role: "SUPER_ADMIN", active: true, organizationId: null },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, fullName: true },
-  });
+  const admin = await retryTransient(
+    () =>
+      platformPrisma().user.findFirst({
+        where: { role: "SUPER_ADMIN", active: true, organizationId: null },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, email: true, fullName: true },
+      }),
+    { repeatable: true },
+  );
   if (!admin) throw new TenantAccessError("No hay un usuario SUPER_ADMIN activo para la sesión de plataforma.");
   return { admin };
 }

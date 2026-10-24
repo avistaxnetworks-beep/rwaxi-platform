@@ -27,6 +27,8 @@ export function OnChainInspector({
   toast: m,
   // Executing the persisted queue is a backoffice decision (environment-frame passes env === "backoffice").
   canExecute: x,
+  // Session that may unlock the contracts' source (backoffice / console); none in the vitrina and the portal.
+  sourceSession: q,
 }) {
   const { tr, lang } = useI18n();
   if (
@@ -117,7 +119,7 @@ export function OnChainInspector({
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {d === "state" && <StateTab s={v} toast={m} />}
           {d === "log" && <LogTab log={r} tenants={t} tenantId={s} toast={m} />}
-          {d === "sim" && <SimTab s={v} emit={i} setChainX={l} toast={m} />}
+          {d === "sim" && <SimTab s={v} emit={i} setChainX={l} toast={m} sourceSession={q} />}
           {d === "db" && (
             <ChainQueueTab
               selectedSlug={t[s].slug}

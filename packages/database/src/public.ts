@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "./client";
+import { retryTransient } from "./pool";
 
 /** The developer's commercial copy of an offering in one language (each field falls back to the Spanish column). */
 export interface OfferingCopy {
@@ -90,7 +91,9 @@ const n = (v: unknown) => Number(v ?? 0);
  * offerings of published developers, with live progress (units committed / total).
  */
 export async function listPublicOfferings(base: PrismaClient = prisma): Promise<PublicOffering[]> {
-  const rows = await base.$queryRaw<Row[]>`SELECT * FROM rwaxi_public_offerings()`;
+  const rows = await retryTransient(() => base.$queryRaw<Row[]>`SELECT * FROM rwaxi_public_offerings()`, {
+    repeatable: true,
+  });
   return rows.map((r) => ({
     tenant: {
       slug: r.tenant_slug,

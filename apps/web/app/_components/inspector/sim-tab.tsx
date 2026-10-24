@@ -17,7 +17,7 @@ import { shortHash } from "@/app/_lib/format";
 import { seededHex, sha256Hex } from "@/app/_lib/hash";
 import { useI18n } from "@/app/_i18n/provider";
 
-export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
+export function SimTab({ s: e, emit: a, setChainX: t, toast: o, sourceSession: q }) {
   const { tr } = useI18n();
   const { t: n, p: l, token: r } = e,
     i = Object.entries(e.bal)
@@ -72,7 +72,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
             { asset: l.asset },
           )}
         </p>
-        <CodeViewer toast={o} />
+        <CodeViewer toast={o} session={q ?? null} />
       </div>
     );
   const $ = () => {
@@ -438,7 +438,7 @@ export function SimTab({ s: e, emit: a, setChainX: t, toast: o }) {
         </div>
         <S tr={G} />
       </section>
-      <CodeViewer toast={o} />
+      <CodeViewer toast={o} session={q ?? null} />
     </div>
   );
 }
