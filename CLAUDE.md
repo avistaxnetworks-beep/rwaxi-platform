@@ -267,6 +267,11 @@ Reglas:
 | `rxOrange` | `#F28A22` | Naranja · degradado del logo |
 | `cloud` | `#F5F6F8` | Gris Nube · fondo de la app |
 
+Logo oficial: `apps/web/public/brand/rwaxi-logo-principal.webp` (original, 4400×1800, fondo transparente) y
+`rwaxi-logo-wordmark.webp` (derivado: sin márgenes ni el lema horneado, 3× el tamaño del header), que usa
+`ui/logo.tsx` (`OFFICIAL_LOGO_SRC`, 34 px de alto en móvil y 37 px desde `md`); el lema «Activos reales ·
+Inversiones digitales» sigue siendo texto traducible debajo. Regenerar el derivado si cambia el original.
+
 Tipografía: **Cormorant Garamond** (display, `font-display`), **Montserrat** (texto, `font-sans`), **IBM Plex Mono**
 (datos, hashes, direcciones; `font-mono`). Se cargan por `<link>` de Google Fonts en `app/layout.tsx` — no cambiar a
 `next/font`: los renders en canvas usan los nombres de familia. En el portal White Label el color del tenant va en
