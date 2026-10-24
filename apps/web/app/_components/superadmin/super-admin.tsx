@@ -28,6 +28,8 @@ export function SuperAdmin({
   governanceSlot: G,
   attributionSlot: Q,
   feesSlot: R,
+  // Signed-in RWAXI direction member (or the demo session) and «Cerrar sesión».
+  accountSlot: K,
 }) {
   const [y, f] = useState([
       {
@@ -82,10 +84,7 @@ export function SuperAdmin({
             <Icon name="Link" size={13} />
             Inspector On-Chain
           </button>
-          <span className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-mono bg-white/10 px-2.5 py-1.5">
-            <Icon name="ShieldCheck" size={13} className="text-[#D9A24A]" />
-            Rol: Dirección RWAXI · MFA activo
-          </span>
+          {K}
           <div className="md:ml-auto">
             <CurrencyToggle currency={p} setCurrency={m} dark={true} label={false} />
           </div>

@@ -71,7 +71,11 @@ export async function verifyReferral(
   if (!m) return { ok: false, reason: "format" };
   const [, referralId, slug, issued, sig] = m as unknown as [string, string, string, string, string];
   const body = `${referralId}.${slug}.${issued}`;
-  const valid = await crypto.subtle.verify("HMAC", await hmacKey(opts.secret), fromB64url(sig), signingInput(body));
+  // Canonical encoding only: atob() ignores the 2 spare bits of the signature's last character, so up to 4
+  // spellings of one token would otherwise verify.
+  const mac = fromB64url(sig);
+  if (toB64url(mac.buffer) !== sig) return { ok: false, reason: "signature" };
+  const valid = await crypto.subtle.verify("HMAC", await hmacKey(opts.secret), mac, signingInput(body));
   if (!valid) return { ok: false, reason: "signature" };
   if (slug !== opts.slug) return { ok: false, reason: "tenant" };
   const now = opts.now ?? Date.now();

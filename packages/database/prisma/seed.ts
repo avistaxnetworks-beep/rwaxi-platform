@@ -10,6 +10,8 @@ import { computeDataRoomRoot, sha256Document, toOnchainId } from "@rwaxi/blockch
 import { DATAROOM, DEVELOPERS, LEADS } from "./seed-data/developers";
 import { LEGAL_COMPLIANCE, LEGAL_NDA } from "./seed-data/legal";
 import { OFFERING_TRANSLATIONS } from "./seed-data/translations";
+import { DEMO_PASSWORD, demoTotpSecret } from "./seed-data/credentials";
+import { hashPassword, sealSecret } from "../src/credentials";
 
 if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
   console.error("Refusing to reset a production database. Pass --force if you really mean it.");
@@ -25,7 +27,7 @@ const DAY = 86_400_000;
 
 async function reset() {
   await db.$executeRawUnsafe(`
-    TRUNCATE TABLE "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
+    TRUNCATE TABLE "user_sessions", "investor_otps", "mail_outbox", "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
       "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments",
       "offerings", "users", "organizations" CASCADE`);
 }
@@ -367,6 +369,33 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
   return { slug: dev.slug, documents: documents.length, dataRoomRoot, chainTxs: chainTxs.length, fees: fees.length };
 }
 
+/**
+ * Demo staff credentials (seed-data/credentials.ts): password + enrolled TOTP for every user, the TOTP secret
+ * sealed with AUTH_ENCRYPTION_KEY. Without that key the staff only have the demo session.
+ */
+async function seedCredentials() {
+  if (process.env.NODE_ENV === "production" && process.env.RWAXI_SEED_DEMO_CREDENTIALS !== "1") {
+    console.warn("⚠ producción: el personal queda sin credenciales demo (RWAXI_SEED_DEMO_CREDENTIALS=1 para forzarlas)");
+    return;
+  }
+  if (!process.env.AUTH_ENCRYPTION_KEY) {
+    console.warn("⚠ AUTH_ENCRYPTION_KEY no configurada: el personal queda sin credenciales (sólo sesión demo)");
+    return;
+  }
+  const users = await db.user.findMany({ select: { id: true, email: true }, orderBy: { email: "asc" } });
+  for (const user of users) {
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await hashPassword(DEMO_PASSWORD),
+        totpSecretEnc: sealSecret(demoTotpSecret(user.email), user.id),
+        mfaEnrolledAt: new Date(),
+      },
+    });
+  }
+  console.log(`✔ credenciales demo (contraseña + TOTP RFC 6238) para ${users.length} usuarios del personal`);
+}
+
 async function main() {
   await reset();
   await db.user.createMany({
@@ -379,6 +408,7 @@ async function main() {
     const r = await seedDeveloper(dev);
     console.log(`✔ ${r.slug.padEnd(13)} docs=${r.documents} root=${r.dataRoomRoot.slice(0, 18)}… txs=${r.chainTxs} fees=${r.fees}`);
   }
+  await seedCredentials();
 }
 
 main()

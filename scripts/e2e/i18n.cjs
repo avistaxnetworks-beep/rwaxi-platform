@@ -524,7 +524,7 @@ const videoOverlaps = (page) =>
     await clickText(p, tr("en", "Firmar NDA con un clic"));
     const conflict = tr(
       "en",
-      "Este correo ya tiene un proceso de inversión en este portal. Continúa desde el navegador donde lo iniciaste o escribe al Oficial de Cumplimiento.",
+      "Este correo ya tiene un proceso de inversión en este portal. Para continuar en este navegador, usa «Recuperar mi sesión»: te enviaremos un código a ese correo.",
     );
     await p.waitForFunction(
       (t) => [...document.querySelectorAll('[role="alert"]')].some((n) => n.textContent.includes(t)),

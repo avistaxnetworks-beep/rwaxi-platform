@@ -129,7 +129,7 @@ export async function signNda(input: NdaSubmission): Promise<NdaResult> {
           });
           if (taken) {
             throw new OnboardingError(
-              "Este correo ya tiene un proceso de inversión en este portal. Continúa desde el navegador donde lo iniciaste o escribe al Oficial de Cumplimiento.",
+              "Este correo ya tiene un proceso de inversión en este portal. Para continuar en este navegador, usa «Recuperar mi sesión»: te enviaremos un código a ese correo.",
             );
           }
           investor = await tx.investor.create({ data: { organizationId: tenant.id, fullName: signerName, email } });

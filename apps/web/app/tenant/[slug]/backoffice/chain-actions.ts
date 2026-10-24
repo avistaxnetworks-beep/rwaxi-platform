@@ -21,7 +21,7 @@ import {
   type Execution,
 } from "@/app/_lib/server/chain-executor";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
-import { requireBackofficeSession, type BackofficeRole } from "./_lib/session";
+import { ROLE_LABEL, requireBackofficeSession, type BackofficeRole } from "./_lib/session";
 import type { ActionResult, QueueRunResult } from "./_lib/types";
 
 const CUID = /^[a-z0-9]{20,40}$/i;
@@ -75,13 +75,31 @@ export async function executeChainTransaction(chainTxId: string): Promise<Action
 export async function processChainQueue(): Promise<QueueRunResult> {
   const tr = await requestTranslate("tenant");
   try {
-    const officer = await requireBackofficeSession("COMPLIANCE_OFFICER");
-    const admin = await requireBackofficeSession("TENANT_ADMIN");
-    const { executed, skipped } = await processQueue(
-      admin.tenant.id,
-      (kind) => (roleFor(kind) === "COMPLIANCE_OFFICER" ? officer : admin).reviewer,
+    // A signed-in staff member runs the rows of their own role; the others are reported, never forced.
+    // The demo session holds both roles.
+    const viewer = await requireBackofficeSession("TENANT_ADMIN", { view: true });
+    const actors: Partial<Record<BackofficeRole, { id: string; email: string }>> = viewer.demo
+      ? {
+          COMPLIANCE_OFFICER: (await requireBackofficeSession("COMPLIANCE_OFFICER")).reviewer,
+          TENANT_ADMIN: viewer.reviewer,
+        }
+      : viewer.role === "TENANT_ANALYST"
+        ? {}
+        : { [viewer.role]: viewer.reviewer };
+    const run = await processQueue(
+      viewer.tenant.id,
+      (kind) => {
+        const role = roleFor(kind);
+        const actor = actors[role];
+        if (!actor) {
+          throw new ExecutionError("La firma el rol {role}: inicia sesión con ese rol para ejecutarla.", { role: ROLE_LABEL[role] });
+        }
+        return actor;
+      },
       await requestMeta(),
     );
+    const executed = run.executed;
+    const skipped = run.skipped.map((s) => ({ ...s, reason: render(tr, s.reason) }));
     if (executed.length) refresh();
     const message = executed.length
       ? skipped.length

@@ -267,19 +267,22 @@ const vitrinaCard = async (page, code) => {
       "reactivado: la vitrina vuelve a enlazar el portal y el NDA se firma",
       cardA.portal === "ACTIVE" && cardA.cta && (await db.investor.count({ where: { organizationId: avista.id } })) === investorsBefore + 1,
     );
-    // A platform action posted from a tenant host is never executed: Next does not route it there and
-    // requirePlatformAccess() would refuse it anyway. Whatever the answer, nothing may change in Neon.
+    // A platform action posted from a tenant host is never executed: the tenant page does not bundle it, the copy
+    // Next forwards to /superadmin is refused by the middleware at once (before, the host rewrite turned it into an
+    // endless loop of forwarded self-requests, and this request timed out) and requirePlatformAccess() would refuse
+    // it anyway. Nothing may change in Neon.
     const statusId = actionId('"SUSPENDED"');
     const eventsBefore = await db.auditEvent.count({ where: { organizationId: avista.id, action: "PORTAL_STATUS_CHANGED" } });
     const t = await (await browser.createBrowserContext()).newPage();
     await t.goto(url("avista"), { waitUntil: "domcontentloaded" });
     const cross = await lib.tryAction(t, statusId, [avista.id, "SUSPENDED", "Intento desde el host de un tenant"]);
     ok(
-      "acción de plataforma enviada desde avista.localhost → no se ejecuta, sin cambios en Neon",
-      !/"ok":true/.test(cross) &&
+      "acción de plataforma enviada desde avista.localhost → rechazada al instante (sin bucle de reenvíos), sin cambios en Neon",
+      cross !== "timeout" &&
+        !/"ok":true/.test(cross) &&
         (await db.organization.findUniqueOrThrow({ where: { id: avista.id } })).portalStatus === "ACTIVE" &&
         (await db.auditEvent.count({ where: { organizationId: avista.id, action: "PORTAL_STATUS_CHANGED" } })) === eventsBefore,
-      cross === "timeout" ? "Next no enruta la acción en ese host" : cross.slice(0, 60).replace(/\s+/g, " "),
+      cross.slice(0, 60).replace(/\s+/g, " "),
     );
     await t.browserContext().close();
 

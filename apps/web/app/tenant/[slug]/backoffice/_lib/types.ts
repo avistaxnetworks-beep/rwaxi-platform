@@ -53,16 +53,33 @@ export interface AuditEntry {
     | "FEE_INVOICED"
     | "FEE_PAYMENT_RECORDED"
     | "ORGANIZATION_ONBOARDED"
-    | "DISTRIBUTION_DECLARED";
+    | "DISTRIBUTION_DECLARED"
+    // staff authentication of this tenant's backoffice, and investor session recovery
+    | "LOGIN_SUCCEEDED"
+    | "LOGIN_FAILED"
+    | "MFA_FAILED"
+    | "MFA_ENROLLED"
+    | "ACCOUNT_LOCKED"
+    | "LOGOUT"
+    | "INVESTOR_SESSION_RECOVERED"
+    | "INVESTOR_OTP_FAILED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;
   detail: string | null;
 }
 
+/** Who looks at a desk: the demo session or a signed-in staff member, and whether their role may act there. */
+export interface DeskSession {
+  demo: boolean;
+  canAct: boolean;
+  role: "COMPLIANCE_OFFICER" | "TENANT_ADMIN" | "TENANT_ANALYST";
+}
+
 export interface ComplianceInboxData {
   organization: { slug: string; legalName: string; brandColor: string; regime: RegimeKey };
   reviewer: { name: string; email: string };
+  session: DeskSession;
   rows: ComplianceRow[];
   audit: AuditEntry[];
 }
@@ -106,6 +123,7 @@ export interface SubscriptionRow {
 export interface SubscriptionsDeskData {
   organization: { slug: string; legalName: string; brandColor: string; feeUsagePct: number };
   admin: { name: string; email: string };
+  session: DeskSession;
   execution: { mode: "SIMULATION" | "RPC"; operator: string | null };
   subscriptions: SubscriptionRow[];
   /** PENDING ChainTransaction rows in execution order (oldest first) */
@@ -180,6 +198,7 @@ export interface DistributionOfferingRow {
 export interface DistributionsDeskData {
   organization: { slug: string; legalName: string; brandColor: string };
   admin: { name: string; email: string };
+  session: DeskSession;
   execution: { mode: "SIMULATION" | "RPC"; operator: string | null };
   /** default COP per USD for COP declarations (demo TRM) */
   fxRate: number;

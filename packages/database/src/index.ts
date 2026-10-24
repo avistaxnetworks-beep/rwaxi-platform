@@ -17,3 +17,19 @@ export {
   type PublicOffering,
 } from "./public";
 export { isUniqueViolation } from "./errors";
+export {
+  TOTP_PERIOD_S,
+  base32,
+  hashPassword,
+  newNumericCode,
+  newToken,
+  newTotpSecret,
+  openSecret,
+  otpauthUri,
+  sealSecret,
+  tokenHash,
+  totpCode,
+  totpStep,
+  verifyPassword,
+  verifyTotp,
+} from "./credentials";

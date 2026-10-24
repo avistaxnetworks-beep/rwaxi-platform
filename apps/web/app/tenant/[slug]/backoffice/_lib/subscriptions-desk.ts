@@ -10,7 +10,7 @@ import { toQueueItem } from "@/app/_lib/server/chain-queue";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { toAuditEntry } from "./audit";
 import { formatDoc } from "./queries";
-import { requireBackofficeSession, type BackofficeSession } from "./session";
+import { deskSession, requireBackofficeSession, type BackofficeSession } from "./session";
 import type { SubscriptionRow, SubscriptionsDeskData, SubscriptionsDeskResult } from "./types";
 
 const RECENT_CONFIRMED = 6;
@@ -113,6 +113,7 @@ async function readDesk(session: BackofficeSession, tr: Translate): Promise<Subs
       return {
         organization: { slug: org.slug, legalName: org.legalName, brandColor: org.brandColor, feeUsagePct: Number(org.feeUsagePct) },
         admin: { name: session.reviewer.fullName, email: session.reviewer.email },
+        session: deskSession(session, "TENANT_ADMIN"),
         execution: { mode: executionMode(), operator: operatorAddress() },
         subscriptions: rows,
         queue,
@@ -129,7 +130,7 @@ async function readDesk(session: BackofficeSession, tr: Translate): Promise<Subs
 export async function loadSubscriptionsDesk(): Promise<SubscriptionsDeskResult> {
   const tr = await requestTranslate("tenant");
   try {
-    const session = await requireBackofficeSession("TENANT_ADMIN");
+    const session = await requireBackofficeSession("TENANT_ADMIN", { view: true });
     return { ok: true, data: await readDesk(session, tr) };
   } catch (e) {
     if (e instanceof TenantAccessError) return { ok: false, error: render(tr, e.reason) };

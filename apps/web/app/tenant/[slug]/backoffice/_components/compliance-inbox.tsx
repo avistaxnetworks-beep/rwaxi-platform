@@ -10,6 +10,7 @@ import { useI18n } from "@/app/_i18n/provider";
 import { approveInvestor, rejectInvestor } from "../actions";
 import type { ComplianceInboxData, ComplianceInboxResult, ComplianceRow } from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
+import { DeskAccess, SessionLine, useCanAct } from "./desk-access";
 
 type Currency = "COP" | "USD";
 type Toast = (message: string) => void;
@@ -26,11 +27,16 @@ export function ComplianceInbox({ inbox, currency, toast }: { inbox: ComplianceI
       </div>
     );
   }
-  return <InboxView data={inbox.data} currency={currency} toast={toast} />;
+  return (
+    <DeskAccess session={inbox.data.session} required="COMPLIANCE_OFFICER">
+      <InboxView data={inbox.data} currency={currency} toast={toast} />
+    </DeskAccess>
+  );
 }
 
 function InboxView({ data, currency, toast }: { data: ComplianceInboxData; currency: Currency; toast: Toast }) {
   const { tr } = useI18n();
+  const canAct = useCanAct();
   const { organization: org, rows, audit, reviewer } = data;
   const regime = REGIMES[org.regime];
   const [openId, setOpenId] = useState<string | null>(null);
@@ -68,7 +74,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
 
   const approveButton = (row: ComplianceRow, large = false) => (
     <button
-      disabled={!!busy}
+      disabled={!!busy || !canAct}
       onClick={() => decide(row, "approve")}
       className={`tc-btn font-semibold inline-flex items-center justify-center focus-ring disabled:opacity-60 ${
         large ? "text-[13px] py-3 gap-2" : "px-2.5 py-1.5 text-[11.5px] gap-1.5"
@@ -105,7 +111,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
           </p>
           <p className="text-[11.5px] text-muted inline-flex items-center gap-1.5">
             <Icon name="Database" size={13} className="tc-text" />
-            {tr("PostgreSQL · RLS tnt_{slug} · sesión demo: {email}", { slug: org.slug, email: reviewer.email })}
+            <SessionLine slug={org.slug} email={reviewer.email} session={data.session} />
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -286,7 +292,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                     ))}
                   </select>
                   <button
-                    disabled={!!busy}
+                    disabled={!!busy || !canAct}
                     onClick={() => decide(open, "reject")}
                     className="shrink-0 border border-[#B42318] text-[#B42318] px-4 py-2.5 text-[12.5px] font-semibold inline-flex items-center justify-center gap-1.5 focus-ring disabled:opacity-60"
                   >

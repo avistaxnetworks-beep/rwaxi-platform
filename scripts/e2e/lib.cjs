@@ -364,6 +364,60 @@ async function confirmPayment(page, subscriptionId, reference) {
   await page.waitForSelector(`tr[data-subscription="${subscriptionId}"][data-sub-status="MINT_PENDING"]`, { timeout: 60000 });
 }
 
+// ── staff sign-in (password + TOTP) ───────────────────────────────────────
+// Demo credentials of the seed (packages/database/prisma/seed-data/credentials.ts), never seeded in production.
+const DEMO_PASSWORD = "RwaxiDemo-2026!";
+const demoTotpSecret = (email) =>
+  crypto.createHash("sha256").update(`rwaxi-demo-totp:${email.toLowerCase()}`).digest().subarray(0, 20);
+/** RFC 6238 (HMAC-SHA1, 30 s steps, 6 digits), re-implemented independently of the app. */
+function totpAt(secret, step) {
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(step));
+  const mac = crypto.createHmac("sha1", secret).update(counter).digest();
+  const offset = mac[mac.length - 1] & 0x0f;
+  return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+const totpStepNow = () => Math.floor(Date.now() / 30_000);
+const lastTotpStep = new Map();
+/**
+ * A code the server accepts now for a seeded staff member: a step later than the last one used (it refuses a
+ * replay) and within its ±1 window, waiting for the next 30 s step when both are spent.
+ */
+async function nextTotp(email) {
+  const step = Math.max(totpStepNow(), (lastTotpStep.get(email) ?? -Infinity) + 1);
+  while (step > totpStepNow() + 1) await new Promise((r) => setTimeout(r, 1000));
+  lastTotpStep.set(email, step);
+  return { step, code: totpAt(demoTotpSecret(email), step) };
+}
+
+/** Opts the browser context out of the demo staff session on `hosts` (null = vitrina): only real sign-in opens. */
+const withoutDemo = (page, hosts) =>
+  page.setCookie(...hosts.map((h) => ({ name: "rwaxi_demo_auth", value: "off", url: url(h) })));
+const cookieOf = async (page, host, name) => (await page.cookies(url(host))).find((c) => c.name === name);
+
+/** Submits the step of the staff login form on screen (password or code); resolves with the server's answer. */
+const submitLogin = (page) =>
+  Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && !!r.request().headers()["next-action"], { timeout: 120000 }),
+    page.$eval("[data-login-step] form", (f) => f.requestSubmit()),
+  ]);
+
+/** Signs a seeded staff member in on the login page open in `page`: password, then the current TOTP code. */
+async function staffLogin(page, email, password = DEMO_PASSWORD) {
+  await page.waitForSelector('[data-login-step="password"]', { timeout: 180000 });
+  await fill(page, "#login-email", email);
+  await fill(page, "#login-password", password);
+  await submitLogin(page);
+  await page.waitForSelector('[data-login-step="mfa"]', { timeout: 60000 });
+  const totp = await nextTotp(email);
+  await fill(page, "#login-code", totp.code);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 180000 }),
+    page.$eval("[data-login-step] form", (f) => f.requestSubmit()),
+  ]);
+  return totp;
+}
+
 module.exports = {
   ROOT,
   PORT,
@@ -407,4 +461,13 @@ module.exports = {
   approveInvestor,
   subscribe,
   confirmPayment,
+  DEMO_PASSWORD,
+  demoTotpSecret,
+  totpAt,
+  totpStepNow,
+  nextTotp,
+  withoutDemo,
+  cookieOf,
+  submitLogin,
+  staffLogin,
 };

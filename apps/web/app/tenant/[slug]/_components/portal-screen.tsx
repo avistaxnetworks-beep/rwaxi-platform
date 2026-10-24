@@ -12,6 +12,7 @@ import { EMPTY_KYC } from "@/app/_lib/data/kyc";
 import { signNda, submitKyc, subscribe } from "../actions";
 import { KycFileError, toKycSubmission } from "../_lib/kyc-submission";
 import { InvestorDistributions } from "./investor-distributions";
+import { SessionRecovery } from "./session-recovery";
 import type {
   NdaSubmission,
   PersistedJourney,
@@ -156,6 +157,7 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
               toast={d.toast}
             />
           }
+          recoverySlot={persisted.ok && !persisted.data.investor ? <SessionRecovery /> : null}
         />
       ) : (
         <div className="boot">{tr("RWAXI · CARGANDO TU PROCESO")}</div>

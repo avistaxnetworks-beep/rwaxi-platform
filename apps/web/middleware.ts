@@ -10,6 +10,12 @@ import { REF_COOKIE, REF_MAX_AGE_S, verifyReferral } from "@/app/_lib/referral";
  * directly because every request is prefixed again.
  */
 export async function middleware(req: NextRequest) {
+  // Next forwards a Server Action that reached a page which does not bundle it to the page that does, by its
+  // internal path (x-action-forwarded). The host rewrite below would send that copy to yet another page, which
+  // forwards it again: one crafted POST became an unbounded loop of self-requests. Every page here bundles the
+  // actions it calls, so a forwarded action is refused at once (the original request answers an empty result).
+  if (req.headers.has("x-action-forwarded")) return new NextResponse(null, { status: 404 });
+
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
   let ctx = resolveHost(host);
 

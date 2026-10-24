@@ -13,7 +13,7 @@ import {
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { RWAXI_CHAINS, rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi, rwaxiTenantFactoryAbi } from "@rwaxi/blockchain-sdk";
 import { withTenant, type ChainNetwork, type ChainTransaction, type Prisma } from "@rwaxi/database";
-import { LocalizedError, msg } from "@/app/_i18n/marks";
+import { LocalizedError, msg, type Reason } from "@/app/_i18n/marks";
 import { TENANT_SIGNED_KINDS, blockerReason, loadChainState, type ExecutionOrigin } from "./chain-invariants";
 import { calldataOf, walletOf } from "./chain-queue";
 
@@ -480,7 +480,7 @@ export async function processQueue(
   actorFor: (kind: string) => Actor,
   meta: RequestMeta,
   origin: ExecutionOrigin = "tenant",
-): Promise<{ executed: Execution[]; skipped: { id: string; kind: string; reason: string }[] }> {
+): Promise<{ executed: Execution[]; skipped: { id: string; kind: string; reason: Reason }[] }> {
   const pending = await withTenant(organizationId, (db) =>
     db.chainTransaction.findMany({
       where: { status: "PENDING" },
@@ -489,13 +489,13 @@ export async function processQueue(
     }),
   );
   const executed: Execution[] = [];
-  const skipped: { id: string; kind: string; reason: string }[] = [];
+  const skipped: { id: string; kind: string; reason: Reason }[] = [];
   for (const p of pending) {
     try {
       executed.push(await executeChainTx(organizationId, p.id, actorFor(p.kind), meta, origin));
     } catch (e) {
       if (!(e instanceof ExecutionError)) throw e;
-      skipped.push({ id: p.id, kind: p.kind, reason: e.message });
+      skipped.push({ id: p.id, kind: p.kind, reason: e.reason });
     }
   }
   return { executed, skipped };

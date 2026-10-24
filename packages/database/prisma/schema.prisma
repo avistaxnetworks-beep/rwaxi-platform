@@ -159,6 +159,21 @@ enum AuditAction {
   ORGANIZATION_ONBOARDED
   // yield distributions (backoffice)
   DISTRIBUTION_DECLARED
+  // staff authentication (backoffice: the tenant's events; console: organization-less events)
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+  MFA_FAILED
+  MFA_ENROLLED
+  ACCOUNT_LOCKED
+  LOGOUT
+  // investor portal
+  INVESTOR_SESSION_RECOVERED
+  INVESTOR_OTP_FAILED
+}
+
+enum SessionScope {
+  TENANT // developer backoffice ({slug}.rwaxi.com), bound to one organization
+  PLATFORM // RWAXI console (admin.rwaxi.com), organization-less staff
 }
 
 enum DistributionStatus {
@@ -194,22 +209,25 @@ model Organization {
   createdAt              DateTime         @default(now()) @map("created_at")
   updatedAt              DateTime         @updatedAt @map("updated_at")
 
-  users            User[]
-  offerings        Offering[]
-  tokens           TokenDeployment[]
-  investors        Investor[]
-  leads            Lead[]
-  ndaAcceptances   NdaAcceptance[]
-  kycCases         KycCase[]
-  documents        DataRoomDocument[]
-  accessGrants     DataRoomAccessGrant[]
-  subscriptions    Subscription[]
-  chainTxs         ChainTransaction[]
-  feeEntries       FeeLedgerEntry[]
-  feeInvoices      FeeInvoice[]
-  distributions    Distribution[]
-  allocations      DistributionAllocation[]
-  auditEvents      AuditEvent[]
+  users          User[]
+  offerings      Offering[]
+  tokens         TokenDeployment[]
+  investors      Investor[]
+  leads          Lead[]
+  ndaAcceptances NdaAcceptance[]
+  kycCases       KycCase[]
+  documents      DataRoomDocument[]
+  accessGrants   DataRoomAccessGrant[]
+  subscriptions  Subscription[]
+  chainTxs       ChainTransaction[]
+  feeEntries     FeeLedgerEntry[]
+  feeInvoices    FeeInvoice[]
+  distributions  Distribution[]
+  allocations    DistributionAllocation[]
+  auditEvents    AuditEvent[]
+  userSessions   UserSession[]
+  investorOtps   InvestorOtp[]
+  mailOutbox     MailOutbox[]
 
   @@map("organizations")
 }
@@ -217,21 +235,34 @@ model Organization {
 // ─────────────────────────────────────────────────────────────── 2. identity
 
 model User {
-  id             String        @id @default(cuid())
+  id               String    @id @default(cuid())
   /// null for RWAXI staff (SUPER_ADMIN / RWAXI_OPERATOR)
-  organizationId String?       @map("organization_id")
-  email          String        @unique
-  fullName       String        @map("full_name")
-  role           UserRole
-  walletAddress  String?       @map("wallet_address")
-  active         Boolean       @default(true)
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  organizationId   String?   @map("organization_id")
+  email            String    @unique
+  fullName         String    @map("full_name")
+  role             UserRole
+  walletAddress    String?   @map("wallet_address")
+  active           Boolean   @default(true)
+  /// scrypt hash `scrypt$N$r$p$salt$hash` (credentials.ts); null until the account has a password
+  passwordHash     String?   @map("password_hash")
+  /// TOTP secret (RFC 6238) sealed with AES-256-GCM (AUTH_ENCRYPTION_KEY), bound to this user's id
+  totpSecretEnc    String?   @map("totp_secret_enc")
+  /// MFA enrolment confirmed with a valid code; until then the next login enrols a new secret
+  mfaEnrolledAt    DateTime? @map("mfa_enrolled_at")
+  /// last accepted TOTP time step: a code is never accepted twice
+  totpLastStep     Int?      @map("totp_last_step")
+  /// consecutive failed password or TOTP attempts; enough of them lock the account for a while
+  failedLoginCount Int       @default(0) @map("failed_login_count")
+  lockedUntil      DateTime? @map("locked_until")
+  lastLoginAt      DateTime? @map("last_login_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reviewedCases  KycCase[]     @relation("KycReviewer")
-  auditEvents    AuditEvent[]
-  confirmedPayments Subscription[] @relation("SubscriptionPaymentConfirmer")
+  organization          Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions              UserSession[]
+  reviewedCases         KycCase[]      @relation("KycReviewer")
+  auditEvents           AuditEvent[]
+  confirmedPayments     Subscription[] @relation("SubscriptionPaymentConfirmer")
   declaredDistributions Distribution[]
 
   @@index([organizationId])
@@ -326,25 +357,26 @@ model TokenDeployment {
 /// Created when the visitor signs the NDA (name + email); identity document and wallet
 /// arrive with the KYC submission, hence optional.
 model Investor {
-  id             String       @id @default(cuid())
-  organizationId String       @map("organization_id")
-  fullName       String       @map("full_name")
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  fullName       String   @map("full_name")
   email          String?
-  docType        String?      @map("doc_type") // CC | CE | PA | NIT
-  docNumber      String?      @map("doc_number")
-  countryCode    Int          @default(170) @map("country_code") // ISO 3166-1 numérico
+  docType        String?  @map("doc_type") // CC | CE | PA | NIT
+  docNumber      String?  @map("doc_number")
+  countryCode    Int      @default(170) @map("country_code") // ISO 3166-1 numérico
   /// EVM wallet declared in the KYC wizard; whitelisted on approval
-  walletAddress  String?      @map("wallet_address")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  walletAddress  String?  @map("wallet_address")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization  Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   leads         Lead[]
   ndas          NdaAcceptance[]
   kycCases      KycCase[]
   accessGrants  DataRoomAccessGrant[]
   subscriptions Subscription[]
   allocations   DistributionAllocation[]
+  otps          InvestorOtp[]
 
   @@unique([organizationId, docType, docNumber])
   @@unique([organizationId, email])
@@ -395,28 +427,28 @@ model NdaAcceptance {
 }
 
 model KycCase {
-  id               String       @id @default(cuid())
-  organizationId   String       @map("organization_id")
-  investorId       String       @map("investor_id")
-  offeringId       String?      @map("offering_id")
-  status           KycStatus    @default(NOT_STARTED)
-  activity         String?
-  incomeBracket    Int?         @map("income_bracket")
-  riskProfile      RiskProfile? @map("risk_profile")
-  isPep            Boolean      @default(false) @map("is_pep")
-  listsResult      String?      @map("lists_result") // listas restrictivas (OFAC, ONU, …)
+  id              String       @id @default(cuid())
+  organizationId  String       @map("organization_id")
+  investorId      String       @map("investor_id")
+  offeringId      String?      @map("offering_id")
+  status          KycStatus    @default(NOT_STARTED)
+  activity        String?
+  incomeBracket   Int?         @map("income_bracket")
+  riskProfile     RiskProfile? @map("risk_profile")
+  isPep           Boolean      @default(false) @map("is_pep")
+  listsResult     String?      @map("lists_result") // listas restrictivas (OFAC, ONU, …)
   /// SHA-256 of the KYC dossier + NDA — written on-chain as kycDossierHash
-  dossierHash      String?      @map("dossier_hash")
+  dossierHash     String?      @map("dossier_hash")
   /// Canonical dossier the server hashed into dossierHash (form, document SHA-256s, consents);
   /// sha256(JSON.stringify(evidence)) must equal dossierHash. Files themselves are not stored here.
-  evidence         Json?
-  rejectionReason  String?      @map("rejection_reason")
-  reviewedById     String?      @map("reviewed_by_id")
-  reviewedAt       DateTime?    @map("reviewed_at")
-  whitelistTxHash  String?      @map("whitelist_tx_hash")
-  submittedAt      DateTime?    @map("submitted_at")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  evidence        Json?
+  rejectionReason String?      @map("rejection_reason")
+  reviewedById    String?      @map("reviewed_by_id")
+  reviewedAt      DateTime?    @map("reviewed_at")
+  whitelistTxHash String?      @map("whitelist_tx_hash")
+  submittedAt     DateTime?    @map("submitted_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   investor     Investor              @relation(fields: [investorId], references: [id], onDelete: Cascade)
@@ -476,26 +508,26 @@ model DataRoomAccessGrant {
 // ─────────────────────────────────────────────────────────────── 11–12. capital & chain
 
 model Subscription {
-  id                 String             @id @default(cuid())
-  organizationId     String             @map("organization_id")
-  offeringId         String             @map("offering_id")
-  investorId         String             @map("investor_id")
+  id                   String             @id @default(cuid())
+  organizationId       String             @map("organization_id")
+  offeringId           String             @map("offering_id")
+  investorId           String             @map("investor_id")
   /// keccak256(id) — idempotency key for mintSubscription()
-  onchainId          String?            @unique @map("onchain_id")
-  units              Int
-  capitalUsd         Decimal            @map("capital_usd") @db.Decimal(18, 2)
-  status             SubscriptionStatus @default(RESERVED)
+  onchainId            String?            @unique @map("onchain_id")
+  units                Int
+  capitalUsd           Decimal            @map("capital_usd") @db.Decimal(18, 2)
+  status               SubscriptionStatus @default(RESERVED)
   /// SHA-256 of the signed subscription agreement (canonical JSON kept in the AuditEvent)
-  agreementHash      String?            @map("agreement_hash")
+  agreementHash        String?            @map("agreement_hash")
   /// bank / fiduciary receipt reference entered by the developer when reconciling the payment
-  paymentReference   String?            @map("payment_reference")
-  paymentConfirmedAt DateTime?          @map("payment_confirmed_at")
-  paymentConfirmedById String?          @map("payment_confirmed_by_id")
+  paymentReference     String?            @map("payment_reference")
+  paymentConfirmedAt   DateTime?          @map("payment_confirmed_at")
+  paymentConfirmedById String?            @map("payment_confirmed_by_id")
   /// evidenceHash({subscriptionId, agreementHash, paymentReference}) — mintSubscription(paymentEvidenceRef)
-  paymentEvidenceRef String?            @map("payment_evidence_ref")
-  mintTxHash         String?            @map("mint_tx_hash")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  paymentEvidenceRef   String?            @map("payment_evidence_ref")
+  mintTxHash           String?            @map("mint_tx_hash")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
 
   organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   offering           Offering         @relation(fields: [offeringId], references: [id], onDelete: Cascade)
@@ -511,33 +543,33 @@ model Subscription {
 
 /// Append-only ledger of on-chain operations (what the On-Chain Inspector shows).
 model ChainTransaction {
-  id              String        @id @default(cuid())
-  organizationId  String        @map("organization_id")
-  offeringId      String?       @map("offering_id")
-  network         ChainNetwork
-  kind            ChainTxKind
-  contractAddress String        @map("contract_address")
-  method          String // e.g. mintSubscription(bytes32,address,uint256,bytes32)
-  args            Json
-  txHash          String?       @unique @map("tx_hash")
-  blockNumber     BigInt?       @map("block_number")
-  status          ChainTxStatus @default(PENDING)
-  error           String?
+  id                String              @id @default(cuid())
+  organizationId    String              @map("organization_id")
+  offeringId        String?             @map("offering_id")
+  network           ChainNetwork
+  kind              ChainTxKind
+  contractAddress   String              @map("contract_address")
+  method            String // e.g. mintSubscription(bytes32,address,uint256,bytes32)
+  args              Json
+  txHash            String?             @unique @map("tx_hash")
+  blockNumber       BigInt?             @map("block_number")
+  status            ChainTxStatus       @default(PENDING)
+  error             String?
   /// how it was confirmed; SIMULATION = signed deterministically, never broadcast
-  executionMode   ChainExecutionMode? @map("execution_mode")
-  signerAddress   String?       @map("signer_address")
-  nonce           Int?
+  executionMode     ChainExecutionMode? @map("execution_mode")
+  signerAddress     String?             @map("signer_address")
+  nonce             Int?
   /// raw EIP-1559 signed transaction (SIMULATION); txHash = keccak256(signedTransaction)
-  signedTransaction String?     @map("signed_transaction")
-  executedAt      DateTime?     @map("executed_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
+  signedTransaction String?             @map("signed_transaction")
+  executedAt        DateTime?           @map("executed_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   offering     Offering?    @relation(fields: [offeringId], references: [id], onDelete: SetNull)
 
-  @@index([organizationId, createdAt])
   /// one nonce per signer, network and mode (simulated nonces never share the real chain's sequence)
   @@unique([network, executionMode, signerAddress, nonce], map: "chain_transactions_signer_nonce_key")
+  @@index([organizationId, createdAt])
   @@map("chain_transactions")
 }
 
@@ -658,7 +690,8 @@ model FeeInvoice {
 /// (no UPDATE/DELETE policies, privileges revoked) — see migrations/*_audit_events.
 model AuditEvent {
   id             String      @id @default(cuid())
-  organizationId String      @map("organization_id")
+  /// null only for organization-less staff authentication (console logins: CHECK audit_events_platform_auth)
+  organizationId String?     @map("organization_id")
   action         AuditAction
   actorUserId    String?     @map("actor_user_id")
   /// denormalised so the trail survives the removal of the user
@@ -673,10 +706,80 @@ model AuditEvent {
   userAgent      String?     @map("user_agent")
   createdAt      DateTime    @default(now()) @map("created_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
   @@map("audit_events")
+}
+
+// ───────────────────────────────────────────────────────── Authentication
+
+/// Authenticated staff session. The rwaxi_session cookie holds an opaque token; only its SHA-256 is stored.
+/// It is usable once mfa_verified_at is set; until then it only allows the TOTP step, for a few minutes.
+model UserSession {
+  id             String       @id @default(cuid())
+  /// null for PLATFORM sessions (CHECK); TENANT sessions are visible only under their tenant (RLS)
+  organizationId String?      @map("organization_id")
+  userId         String       @map("user_id")
+  scope          SessionScope
+  tokenHash      String       @unique @map("token_hash")
+  mfaVerifiedAt  DateTime?    @map("mfa_verified_at")
+  /// failed TOTP attempts while the session waits for its MFA step
+  mfaAttempts    Int          @default(0) @map("mfa_attempts")
+  expiresAt      DateTime     @map("expires_at")
+  lastSeenAt     DateTime     @default(now()) @map("last_seen_at")
+  revokedAt      DateTime?    @map("revoked_at")
+  ipAddress      String?      @map("ip_address")
+  userAgent      String?      @map("user_agent")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@map("user_sessions")
+}
+
+/// One-time code an investor uses to recover the signed session of a portal on another browser or device.
+/// Only its HMAC is stored; it expires after 10 minutes and allows a limited number of attempts.
+model InvestorOtp {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  investorId     String    @map("investor_id")
+  codeHash       String    @map("code_hash")
+  attempts       Int       @default(0)
+  expiresAt      DateTime  @map("expires_at")
+  consumedAt     DateTime? @map("consumed_at")
+  ipAddress      String?   @map("ip_address")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  investor     Investor     @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@index([investorId, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("investor_otps")
+}
+
+/// Outgoing email. Without an SMTP provider it stays here: local development and the E2E suites read it, and
+/// a delivery worker would send it and set sent_at.
+model MailOutbox {
+  id             String    @id @default(cuid())
+  organizationId String?   @map("organization_id")
+  /// INVESTOR_OTP
+  purpose        String
+  toEmail        String    @map("to_email")
+  subject        String
+  body           String
+  createdAt      DateTime  @default(now()) @map("created_at")
+  sentAt         DateTime? @map("sent_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([toEmail, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("mail_outbox")
 }

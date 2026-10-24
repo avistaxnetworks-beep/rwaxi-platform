@@ -1,5 +1,7 @@
 "use client";
 
+import { AccountBadge } from "@/app/_components/auth/account-badge";
+import type { AccountView } from "@/app/_components/auth/types";
 import { EnvironmentFrame } from "@/app/_components/shell/environment-frame";
 import { useDemo } from "@/app/_components/shell/demo-provider";
 import { SuperAdmin } from "@/app/_components/superadmin/super-admin";
@@ -8,9 +10,10 @@ import { PlatformGovernance } from "./governance-panel";
 import { PlatformLedger } from "./ledger-panel";
 import { OnboardingWizard } from "./onboarding-wizard";
 import { PlatformAttribution, PlatformOverview } from "./platform-panels";
+import { consoleLogout } from "../auth-actions";
 
 /** The consolidated header, the onboarding and modules A, B and C read and write PostgreSQL (platform role). */
-export function SuperAdminScreen({ metrics }: { metrics: PlatformMetricsResult }) {
+export function SuperAdminScreen({ metrics, account }: { metrics: PlatformMetricsResult; account: AccountView }) {
   const d = useDemo();
   return (
     <EnvironmentFrame env="superadmin">
@@ -36,6 +39,7 @@ export function SuperAdminScreen({ metrics }: { metrics: PlatformMetricsResult }
         governanceSlot={<PlatformGovernance metrics={metrics} currency={d.currency} toast={d.toast} onboarding={<OnboardingWizard metrics={metrics} toast={d.toast} />} />}
         attributionSlot={<PlatformAttribution metrics={metrics} currency={d.currency} />}
         feesSlot={<PlatformLedger metrics={metrics} currency={d.currency} toast={d.toast} />}
+        accountSlot={<AccountBadge account={account} logout={consoleLogout} loginHref="/login" dark />}
       />
     </EnvironmentFrame>
   );

@@ -1,16 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { forTenant, prisma, resolveTenant } from "@rwaxi/database";
+import { demoAuthActive } from "@/app/_lib/server/staff-auth";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/health — liveness plus the tenancy context resolved by the middleware.
  * On a tenant host it also proves RLS: the tenant client must see exactly one organization.
+ * `demoAuth`: whether the demo staff session applies (RWAXI_DEMO_AUTH); otherwise only password + TOTP sign-in.
  */
 export async function GET(req: NextRequest) {
   const env = req.headers.get("x-rwaxi-env");
   const slug = req.headers.get("x-rwaxi-tenant");
-  const body: Record<string, unknown> = { ok: true, env, tenant: slug };
+  const body: Record<string, unknown> = { ok: true, env, tenant: slug, demoAuth: await demoAuthActive() };
 
   try {
     await prisma.$queryRaw`SELECT 1`;

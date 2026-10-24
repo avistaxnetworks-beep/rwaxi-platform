@@ -1,7 +1,8 @@
 import "server-only";
 import { platformPrisma, retryTransient, type Prisma } from "@rwaxi/database";
 import { PLATFORM_AUDIT_ACTIONS, platformAuditSummary } from "@/app/_lib/server/platform-audit";
-import { TenantAccessError, requirePlatformAccess } from "@/app/_lib/server/tenant-context";
+import { requirePlatformAccess } from "@/app/_lib/server/staff-auth";
+import { TenantAccessError } from "@/app/_lib/server/tenant-context";
 import { onboardingNetworks } from "./onboarding";
 import { requirePlatformSession } from "./session";
 import type {
@@ -269,7 +270,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         id: e.id,
         at: e.createdAt.toISOString(),
         action: e.action as PlatformAuditRow["action"],
-        tenant: e.organization.displayName,
+        tenant: e.organization?.displayName ?? "RWAXI",
         actorEmail: e.actorEmail,
         summary: platformAuditSummary(e.action as PlatformAuditRow["action"], e.payload),
         subjectHash: e.subjectHash,

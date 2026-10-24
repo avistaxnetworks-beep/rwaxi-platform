@@ -37,6 +37,17 @@ test("any manipulation breaks the signature", async () => {
   }
 });
 
+test("only the canonical spelling of a signature verifies", async () => {
+  const token = await signReferral("avista", SECRET, NOW);
+  const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  // Same 4 data bits with a spare bit set: atob() decodes it to the same MAC.
+  const twin = token.slice(0, -1) + ALPHABET[ALPHABET.indexOf(token.at(-1)!) | 1];
+  assert.deepEqual(await verifyReferral(twin, { slug: "avista", secret: SECRET, now: NOW }), {
+    ok: false,
+    reason: "signature",
+  });
+});
+
 test("wrong tenant, wrong secret, expiry, future and bad format are rejected", async () => {
   const token = await signReferral("avista", SECRET, NOW);
   assert.deepEqual(await verifyReferral(token, { slug: "elpoblado", secret: SECRET, now: NOW }), { ok: false, reason: "tenant" });

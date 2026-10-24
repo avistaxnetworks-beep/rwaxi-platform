@@ -29,6 +29,9 @@ function secret(): Buffer {
 
 const sign = (payload: string) => crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
 
+/** Key of the investor recovery codes' HMAC (investor-recovery.ts), derived from the same secret. */
+export const recoveryCodeKey = (): Buffer => crypto.createHmac("sha256", secret()).update("rwaxi.investor-otp.v1").digest();
+
 export interface InvestorSession {
   investorId: string;
   organizationId: string;

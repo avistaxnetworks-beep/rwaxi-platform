@@ -8,7 +8,7 @@ import { executionMode, operatorAddress } from "@/app/_lib/server/chain-executor
 import { blockerReason, loadChainState } from "@/app/_lib/server/chain-invariants";
 import { toAuditEntry } from "./audit";
 import { mintedHoldings } from "./holdings";
-import { requireBackofficeSession, type BackofficeSession } from "./session";
+import { deskSession, requireBackofficeSession, type BackofficeSession } from "./session";
 import type { DistributionOfferingRow, DistributionsDeskData, DistributionsDeskResult } from "./types";
 
 /** One snapshot (one RLS-bound transaction): holders, distributions and their anchoring agree. */
@@ -101,6 +101,7 @@ async function readDesk(session: BackofficeSession, tr: Translate): Promise<Dist
       return {
         organization: org,
         admin: { name: session.reviewer.fullName, email: session.reviewer.email },
+        session: deskSession(session, "TENANT_ADMIN"),
         execution: { mode: executionMode(), operator: operatorAddress() },
         fxRate: TRM,
         offerings: rows,
@@ -115,7 +116,7 @@ async function readDesk(session: BackofficeSession, tr: Translate): Promise<Dist
 export async function loadDistributionsDesk(): Promise<DistributionsDeskResult> {
   const tr = await requestTranslate("tenant");
   try {
-    const session = await requireBackofficeSession("TENANT_ADMIN");
+    const session = await requireBackofficeSession("TENANT_ADMIN", { view: true });
     return { ok: true, data: await readDesk(session, tr) };
   } catch (e) {
     if (e instanceof TenantAccessError) return { ok: false, error: render(tr, e.reason) };

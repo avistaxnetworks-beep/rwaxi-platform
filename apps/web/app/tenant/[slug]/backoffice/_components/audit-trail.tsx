@@ -23,6 +23,14 @@ const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   FEE_PAYMENT_RECORDED: msg("Pago a RWAXI registrado"),
   ORGANIZATION_ONBOARDED: msg("Alta en la red RWAXI"),
   DISTRIBUTION_DECLARED: msg("Distribución declarada"),
+  LOGIN_SUCCEEDED: msg("Inicio de sesión (contraseña + TOTP)"),
+  LOGIN_FAILED: msg("Intento de acceso fallido"),
+  MFA_FAILED: msg("Código TOTP incorrecto"),
+  MFA_ENROLLED: msg("MFA (TOTP) enrolado"),
+  ACCOUNT_LOCKED: msg("Cuenta bloqueada por intentos fallidos"),
+  LOGOUT: msg("Cierre de sesión"),
+  INVESTOR_SESSION_RECOVERED: msg("Sesión del inversionista recuperada con código"),
+  INVESTOR_OTP_FAILED: msg("Código de recuperación agotado"),
 };
 const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "text-aquaInk",
@@ -40,6 +48,14 @@ const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   FEE_PAYMENT_RECORDED: "text-aquaInk",
   ORGANIZATION_ONBOARDED: "text-rxPurple",
   DISTRIBUTION_DECLARED: "text-goldInk",
+  LOGIN_SUCCEEDED: "text-aquaInk",
+  LOGIN_FAILED: "text-[#B42318]",
+  MFA_FAILED: "text-[#B42318]",
+  MFA_ENROLLED: "text-rxBlue",
+  ACCOUNT_LOCKED: "text-[#B42318]",
+  LOGOUT: "text-muted",
+  INVESTOR_SESSION_RECOVERED: "text-aquaInk",
+  INVESTOR_OTP_FAILED: "text-[#B42318]",
 };
 const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: msg("SHA-256 expediente"),
@@ -57,6 +73,14 @@ const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   FEE_PAYMENT_RECORDED: msg("SHA-256 pago"),
   ORGANIZATION_ONBOARDED: msg("SHA-256 alta"),
   DISTRIBUTION_DECLARED: "Merkle root",
+  LOGIN_SUCCEEDED: msg("SHA-256 evento"),
+  LOGIN_FAILED: msg("SHA-256 evento"),
+  MFA_FAILED: msg("SHA-256 evento"),
+  MFA_ENROLLED: msg("SHA-256 evento"),
+  ACCOUNT_LOCKED: msg("SHA-256 evento"),
+  LOGOUT: msg("SHA-256 evento"),
+  INVESTOR_SESSION_RECOVERED: msg("SHA-256 evento"),
+  INVESTOR_OTP_FAILED: msg("SHA-256 evento"),
 };
 
 export function AuditTrail({ entries, empty }: { entries: AuditEntry[]; empty?: string }) {

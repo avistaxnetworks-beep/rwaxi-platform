@@ -22,8 +22,10 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
     backoffice/          actions.ts (KYC) · payment-actions.ts (confirmPayment) · chain-actions.ts (ejecutar la cola)
                          distribution-actions.ts (declareDistribution) · _lib/queries.ts (bandeja de cumplimiento)
                          _lib/subscriptions-desk.ts (Suscripciones y Pagos) · _lib/distributions-desk.ts (Distribuciones)
-  app/_lib/server/       tenant-context, investor-session (HMAC), chain-queue (calldata viem, puro),
+  app/_lib/server/       tenant-context, staff-auth (contraseña + TOTP, sesiones), investor-session (HMAC),
+                         investor-recovery (código por correo) + mail-outbox, chain-queue (calldata viem, puro),
                          chain-invariants (prelación + reverts de los contratos, puro), chain-executor (firma y confirma)
+  app/_components/auth/  login del personal (contraseña → TOTP o enrolamiento) y cuenta en la cabecera
   app/_lib/referral.ts   tokens de referido firmados (HMAC-SHA256, Web Crypto: middleware y Server Actions)
   app/_i18n/             i18n: config (idiomas, cookies), provider (useI18n), server (requestTranslate, render),
                          marks (msg, vmsg, reason, LocalizedError), messages/<idioma>.ts, extract.ts + catalogs.test.ts
@@ -32,7 +34,8 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   app/api/inspector/sources   fuente .sol de los contratos, sólo con sesión de backoffice/consola (inspector-access.ts)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
-packages/database        Prisma 6 · esquema multi-tenant (17 entidades) · RLS · cliente con tenant · seed
+packages/database        Prisma 6 · esquema multi-tenant (20 entidades) · RLS · cliente con tenant · seed
+                         credentials.ts (scrypt, TOTP RFC 6238, AES-256-GCM, tokens y códigos de un solo uso)
   scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente)
 packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · distribution.ts (prorrata en centavos + árbol de asignaciones)
                          canonical.ts (evidenceHash) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
@@ -53,6 +56,8 @@ Reglas:
 1. **El host decide el entorno, nunca la ruta.** Todo request de página pasa por `middleware.ts`, que lo reescribe
    con prefijo interno; por eso `/vitrina`, `/superadmin` y `/tenant/*` no son accesibles directamente. Nuevas
    páginas de un entorno van bajo su carpeta interna. `/api/*` no se reescribe: lee el tenant de `x-rwaxi-tenant`.
+   Un reenvío interno de Server Action de Next (`x-action-forwarded`) se rechaza: cada página incluye las acciones
+   que llama, y la reescritura por host convertía ese reenvío en un bucle infinito de autopeticiones.
 2. **Nunca confiar en un tenant que venga del cliente.** El tenant sale del host: el middleware descarta cualquier
    `x-rwaxi-*` recibido y fija `x-rwaxi-tenant`; el servidor lo traduce a `organizationId` con
    `resolveTenant(slug)` (función SQL `rwaxi_resolve_tenant`, SECURITY DEFINER, sólo campos de enrutado).
@@ -81,22 +86,43 @@ Reglas:
    `SIMULATION` (`CHAIN_EXECUTION` por defecto: tx EIP-1559 firmada con `OPERATOR_PRIVATE_KEY`, nonce global
    secuencial, **nunca difundida**; `txHash = keccak256(signedTransaction)`). Toda vista que muestre un hash debe
    mostrar también el modo.
-5. **Autenticación pendiente.** El backoffice usa una sesión demo por rol del tenant — `COMPLIANCE_OFFICER` (KYC y
-   llamadas al registro) y `TENANT_ADMIN` (conciliación de pagos y mint) —, activa sólo fuera de producción o con
-   `RWAXI_DEMO_AUTH=1`. En producción, sin auth real, la bandeja, sus acciones y la cola del inspector se niegan; el
-   inspector sólo ofrece ejecutar la cola desde el backoffice. La consola Super-Admin actúa como el primer
-   `SUPER_ADMIN` activo sin organización (`requirePlatformSession`, sólo host `admin`); sus acciones van en
-   `AuditEvent` de la organización afectada (que el backoffice del tenant también ve) con
-   `subjectHash = evidenceHash({ action, organizationId, entityId, ...payload })`. El inversionista se identifica con la cookie `rwaxi_inv` (HttpOnly, HMAC con
-   `INVESTOR_SESSION_SECRET`, ligada a la organización del host) emitida al firmar el NDA. Sin verificación de email
-   todavía: un email ya registrado en el tenant **nunca** se asocia a un navegador nuevo (se rechaza la firma).
+5. **Autenticación institucional** (`app/_lib/server/staff-auth.ts`, credenciales en `@rwaxi/database/credentials`).
+   El personal entra con contraseña (scrypt) + TOTP RFC 6238 (6 dígitos, 30 s, ±1 paso, `totpLastStep` impide reusar
+   un código; secreto cifrado AES-256-GCM con `AUTH_ENCRYPTION_KEY`, AAD = id del usuario; una cuenta sin MFA enrola
+   un secreto nuevo que confirma su primer código): `{slug}.rwaxi.com/backoffice/login` (ES/EN/PT) y
+   `admin.rwaxi.com/login` (ES). Cookie `rwaxi_session` (HttpOnly, del host) con un token opaco; `user_sessions`
+   guarda sólo su SHA-256, el alcance `TENANT` (organización del host, leída bajo RLS: el token de otro tenant "no
+   existe") o `PLATFORM` (sin organización, sólo `SUPER_ADMIN`, sólo host `admin`), expiración y revocación. Tras la
+   contraseña hay una sesión pendiente (5 min, 5 códigos); al pasar el MFA el token rota (8 h tenant / 4 h consola,
+   inactividad 60 / 30 min). «Cerrar sesión» la revoca. 5 fallos seguidos (contraseña o código) bloquean la cuenta
+   15 min; 30 fallos por IP en 15 min se rechazan. Cada resultado es un `AuditEvent` (`LOGIN_SUCCEEDED`,
+   `LOGIN_FAILED`, `MFA_FAILED`, `MFA_ENROLLED`, `ACCOUNT_LOCKED`, `LOGOUT`); los de la consola van sin organización
+   (sólo esas acciones: CHECK `audit_events_platform_auth`). **Roles**: `COMPLIANCE_OFFICER` (KYC y llamadas al
+   registro), `TENANT_ADMIN` (conciliación, mint, distribuciones), `TENANT_ANALYST` (sólo lectura). Una sesión real
+   actúa sólo con su rol (`requireBackofficeSession(role)`; las mesas se leen con `{ view: true }` y muestran «Solo
+   lectura»); cada fila de la cola la ejecuta el rol que la firma. **Sesión demo** (`RWAXI_DEMO_AUTH`: por defecto
+   fuera de producción; `1` la fuerza, `0` exige siempre contraseña + MFA): sólo aplica sin sesión real, tiene ambos
+   roles del tenant (o el primer `SUPER_ADMIN` en la consola, nunca en producción) y un navegador puede excluirse con
+   la cookie `rwaxi_demo_auth=off` (la usa la suite `auth`). El seed da a todo el personal la contraseña demo
+   `RwaxiDemo-2026!` y un secreto TOTP determinista (`SHA-256("rwaxi-demo-totp:" + email)[0..20]`,
+   `seed-data/credentials.ts`); nunca en producción salvo `RWAXI_SEED_DEMO_CREDENTIALS=1`. Los usuarios creados por el
+   alta B2B aún no tienen contraseña (pendiente: invitación). La consola actúa con `requirePlatformAccess()`
+   (`platformActor`); sus acciones van en `AuditEvent` de la organización afectada (que el backoffice del tenant
+   también ve) con `subjectHash = evidenceHash({ action, organizationId, entityId, ...payload })`.
+   El inversionista se identifica con la cookie `rwaxi_inv` (HttpOnly, HMAC con `INVESTOR_SESSION_SECRET`, ligada a la
+   organización del host) emitida al firmar el NDA o al **recuperar la sesión** (`investor-recovery.ts`): un email ya
+   registrado en el tenant **nunca** se asocia a un navegador nuevo por el NDA; «Recuperar mi sesión» envía un código
+   de 6 dígitos (en `investor_otps` sólo su HMAC; 10 min; 5 intentos descontados atómicamente antes de comparar; un
+   solo uso; uno nuevo reemplaza al anterior; 3 por 15 min y 10 por día por inversionista, 10 por hora por IP) con la
+   misma respuesta exista o no el correo. Sin SMTP todavía, el correo queda en `mail_outbox` (y en la consola del
+   servidor de desarrollo); recuperar escribe `INVESTOR_SESSION_RECOVERED`, agotar un código `INVESTOR_OTP_FAILED`.
    **Atribución firmada:** la vitrina emite en servidor (`app/vitrina/actions.ts`, sólo host `www`, sólo portales
    ACTIVE) `ref_rwx_<nonce>.<slug>.<emitidoMs>.<HMAC-SHA256(REFERRAL_SECRET)>` (`app/_lib/referral.ts`, Web Crypto,
    Edge y Node). El middleware guarda en `rwaxi_ref` sólo un token válido para el tenant del host (primer contacto) y
    `signNda()` lo vuelve a verificar: válido, del tenant, no caducado (30 días) y con id no usado → Lead `REFERRAL`;
-   cualquier otra cosa → `DIRECT`. El id (`ref_rwx_<nonce>`) es `Lead.referralToken`: su unicidad impide reutilizarlo.
-   Super-Admin (`platformPrisma()`, BYPASSRLS) sólo en el host `admin` y nunca en producción sin MFA
-   (`requirePlatformAccess`).
+   cualquier otra cosa → `DIRECT`. El id (`ref_rwx_<nonce>`) es `Lead.referralToken`: su unicidad impide reutilizarlo
+   (la firma se exige en base64url canónico). Super-Admin (`platformPrisma()`, BYPASSRLS) sólo en el host `admin` y con
+   una sesión `PLATFORM` con MFA (`requirePlatformAccess`).
 6. **RWAXI no custodia el valor emitido.** En contratos, RWAXI sólo tiene `RWAXI_OPERATOR_ROLE` (factory) y
    `MINTER_ROLE`; pausa, Data Room, raíces de distribución (`DISTRIBUTION_ROLE`) y recuperación forzosa son del
    emisor; la whitelist es del oficial de cumplimiento del tenant. No añadir roles a RWAXI sin revisión legal. En modo
@@ -191,7 +217,7 @@ pnpm contracts:test                            # tests de cumplimiento (whitelis
 
 pnpm e2e                                       # suites E2E (Chrome headless) contra pnpm dev + la BD de .env; reseedea
 pnpm e2e portal onboarding                     # sólo esas (backoffice, portal, referrals-subscriptions, payments-queue,
-                                               #   superadmin-ops, onboarding, distributions, i18n)
+                                               #   superadmin-ops, onboarding, distributions, i18n, auth)
 pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local (registry, token y factory) + next dev con
                                                #   CHAIN_EXECUTION=rpc y RWAXI_FACTORY_ADDRESS
 ```
@@ -228,8 +254,8 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   Migrado a BD: catálogo de la vitrina, portal del inversionista (Lead, NDA, KYC, AccessGrant, suscripción y
   portafolio), pestañas "Cumplimiento y Leads" y "Suscripciones y Pagos" del backoffice, Inspector pestaña 4 (cola
   `ChainTransaction` y su ejecución), pestaña "Distribuciones y Rendimientos" del backoffice y su reflejo en el
-  portafolio, y Super-Admin (consolidado, alta de desarrolladores, módulo A Gobierno, B Atribución y C Tarifas, libro
-  mayor y facturación). Siguen en estado demo: configuración White Label, Data Room y minting del backoffice y
+  portafolio, Super-Admin (consolidado, alta de desarrolladores, módulo A Gobierno, B Atribución y C Tarifas, libro
+  mayor y facturación), login del personal con MFA y recuperación de sesión del inversionista. Siguen en estado demo: configuración White Label, Data Room y minting del backoffice y
   pestañas 1–3 del inspector.
 - **Suscripciones**, en tres pasos, cada uno una transacción `withTenant` con transición condicional y `AuditEvent`:
   1. `subscribe()` (portal): KYC `APPROVED` + wallet; capital recalculado en servidor (`unitPriceUsd × units`, ticket

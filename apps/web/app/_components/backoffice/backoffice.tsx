@@ -28,6 +28,8 @@ export function Backoffice({
   subscriptionsSlot: q,
   // Persisted yield distributions (app/tenant/[slug]/backoffice/_components/distributions-desk.tsx).
   distributionsSlot: w,
+  // Signed-in staff member (or the demo session) and «Cerrar sesión» (app/_components/auth/account-badge.tsx).
+  accountSlot: z,
 }) {
   const { tr } = useI18n();
   const u = [
@@ -70,6 +72,7 @@ export function Backoffice({
             {tr("Inspector On-Chain")}
           </button>
           <LanguageToggle />
+          {z}
           <button
             onClick={r}
             className="tc-btn text-[12.5px] font-semibold px-3.5 py-2 inline-flex items-center gap-1.5 focus-ring"

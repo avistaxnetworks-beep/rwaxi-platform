@@ -6,13 +6,19 @@
 const { url } = require("./lib.cjs");
 const { seed, runSuite, waitForHttp, summary } = require("./runner.cjs");
 
-const SUITES = ["backoffice", "portal", "referrals-subscriptions", "payments-queue", "superadmin-ops", "onboarding", "distributions", "i18n"];
+const SUITES = ["backoffice", "portal", "referrals-subscriptions", "payments-queue", "superadmin-ops", "onboarding", "distributions", "i18n", "auth"];
+// They act through the demo staff session (RWAXI_DEMO_AUTH); auth opts its browsers out and signs in for real.
+const DEMO_SUITES = SUITES.filter((s) => s !== "auth");
 
 (async () => {
   const selected = process.argv.slice(2).length ? process.argv.slice(2) : SUITES;
   const unknown = selected.filter((s) => !SUITES.includes(s));
   if (unknown.length) throw new Error(`Suites desconocidas: ${unknown.join(", ")} (disponibles: ${SUITES.join(", ")})`);
   if (!(await waitForHttp(url(null, "/api/health"), 60000))) throw new Error(`No responde ${url(null)}: arranca pnpm dev`);
+  const health = await (await fetch(url(null, "/api/health"))).json().catch(() => ({}));
+  if (health.demoAuth === false && selected.some((s) => DEMO_SUITES.includes(s))) {
+    console.warn("AVISO: RWAXI_DEMO_AUTH desactivado: las suites de negocio usan la sesión demo del backoffice y fallarán (auth sí aplica).");
+  }
 
   const results = [];
   for (const name of selected) {

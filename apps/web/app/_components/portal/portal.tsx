@@ -36,6 +36,8 @@ export function Portal({
   persistKyc: Q,
   // Persisted yield distributions with their Merkle proofs (app/tenant/[slug]/_components/investor-distributions.tsx).
   distributionsSlot: D,
+  // «Recuperar mi sesión» by email code, for a visitor without an investor session (app/tenant/[slug]/_components/session-recovery.tsx).
+  recoverySlot: R,
 }) {
   const { tr } = useI18n();
   const [m, u] = useState(() => (t.holdings.length || t.grant ? 3 : t.nda ? 1 : 0)),
@@ -168,6 +170,7 @@ export function Portal({
                 }}
               />
             )}
+            {m === 0 && !t.nda && R}
             {m === 1 && N && t.kyc.stage === "form" && (
               <LockedNote text={tr("Portal temporalmente suspendido para nuevas operaciones: no se reciben nuevas verificaciones.")} />
             )}

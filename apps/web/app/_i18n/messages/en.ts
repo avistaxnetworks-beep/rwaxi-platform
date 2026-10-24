@@ -4,6 +4,8 @@ import type { Catalog } from "../translate";
 const catalog: Catalog = {
   "¿Cuál es la actividad económica principal del origen de sus fondos?":
     "What is the main economic activity behind the source of your funds?",
+  "¿Ya firmaste el NDA en otro navegador o dispositivo? Recupera tu sesión con un código enviado a tu correo.":
+    "Already signed the NDA on another browser or device? Recover your session with a code sent to your email.",
   ".mp4 / .mov · 1080p o 4K · máx. 3:00": ".mp4 / .mov · 1080p or 4K · max. 3:00",
   "· cumple AA": "· meets AA",
   "· no cumple AA, elige un tono más oscuro": "· fails AA, choose a darker shade",
@@ -47,6 +49,7 @@ const catalog: Catalog = {
     other: "{n} documents uploaded · SHA-256 computed · Merkle Root updated",
   },
   "{n} hash(es)": { one: "{n} hash", other: "{n} hashes" },
+  "{n} intentos fallidos": "{n} failed attempts",
   "{n} meses": { one: "{n} month", other: "{n} months" },
   "{n} suscripción(es)": { one: "{n} subscription", other: "{n} subscriptions" },
   "{n} tenedor(es)": { one: "{n} holder", other: "{n} holders" },
@@ -82,8 +85,13 @@ const catalog: Catalog = {
   "2 · Recuperación regulatoria / orden judicial": "2 · Regulatory recovery / court order",
   "Abriendo portal oficial de {name}…": "Opening the official portal of {name}…",
   "Abrir Bandeja de Cumplimiento": "Open Compliance Inbox",
+  "Abrir en la app de autenticación": "Open in the authenticator app",
   "Abrir portal con esta configuración": "Open portal with these settings",
   Acceso: "Access",
+  "Acceso · Backoffice · {name}": "Sign-in · Backoffice · {name}",
+  "Acceso al backoffice": "Backoffice sign-in",
+  "Acceso con contraseña y código de verificación de dos pasos (TOTP).":
+    "Sign-in with a password and a two-step verification code (TOTP).",
   "Acceso Desarrolladores": "Developer Access",
   "AccessGrant vigente": "Active AccessGrant",
   Acciones: "Actions",
@@ -107,6 +115,8 @@ const catalog: Catalog = {
     "Real assets · Digital investments. White Label real-estate tokenization infrastructure.",
   "Activos Tokenizados": "Tokenized Assets",
   Administrador: "Administrator",
+  "Agrega esta clave a tu app de autenticación (Google Authenticator, Microsoft Authenticator, 1Password…) y escribe el código de 6 dígitos que genere.":
+    "Add this key to your authenticator app (Google Authenticator, Microsoft Authenticator, 1Password…) and enter the 6-digit code it generates.",
   "aislado · {name}": "isolated · {name}",
   "Al confirmar, la suscripción pasa a {status}, se calcula {ref} (SHA-256 canónico del contrato firmado y de esta referencia) y se encola {call}. Se devenga la comisión de infraestructura RWAXI ({pct}% del capital).":
     "On confirmation, the subscription moves to {status}, {ref} is computed (canonical SHA-256 of the signed agreement and this reference) and {call} is queued. The RWAXI infrastructure fee is accrued ({pct}% of the capital).",
@@ -114,6 +124,7 @@ const catalog: Catalog = {
   "Alta B2B · {slug}.rwaxi.com · NIT {taxId} · {users} usuarios · oferta {code} · {documents} documentos":
     "B2B onboarding · {slug}.rwaxi.com · NIT {taxId} · {users} user(s) · offering {code} · {documents} document(s)",
   "Alta en la red RWAXI": "Onboarded to the RWAXI network",
+  Analista: "Analyst",
   "Analizando correspondencia con el documento": "Analyzing match with the document",
   "anchorDistributionRoot() en cola · la firma el emisor (DISTRIBUTION_ROLE)":
     "anchorDistributionRoot() queued · signed by the issuer (DISTRIBUTION_ROLE)",
@@ -153,8 +164,6 @@ const catalog: Catalog = {
   "Aún no hay suscripciones, pagos ni emisiones registradas.":
     "No subscriptions, payments or mints recorded yet.",
   "Aún no tienes suscripciones en este proyecto.": "You have no subscriptions in this project yet.",
-  "Autenticación del backoffice no configurada: acceso deshabilitado en producción.":
-    "Backoffice authentication not configured: access disabled in production.",
   "Autorizo a {entity} a consultar mi información en listas restrictivas y vinculantes (ONU, OFAC y fuentes nacionales) como parte de la debida diligencia.":
     "I authorize {entity} to screen my information against sanctions and binding lists (UN, OFAC and national sources) as part of due diligence.",
   "Autorizo a {entity}, como Responsable del Tratamiento, y a RWAXI, como Encargado Tecnológico de Infraestructura que actúa por cuenta del Responsable, el tratamiento de mis datos conforme a la Ley 1581 de 2012.":
@@ -168,6 +177,7 @@ const catalog: Catalog = {
     "Declared wallet · added to the whitelist upon approval",
   "Billetera: decláralo en el paso 1": "Wallet: declare it in step 1",
   bloque: "block",
+  "bloqueada {minutes} min": "locked {minutes} min",
   Bloqueado: "Locked",
   "Busca equilibrio entre rentas periódicas y valorización.":
     "Seeks a balance between periodic rental income and appreciation.",
@@ -177,6 +187,7 @@ const catalog: Catalog = {
     "Each project is managed on its developer's portal: NDA, KYC/AML under SAGRILAFT + PTEE or SARLAFT depending on the offeror's regime, Data Room and subscription with the legal vehicle.",
   "Calculando SHA-256…": "Computing SHA-256…",
   "Calldata copiado": "Calldata copied",
+  "Cambiar correo": "Change email",
   Canadá: "Canada",
   cancelada: "canceled",
   Cancelada: "Canceled",
@@ -206,6 +217,7 @@ const catalog: Catalog = {
   "Centra tu rostro en el óvalo": "Center your face in the oval",
   Cerrar: "Close",
   "Cerrar inspector": "Close inspector",
+  "Cerrar sesión": "Sign out",
   Certificado: "Certificate",
   "Certificado con el SHA-256 del contrato": "Certificate with the agreement SHA-256",
   "Certificado de participación": "Participation certificate",
@@ -214,7 +226,16 @@ const catalog: Catalog = {
   "ChainTransaction PENDING: approveInvestor() espera la firma del Oficial de Cumplimiento en RwaxiComplianceRegistry.":
     "ChainTransaction PENDING: approveInvestor() awaits the Compliance Officer's signature on RwaxiComplianceRegistry.",
   Chile: "Chile",
+  "Cierre de sesión": "Sign-out",
+  "Código de recuperación agotado": "Recovery code exhausted",
+  "Código de verificación": "Verification code",
   "Código hexadecimal": "Hex code",
+  "Código incorrecto o vencido. Pide un código nuevo si lo necesitas.":
+    "Incorrect or expired code. Request a new code if you need one.",
+  "Código incorrecto. Revisa la hora de tu dispositivo e inténtalo de nuevo.":
+    "Incorrect code. Check the time on your device and try again.",
+  "código TOTP": "TOTP code",
+  "Código TOTP incorrecto": "Incorrect TOTP code",
   "Coincidencia en listas restrictivas pendiente de aclaración por el inversionista.":
     "Sanctions list match pending clarification by the investor.",
   "Coincidencia parcial · revisar homónimo": "Partial match · review possible namesake",
@@ -245,19 +266,19 @@ const catalog: Catalog = {
   Comprobante: "Proof of payment",
   "comprobante {reference}": "proof of payment {reference}",
   "con el pago ya conciliado": "already reconciled",
+  "Configura tu verificación en dos pasos": "Set up your two-step verification",
   "Configuración White Label": "White Label Settings",
   "Confirma que leíste el acuerdo.": "Confirm that you have read the agreement.",
   "confirmada en red": "confirmed on the network",
   "Confirmar Pago Fiduciario": "Confirm Fiduciary Payment",
   "Confirmar Pago Fiduciario · {name}": "Confirm Fiduciary Payment · {name}",
+  "Confirmar y entrar": "Confirm and sign in",
   congelada: "frozen",
   "Conozco y acepto el PTEE de {entity}, adoptado conforme al Capítulo XIII de la Circular Básica Jurídica de la Superintendencia de Sociedades, y me comprometo a reportar cualquier situación de soborno o corrupción relacionada con este negocio.":
     "I am aware of and accept the PTEE of {entity}, adopted pursuant to Chapter XIII of the Basic Legal Circular (Circular Básica Jurídica) of the Superintendency of Companies (Supersociedades), and I undertake to report any situation of bribery or corruption related to this business.",
   "ConsentRecord registrado": "ConsentRecord recorded",
   Conservador: "Conservative",
   "Consola Super-Admin": "Super-Admin console",
-  "Consola Super-Admin deshabilitada en producción hasta configurar autenticación con MFA.":
-    "Super-Admin console disabled in production until MFA authentication is configured.",
   "Constitución del vehículo, estudio de títulos y tradición del inmueble, y constitución del Vehículo Jurídico Independiente (Legal Wrapper) que separa el activo del patrimonio del originador: S.A.S., patrimonio autónomo o cuentas en participación, según el negocio.":
     "Formation of the vehicle, title study and chain of title of the property, and formation of the Independent Legal Vehicle (Legal Wrapper) that separates the asset from the originator's estate: S.A.S., autonomous trust estate or participation accounts, depending on the deal.",
   "Consulta en listas restrictivas": "Sanctions list screening",
@@ -265,6 +286,8 @@ const catalog: Catalog = {
   Continuar: "Continue",
   "Contract State Explorer": "Contract State Explorer",
   Contraparte: "Counterparty",
+  contraseña: "password",
+  Contraseña: "Password",
   "Contraste del texto sobre el color: {ratio}:1": "Text contrast on this color: {ratio}:1",
   Contrato: "Contract",
   "Contrato de suscripción": "Subscription agreement",
@@ -274,9 +297,15 @@ const catalog: Catalog = {
   "Copiar calldata": "Copy calldata",
   Corregir: "Fix",
   "Corregir documentación": "Correct documentation",
+  "Correo corporativo": "Work email",
   "Correo electrónico": "Email",
+  "Correo o contraseña incorrectos.": "Incorrect email or password.",
   "Crea un registro CNAME de {domain} hacia tenants.rwaxi.com. El portal siempre responde también en {host}.":
     "Create a CNAME record pointing {domain} to tenants.rwaxi.com. The portal is always available at {host} as well.",
+  "cuenta bloqueada": "account locked",
+  "Cuenta bloqueada por intentos fallidos": "Account locked after failed attempts",
+  "Cuenta bloqueada temporalmente por intentos fallidos. Inténtalo de nuevo en {minutes} min.":
+    "Account temporarily locked after failed attempts. Try again in {minutes} min.",
   "Cumplimiento y Leads": "Compliance & Leads",
   "Data Room": "Data Room",
   "Data Room · {n} documentos": { one: "Data Room · {n} document", other: "Data Room · {n} documents" },
@@ -306,6 +335,10 @@ const catalog: Catalog = {
     "I declare that I am not a Politically Exposed Person (PEP), nor a family member or close associate of a PEP, under the terms of Decree 830 of 2021. I undertake to report any change in this status.",
   "Define las etiquetas y declaraciones del Paso 2 del portal. Autoridad: {authority}.":
     "Defines the labels and declarations for Step 2 of the portal. Authority: {authority}.",
+  "Demasiados códigos incorrectos. Vuelve a escribir tu contraseña.":
+    "Too many incorrect codes. Enter your password again.",
+  "Demasiados intentos fallidos desde esta red. Espera unos minutos.":
+    "Too many failed attempts from this network. Wait a few minutes.",
   "Derecho económico": "Economic right",
   Desarrollador: "Developer",
   "Desarrollador y emisor responsable": "Developer and responsible issuer",
@@ -462,6 +495,8 @@ const catalog: Catalog = {
   Entornos: "Environments",
   "Enviando tu expediente al Oficial de Cumplimiento…": "Sending your KYC file to the Compliance Officer…",
   "Enviar a revisión de cumplimiento": "Submit for compliance review",
+  "Enviar código": "Send code",
+  "Enviar otro código": "Send another code",
   "Envío RPC en curso ({hash}): «Procesar cola en orden» lo concilia con su recibo.":
     "RPC submission in progress ({hash}): “Process queue in order” reconciles it with its receipt.",
   "Envío RPC en curso ({hash}): aún sin recibo; «Procesar cola en orden» lo concilia.":
@@ -479,15 +514,24 @@ const catalog: Catalog = {
   "Escenario Estimado con base en el modelo financiero del vehículo. No constituye oferta ni promesa de rentabilidad; el capital está sujeto a riesgo.":
     "Estimated Scenario based on the vehicle's financial model. It does not constitute an offer or a promise of returns; capital is subject to risk.",
   "Escenario Estimado.": "Estimated scenario.",
+  "Escribe el código de 6 dígitos que muestra tu app de autenticación.":
+    "Enter the 6-digit code shown by your authenticator app.",
+  "Escribe el correo con el que firmaste el NDA.": "Enter the email you signed the NDA with.",
+  "Escribe el correo con el que firmaste el NDA. Te enviaremos un código de 6 dígitos de un solo uso.":
+    "Enter the email you signed the NDA with. We will send you a single-use 6-digit code.",
   "Escribe nombres y apellidos como aparecen en el documento.":
     "Enter your first and last names as they appear on the document.",
+  "Escribe tu correo y tu contraseña.": "Enter your email and password.",
   "Escribe tu nombre completo y un correo válido.": "Enter your full name and a valid email.",
   "Escribe un dominio primero": "Enter a domain first",
   "Escribe una dirección EVM válida: 0x seguido de 40 caracteres hexadecimales.":
     "Enter a valid EVM address: 0x followed by 40 hexadecimal characters.",
+  "Ese código ya se usó. Espera el siguiente e inténtalo de nuevo.":
+    "That code has already been used. Wait for the next one and try again.",
   "Ese documento ya está registrado por otro inversionista de este portal.":
     "That document is already registered by another investor on this portal.",
   España: "Spain",
+  "Esta acción requiere el rol {role}.": "This action requires the {role} role.",
   "Esta dirección no corresponde a un tenant.": "This address does not match any tenant.",
   "Esta oferta aún no tiene distribuciones.": "This offering has no distributions yet.",
   "Esta operación no se ejecuta desde la cola del backoffice.":
@@ -496,8 +540,8 @@ const catalog: Catalog = {
   "Estado on-chain": "On-chain state",
   "Estados Unidos": "United States",
   Estándar: "Standard",
-  "Este correo ya tiene un proceso de inversión en este portal. Continúa desde el navegador donde lo iniciaste o escribe al Oficial de Cumplimiento.":
-    "This email already has an investment process on this portal. Continue from the browser where you started it or write to the Compliance Officer.",
+  "Este correo ya tiene un proceso de inversión en este portal. Para continuar en este navegador, usa «Recuperar mi sesión»: te enviaremos un código a ese correo.":
+    "This email already has an investment process on this portal. To continue in this browser, use «Recover my session»: we will send a code to that email.",
   "Este desarrollador no está publicado en la vitrina.": "This developer is not published on the showcase.",
   "Este desarrollador no existe en la red RWAXI.": "This developer does not exist on the RWAXI network.",
   "Este navegador no pudo reproducir el archivo; se muestra la vista interactiva":
@@ -576,6 +620,7 @@ const catalog: Catalog = {
   "Hoja (SHA-256)": "Leaf (SHA-256)",
   "hoja = SHA-256(JSON canónico de la asignación: v, kind, distributionId, wallet, units, amountCents)":
     "leaf = SHA-256(canonical JSON of the allocation: v, kind, distributionId, wallet, units, amountCents)",
+  "Hola, {name}:": "Hello {name},",
   Horizonte: "Horizon",
   "Identidad y ubicación": "Identity and location",
   "Identidad, biometría y origen de fondos": "Identity, biometrics and source of funds",
@@ -592,11 +637,16 @@ const catalog: Catalog = {
   "Infraestructura Powered by RWAXI": "Infrastructure Powered by RWAXI",
   "Ingresos anuales": "Annual income",
   "Ingresos anuales estimados": "Estimated annual income",
+  "Inicia sesión en el backoffice para consultar la cola on-chain.":
+    "Sign in to the backoffice to view the on-chain queue.",
+  "Inicia sesión en el backoffice para continuar.": "Sign in to the backoffice to continue.",
+  "Inicia sesión en la consola RWAXI para continuar.": "Sign in to the RWAXI console to continue.",
   "Iniciar prueba de vida (simulada)": "Start liveness check (simulated)",
-  "Inspector deshabilitado en producción hasta configurar autenticación.":
-    "Inspector disabled in production until authentication is configured.",
+  "Iniciar sesión": "Sign in",
+  "Inicio de sesión (contraseña + TOTP)": "Sign-in (password + TOTP)",
   "Inspector On-Chain": "On-Chain Inspector",
   "Inspector On-Chain (OpenZeppelin v5)": "On-Chain Inspector (OpenZeppelin v5)",
+  "Intento de acceso fallido": "Failed sign-in attempt",
   Interior: "Interior",
   Inversionista: "Investor",
   "Inversionista demo": "Demo investor",
@@ -635,6 +685,8 @@ const catalog: Catalog = {
     "Execution is authorized from the tenant's Backoffice.",
   "La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma; sin registro el tenant no puede aprobar inversionistas.":
     "Executed by the RWAXI operator (RWAXI_OPERATOR_ROLE) from the platform console; without a registry the tenant cannot approve investors.",
+  "La firma el rol {role}: inicia sesión con ese rol para ejecutarla.":
+    "It is signed by the {role} role: sign in with that role to execute it.",
   "La firma genera un ConsentRecord con hash SHA-256 del texto aceptado, con validez probatoria según la Ley 527 de 1999.":
     "Signing generates a ConsentRecord with the SHA-256 hash of the accepted text, with evidentiary value under Law 527 of 1999.",
   "La foto del documento de identidad no es legible: el número y la fecha de expedición no coinciden con los datos registrados.":
@@ -689,6 +741,8 @@ const catalog: Catalog = {
   "Merkle Root del Data Room:": "Data Room Merkle Root:",
   "Merkle Root SHA-256 vigente del Data Room": "Current Data Room SHA-256 Merkle Root",
   México: "Mexico",
+  "MFA (TOTP) enrolado": "MFA (TOTP) enrolled",
+  "MFA activo": "MFA active",
   "Mi portafolio": "My portfolio",
   "Mi portafolio en este proyecto": "My portfolio in this project",
   "Mint en cola": "Mint queued",
@@ -752,6 +806,8 @@ const catalog: Catalog = {
   "No se pudo calcular el SHA-256 de {name}; vuelve a cargarlo.":
     "Could not compute the SHA-256 of {name}; please upload it again.",
   "No se pudo cargar tu progreso desde la base de datos.": "Could not load your progress from the database.",
+  "No se pudo completar la recuperación. Inténtalo de nuevo.":
+    "The recovery could not be completed. Please try again.",
   "No se pudo conciliar el pago. Inténtalo de nuevo.": "Could not reconcile the payment. Please try again.",
   "No se pudo contactar el servidor.": "Could not reach the server.",
   "No se pudo declarar la distribución. Inténtalo de nuevo.":
@@ -764,6 +820,7 @@ const catalog: Catalog = {
     "The portal link could not be generated. Please try again.",
   "No se pudo guardar tu información. Inténtalo de nuevo.":
     "Could not save your information. Please try again.",
+  "No se pudo iniciar sesión. Inténtalo de nuevo.": "Could not sign in. Please try again.",
   "No se pudo leer ChainTransaction desde la base de datos.":
     "Could not read ChainTransaction from the database.",
   "No se pudo leer la bandeja de cumplimiento desde la base de datos.":
@@ -873,6 +930,8 @@ const catalog: Catalog = {
   Periodo: "Period",
   "Periodo: mes (2026-09) o trimestre (2026-Q3).": "Period: month (2026-09) or quarter (2026-Q3).",
   "Persona Expuesta Políticamente": "Politically Exposed Person",
+  "Personal autorizado de {name}: administración y cumplimiento.":
+    "Authorized {name} staff: administration and compliance.",
   Perú: "Peru",
   Pesos: "Pesos",
   "Pesos colombianos": "Colombian pesos",
@@ -914,6 +973,8 @@ const catalog: Catalog = {
   "PostgreSQL · RLS tnt_{slug} · sesión demo: {email}": "PostgreSQL · RLS tnt_{slug} · demo session: {email}",
   "PostgreSQL · RLS tnt_{slug} · sesión demo: {email} (Administrador)":
     "PostgreSQL · RLS tnt_{slug} · demo session: {email} (Administrator)",
+  "PostgreSQL · RLS tnt_{slug} · sesión: {email} ({role})":
+    "PostgreSQL · RLS tnt_{slug} · session: {email} ({role})",
   "Pre-venta": "Pre-sale",
   "Precio por unidad": "Price per unit",
   "Precio por unidad (USD)": "Price per unit (USD)",
@@ -962,6 +1023,7 @@ const catalog: Catalog = {
   "Reconozco expresamente las 4 Capas Estructurales de esta inversión y la función de recuperación judicial o administrativa (forcedTransfer) descritas arriba.":
     "I expressly acknowledge the 4 Structural Layers of this investment and the judicial or administrative recovery function (forcedTransfer) described above.",
   "Recuperación ejecutada: {n} {symbol} → {wallet}": "Recovery executed: {n} {symbol} → {wallet}",
+  "Recuperar mi sesión": "Recover my session",
   Red: "Network",
   "Red blockchain": "Blockchain network",
   Redes: "Networks",
@@ -1091,16 +1153,24 @@ const catalog: Catalog = {
   "Seleccionar color": "Select color",
   "Sellos de confianza": "Trust seals",
   Sesión: "Session",
+  "Sesión del inversionista recuperada con código": "Investor session recovered with a code",
+  "Sesión demo": "Demo session",
+  "Sesión recuperada.": "Session recovered.",
   setup: "setup",
   "SHA-256 alta": "Onboarding SHA-256",
   "SHA-256 contrato de suscripción": "Subscription agreement SHA-256",
   "SHA-256 decisión": "Decision SHA-256",
   "SHA-256 del contrato firmado": "Signed agreement SHA-256",
   "SHA-256 del expediente": "KYC file SHA-256",
+  "SHA-256 evento": "Event SHA-256",
   "SHA-256 expediente": "KYC file SHA-256",
   "SHA-256 factura": "Invoice SHA-256",
   "SHA-256 pago": "Payment SHA-256",
   Sí: "Yes",
+  "Si ese correo tiene un proceso en este portal, te enviamos un código de 6 dígitos. Vence en 10 minutos.":
+    "If that email has a process on this portal, we have sent you a 6-digit code. It expires in 10 minutes.",
+  "Si no lo pediste, ignora este correo: sin el código nadie puede entrar a tu proceso.":
+    "If you did not request it, ignore this email: without the code no one can access your process.",
   "Signed URL temporal": "Temporary Signed URL",
   Silenciar: "Mute",
   Símbolo: "Symbol",
@@ -1144,6 +1214,8 @@ const catalog: Catalog = {
     "Only approveInvestor() and anchorDistributionRoot() are registered by hash.",
   "Solo el ISSUER_ADMIN_ROLE o el COMPLIANCE_OFFICER_ROLE de {name} pueden pausar el token. RWAXI no tiene esta facultad.":
     "Only the ISSUER_ADMIN_ROLE or the COMPLIANCE_OFFICER_ROLE of {name} can pause the token. RWAXI does not hold this power.",
+  "Solo lectura: tu rol es {role}; estas acciones requieren el rol {required}.":
+    "Read-only: your role is {role}; these actions require the {required} role.",
   "SPV Sociedad por Acciones Simplificada (S.A.S.)": "SPV Simplified Stock Company (S.A.S.)",
   Streaming: "Streaming",
   "Sube la foto del frente del documento.": "Upload a photo of the front of the document.",
@@ -1212,6 +1284,10 @@ const catalog: Catalog = {
   "Transacción on-chain confirmada": "On-chain transaction confirmed",
   "Transferencia de tokens a tu wallet": "Token transfer to your wallet",
   "Tratamiento de Datos Personales": "Personal Data Processing",
+  "Tu acceso venció. Vuelve a escribir tu contraseña.": "Your sign-in expired. Enter your password again.",
+  "Tu código de verificación es {code}. Vence en 10 minutos y sirve una sola vez.":
+    "Your verification code is {code}. It expires in 10 minutes and can be used only once.",
+  "Tu código para recuperar tu sesión en {portal}": "Your code to recover your session on {portal}",
   "tu dominio": "your domain",
   "Tu expediente quedó registrado en la bandeja de cumplimiento del desarrollador.":
     "Your KYC file has been recorded in the developer's compliance inbox.",
@@ -1257,6 +1333,7 @@ const catalog: Catalog = {
   "Usa una imagen JPG o PNG, o un PDF.": "Use a JPG or PNG image, or a PDF.",
   "Usar {color}": "Use {color}",
   "Usar monograma": "Use monogram",
+  "Usar otra cuenta": "Use another account",
   uso: "usage",
   "Validado contra el RUES al crear el tenant.": "Validated against the RUES when the tenant was created.",
   "Validar configuración del token y del vehículo": "Validate token and vehicle configuration",
@@ -1285,7 +1362,9 @@ const catalog: Catalog = {
   "Verificación de vida completada con éxito ✓": "Liveness check completed successfully ✓",
   "Verificado · SSL activo": "Verified · SSL active",
   "Verificar DNS": "Verify DNS",
+  "Verificar e ingresar": "Verify and sign in",
   "Verificar prueba de Merkle": "Verify Merkle proof",
+  "Verificar y continuar": "Verify and continue",
   "Video cargado: {name}": "Video uploaded: {name}",
   "Video Explicativo (3 min)": "Explainer Video (3 min)",
   "Video Pitch del Proyecto (Máx. 3:00 min - Alta Definición)":

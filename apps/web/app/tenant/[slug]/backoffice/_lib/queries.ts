@@ -5,7 +5,7 @@ import { render, requestTranslate } from "@/app/_i18n/server";
 import { spanish, type Translate } from "@/app/_i18n/translate";
 import { TenantAccessError } from "@/app/_lib/server/tenant-context";
 import { toAuditEntry } from "./audit";
-import { requireBackofficeSession, type BackofficeSession } from "./session";
+import { deskSession, requireBackofficeSession, type BackofficeSession } from "./session";
 import type { AuditEntry, ComplianceInboxData, ComplianceInboxResult, ComplianceRow, KycView, RiskKey } from "./types";
 
 const KYC_VIEW: Record<KycStatus, KycView> = {
@@ -134,6 +134,7 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
       regime: org.complianceRegime === "SARLAFT" ? "sarlaft" : "sagrilaft",
     },
     reviewer: { name: session.reviewer.fullName, email: session.reviewer.email },
+    session: deskSession(session, "COMPLIANCE_OFFICER"),
     rows,
     audit: entries,
   };
@@ -143,7 +144,7 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
 export async function loadComplianceInbox(): Promise<ComplianceInboxResult> {
   const tr = await requestTranslate("tenant");
   try {
-    const session = await requireBackofficeSession();
+    const session = await requireBackofficeSession("COMPLIANCE_OFFICER", { view: true });
     return { ok: true, data: await readInbox(session, tr) };
   } catch (e) {
     if (e instanceof TenantAccessError) return { ok: false, error: render(tr, e.reason) };

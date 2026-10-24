@@ -1,5 +1,6 @@
 import "server-only";
 import type { AuditEvent } from "@rwaxi/database";
+import { msg } from "@/app/_i18n/marks";
 import { spanish, type Translate } from "@/app/_i18n/translate";
 import { isPlatformAction, platformAuditSummary } from "@/app/_lib/server/platform-audit";
 import type { AuditEntry } from "./types";
@@ -22,7 +23,30 @@ interface AuditPayload {
   totalUsd?: string;
   holders?: number;
   offeringCode?: string;
+  // staff authentication / investor session recovery
+  email?: string;
+  factor?: "password" | "totp";
+  locked?: boolean;
+  minutes?: number;
+  role?: string;
+  attempts?: number;
 }
+
+const AUTH_ACTIONS = new Set<AuditEvent["action"]>([
+  "LOGIN_SUCCEEDED",
+  "LOGIN_FAILED",
+  "MFA_FAILED",
+  "MFA_ENROLLED",
+  "ACCOUNT_LOCKED",
+  "LOGOUT",
+  "INVESTOR_SESSION_RECOVERED",
+  "INVESTOR_OTP_FAILED",
+]);
+const ROLE_LABEL: Record<string, string> = {
+  COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento"),
+  TENANT_ADMIN: msg("Administrador"),
+  TENANT_ANALYST: msg("Analista"),
+};
 
 function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate): string | null {
   if (isPlatformAction(action)) return platformAuditSummary(action, p, tr);
@@ -60,6 +84,21 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate):
         .join(" · ");
     case "SUBSCRIPTION_MINTED":
       return tr("{amount} · tokens en la wallet del inversionista", { amount });
+    case "LOGIN_FAILED":
+    case "MFA_FAILED":
+      return [p.factor === "totp" ? tr("código TOTP") : tr("contraseña"), p.locked ? tr("cuenta bloqueada") : null]
+        .filter(Boolean)
+        .join(" · ");
+    case "ACCOUNT_LOCKED":
+      return tr("bloqueada {minutes} min", { minutes: p.minutes ?? 0 });
+    case "LOGIN_SUCCEEDED":
+      return p.role && ROLE_LABEL[p.role] ? tr(ROLE_LABEL[p.role]!) : null;
+    case "INVESTOR_OTP_FAILED":
+      return tr("{n} intentos fallidos", { n: p.attempts ?? 0 });
+    case "MFA_ENROLLED":
+    case "LOGOUT":
+    case "INVESTOR_SESSION_RECOVERED":
+      return null;
     case "DISTRIBUTION_DECLARED":
       return tr("Distribución {period} · {total} USD entre {holders} tenedor(es) · anchorDistributionRoot en cola", {
         period: String(p.period),
@@ -82,6 +121,7 @@ export function toAuditEntry(e: AuditEvent, tr: Translate = spanish): AuditEntry
     actorEmail: e.actorEmail,
     investorName:
       p.investorName ??
+      (AUTH_ACTIONS.has(e.action) ? (p.email ?? e.actorEmail) : null) ??
       (isPlatformAction(e.action)
         ? `RWAXI · ${p.tenant ?? e.entityType}`
         : e.action === "DISTRIBUTION_DECLARED"

@@ -10,8 +10,9 @@ import { useI18n } from "@/app/_i18n/provider";
 import type { ChainQueueItem } from "@/app/_lib/chain-queue-types";
 import { executeChainTransaction, processChainQueue, registerOfficerTransaction } from "../chain-actions";
 import { confirmPayment } from "../payment-actions";
-import type { SubscriptionRow, SubscriptionsDeskData, SubscriptionsDeskResult } from "../_lib/types";
+import type { DeskSession, SubscriptionRow, SubscriptionsDeskData, SubscriptionsDeskResult } from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
+import { DeskAccess, SessionLine, useCanAct } from "./desk-access";
 
 type Currency = "COP" | "USD";
 type Toast = (message: string) => void;
@@ -22,6 +23,9 @@ const hash = (h: string) => shortHash(h, 12, 6);
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
 /** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: distribution roots). */
 const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED"]);
+/** Role that executes a queued call (chain-actions.ts roleFor): the officer the registry, the admin the rest. */
+const SIGNER_ROLE = (kind: string) => (REGISTRY_KINDS.has(kind) ? "COMPLIANCE_OFFICER" : "TENANT_ADMIN");
+const ROLE_NAME = { COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento"), TENANT_ADMIN: msg("Administrador") } as const;
 
 const STATUS: Record<SubscriptionRow["status"], [string, string]> = {
   RESERVED: [msg("Reserva pre-venta"), "bg-cloud text-muted"],
@@ -41,11 +45,16 @@ export function SubscriptionsDesk({ desk, currency, toast }: { desk: Subscriptio
       </div>
     );
   }
-  return <DeskView data={desk.data} currency={currency} toast={toast} />;
+  return (
+    <DeskAccess session={desk.data.session} required="TENANT_ADMIN">
+      <DeskView data={desk.data} currency={currency} toast={toast} />
+    </DeskAccess>
+  );
 }
 
 function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; currency: Currency; toast: Toast }) {
   const { rich, tr } = useI18n();
+  const canAct = useCanAct();
   const { organization: org, subscriptions: subs, queue, recent, execution } = data;
   const [payId, setPayId] = useState<string | null>(null);
   const [reference, setReference] = useState("");
@@ -133,7 +142,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
           </p>
           <p className="text-[11.5px] text-muted inline-flex items-center gap-1.5">
             <Icon name="Database" size={13} className="tc-text" />
-            {tr("PostgreSQL · RLS tnt_{slug} · sesión demo: {email} (Administrador)", { slug: org.slug, email: data.admin.email })}
+            <SessionLine slug={org.slug} email={data.admin.email} session={data.session} admin />
           </p>
         </div>
         {subs.length === 0 ? (
@@ -210,7 +219,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
                     <td className="px-5 py-3.5">
                       {s.status === "PAYMENT_PENDING" && (
                         <button
-                          disabled={!!busy || !!s.paymentBlocker}
+                          disabled={!!busy || !canAct || !!s.paymentBlocker}
                           onClick={() => {
                             setPayId(s.id);
                             setReference("");
@@ -224,7 +233,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
                       )}
                       {s.status === "MINT_PENDING" && s.mint?.status === "PENDING" && (
                         <button
-                          disabled={!!busy || !!s.mint.blockedReason}
+                          disabled={!!busy || !canAct || !!s.mint.blockedReason}
                           onClick={() => execute(s.mint!.chainTxId)}
                           className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring disabled:opacity-40"
                         >
@@ -252,6 +261,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
       </div>
 
       <QueuePanel
+        session={data.session}
         queue={queue}
         recent={recent}
         execution={execution}
@@ -315,7 +325,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
               </p>
             )}
             <button
-              disabled={!!busy || reference.trim().length < 4}
+              disabled={!!busy || !canAct || reference.trim().length < 4}
               onClick={() => pay(paying)}
               className="tc-btn font-semibold inline-flex items-center justify-center text-[13px] py-3 gap-2 focus-ring disabled:opacity-60"
             >
@@ -330,6 +340,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
 }
 
 function QueuePanel({
+  session,
   queue,
   recent,
   execution,
@@ -339,6 +350,8 @@ function QueuePanel({
   onRegister,
   onProcess,
 }: {
+  /** the queue is shared by both roles: each row is executed by the role that signs it, whatever this desk's role */
+  session: DeskSession;
   queue: ChainQueueItem[];
   recent: ChainQueueItem[];
   execution: SubscriptionsDeskData["execution"];
@@ -351,7 +364,12 @@ function QueuePanel({
   const { tr } = useI18n();
   // RPC mode: RWAXI never signs the tenant's calls; the officer or the issuer signs them and their hash is registered here.
   const officerSigned = (q: ChainQueueItem) => execution.mode === "RPC" && TENANT_SIGNED_KINDS.has(q.kind);
-  const ready = queue.filter((q) => !q.blockedReason && !officerSigned(q)).length;
+  // The demo session holds both roles; a signed-in user runs only the rows of their own role.
+  const canRun = (q: ChainQueueItem) => session.demo || session.role === SIGNER_ROLE(q.kind);
+  const ready = queue.filter((q) => !q.blockedReason && !officerSigned(q) && canRun(q)).length;
+  // Processing also explains every row it cannot run (blocked, signed by the tenant, another role): only the
+  // read-only analyst has nothing to process.
+  const canProcess = session.demo || session.role !== "TENANT_ANALYST";
   return (
     <div className="bg-white border border-line" data-chain-desk>
       <div className="px-5 py-3.5 border-b border-line flex flex-wrap justify-between gap-3 items-center">
@@ -365,7 +383,7 @@ function QueuePanel({
           </p>
         </div>
         <button
-          disabled={!!busy || queue.length === 0}
+          disabled={!!busy || !canProcess || queue.length === 0}
           onClick={onProcess}
           className="bg-rxDeep text-white text-[12px] font-mono px-3 py-2 inline-flex items-center gap-1.5 focus-ring disabled:opacity-50"
         >
@@ -378,7 +396,10 @@ function QueuePanel({
       ) : (
         <ol>
           {queue.map((q, i) => {
-            const note = skipped.find((s) => s.id === q.id)?.reason ?? q.blockedReason;
+            const note =
+              skipped.find((s) => s.id === q.id)?.reason ??
+              q.blockedReason ??
+              (canRun(q) ? null : tr("La firma el rol {role}: inicia sesión con ese rol para ejecutarla.", { role: tr(ROLE_NAME[SIGNER_ROLE(q.kind)]) }));
             return (
               <li
                 key={q.id}
@@ -409,12 +430,12 @@ function QueuePanel({
                   <OfficerHashForm
                     id={q.id}
                     signer={REGISTRY_KINDS.has(q.kind) ? "Oficial" : "emisor"}
-                    disabled={!!busy || !!q.blockedReason}
+                    disabled={!!busy || !canRun(q) || !!q.blockedReason}
                     onSubmit={(txHash) => onRegister(q.id, txHash)}
                   />
                 ) : (
                   <button
-                    disabled={!!busy || !!q.blockedReason}
+                    disabled={!!busy || !canRun(q) || !!q.blockedReason}
                     onClick={() => onExecute(q.id)}
                     className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring disabled:opacity-40"
                   >

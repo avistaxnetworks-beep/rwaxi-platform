@@ -11,6 +11,7 @@ import { executeChainTransaction, registerOfficerTransaction } from "../chain-ac
 import { declareDistribution } from "../distribution-actions";
 import type { DistributionOfferingRow, DistributionRow, DistributionsDeskData, DistributionsDeskResult } from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
+import { DeskAccess, SessionLine, useCanAct } from "./desk-access";
 
 type Currency = "COP" | "USD";
 type Toast = (message: string) => void;
@@ -40,7 +41,11 @@ export function DistributionsDesk({ desk, toast }: { desk: DistributionsDeskResu
       </div>
     );
   }
-  return <DeskView data={desk.data} toast={toast} />;
+  return (
+    <DeskAccess session={desk.data.session} required="TENANT_ADMIN">
+      <DeskView data={desk.data} toast={toast} />
+    </DeskAccess>
+  );
 }
 
 function DeskView({ data, toast }: { data: DistributionsDeskData; toast: Toast }) {
@@ -123,6 +128,7 @@ function OfferingPanel({
   run: (id: string, action: () => Promise<Result>, onOk?: () => void) => void;
 }) {
   const { tr } = useI18n();
+  const canAct = useCanAct();
   const [period, setPeriod] = useState(lastQuarter);
   const [declared, setDeclared] = useState<Currency>("USD");
   const [amount, setAmount] = useState("");
@@ -159,7 +165,7 @@ function OfferingPanel({
         </div>
         <p className="text-[11.5px] text-muted inline-flex items-center gap-1.5">
           <Icon name="Database" size={13} className="tc-text" />
-          {tr("PostgreSQL · RLS tnt_{slug} · sesión demo: {email} (Administrador)", { slug: data.organization.slug, email: data.admin.email })}
+          <SessionLine slug={data.organization.slug} email={data.admin.email} session={data.session} admin />
         </p>
       </div>
 
@@ -258,7 +264,7 @@ function OfferingPanel({
               : tr("Indica el monto: el cálculo prorrata se muestra antes de declarar y el servidor lo recalcula sobre el snapshot de PostgreSQL.")}
           </p>
           <button
-            disabled={!!busy || !preview}
+            disabled={!!busy || !canAct || !preview}
             onClick={declare}
             data-declare-distribution={o.id}
             className="tc-btn self-start px-4 py-2.5 text-[12.5px] font-semibold inline-flex items-center gap-2 focus-ring disabled:opacity-50"
@@ -312,6 +318,7 @@ function DistributionItem({
   onRegister: (chainTxId: string, txHash: string) => void;
 }) {
   const { tr } = useI18n();
+  const canAct = useCanAct();
   const [txHash, setTxHash] = useState("");
   const anchor = d.anchor;
   const pending = anchor?.status === "PENDING";
@@ -347,7 +354,7 @@ function DistributionItem({
           </span>
           {pending && anchor && mode === "SIMULATION" && (
             <button
-              disabled={!!busy || !!anchor.blockedReason}
+              disabled={!!busy || !canAct || !!anchor.blockedReason}
               onClick={() => onExecute(anchor.chainTxId)}
               data-anchor-execute={anchor.chainTxId}
               className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring disabled:opacity-40"
@@ -370,7 +377,7 @@ function DistributionItem({
                 className={fieldCls(false) + " font-mono text-[11.5px] w-[300px] max-w-full py-1.5"}
               />
               <button
-                disabled={!!busy || !/^0x[0-9a-fA-F]{64}$/.test(txHash.trim())}
+                disabled={!!busy || !canAct || !/^0x[0-9a-fA-F]{64}$/.test(txHash.trim())}
                 onClick={() => onRegister(anchor.chainTxId, txHash.trim())}
                 className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue focus-ring disabled:opacity-40"
               >

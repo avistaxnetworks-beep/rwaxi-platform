@@ -5,7 +5,8 @@ import { render, requestTranslate } from "@/app/_i18n/server";
 import { executionMode, operatorAddress } from "@/app/_lib/server/chain-executor";
 import { blockerReason, loadChainState } from "@/app/_lib/server/chain-invariants";
 import { toQueueItem, walletOf } from "@/app/_lib/server/chain-queue";
-import { TenantAccessError, demoAccessEnabled, requireHostTenant } from "@/app/_lib/server/tenant-context";
+import { backofficeAccess } from "@/app/_lib/server/staff-auth";
+import { TenantAccessError, requireHostTenant } from "@/app/_lib/server/tenant-context";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,9 @@ export async function GET(req: NextRequest) {
   const tr = await requestTranslate("tenant");
   try {
     const tenant = await requireHostTenant();
-    if (!demoAccessEnabled()) {
-      return json({ ok: false, error: tr("Inspector deshabilitado en producción hasta configurar autenticación.") }, 403);
+    // The queue names investors: only the tenant's staff (signed in, or the demo session) may read it.
+    if (!(await backofficeAccess(tenant.id))) {
+      return json({ ok: false, error: tr("Inicia sesión en el backoffice para consultar la cola on-chain.") }, 403);
     }
     const scope = req.nextUrl.searchParams.get("scope") === "all" ? "all" : "pending";
 
