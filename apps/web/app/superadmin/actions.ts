@@ -13,9 +13,11 @@
  * Each action is one transaction with a conditional state transition and an AuditEvent on the
  * affected organization, whose subjectHash is the SHA-256 (canonical JSON) of the recorded decision.
  */
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { keccak256, toHex } from "viem";
 import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
+import { objectKey } from "@rwaxi/document-vault";
 import {
   isUniqueViolation,
   platformPrisma,
@@ -29,7 +31,9 @@ import {
 } from "@rwaxi/database";
 import { LEGAL_COMPLIANCE, LEGAL_NDA } from "@/app/_lib/data/legal";
 import { ExecutionError, executeChainTx } from "@/app/_lib/server/chain-executor";
+import { issueInvitation, type InvitedRole } from "@/app/_lib/server/staff-invitations";
 import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
+import { vault, verifyReceipt } from "@/app/_lib/server/vault";
 import { parseOnboarding } from "./_lib/onboarding";
 import { RESERVED_SLUGS, SLUG_RULE } from "./_lib/onboarding-shared";
 import { requirePlatformSession, type PlatformSession } from "./_lib/session";
@@ -63,6 +67,9 @@ function refresh() {
 }
 
 const clean = (raw: unknown) => (typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "");
+
+/** A cuid-shaped id for an organization created by the onboarding (its vault keys need it before the INSERT). */
+const newOrganizationId = () => `c${Date.now().toString(36)}${crypto.randomBytes(8).toString("hex")}`;
 
 /** Restrictive decisions need a motive (10–300 chars); lifting them may carry one. */
 function reasonOf(raw: unknown, required: boolean): string | null {
@@ -423,12 +430,33 @@ export async function checkSlugAvailability(slug: string): Promise<{ ok: true; a
  * ORGANIZATION_ONBOARDED audit event.
  */
 export async function onboardDeveloper(input: unknown): Promise<PlatformActionResult & { slug?: string }> {
+  let copied: string[] = [];
   try {
     const parsed = parseOnboarding(input);
     if (!parsed.ok) throw new PlatformError(parsed.error);
     const { company: c, admin, officer, offering: o, documents, dataRoomRoot, fees } = parsed.plan;
     const session = await requirePlatformSession();
     const meta = await requestMeta();
+
+    // The Data Room files were verified in staging by this console session (one receipt each); they are copied
+    // into the new tenant's vault before the tenant exists in the database, so no document is ever left without
+    // its file. The id is chosen here because the vault keys carry it.
+    const organizationId = newOrganizationId();
+    const files = documents.map((d) => {
+      const claims = verifyReceipt(d.receipt, { scope: "staging", subject: `usr:${session.admin.id}` });
+      if (!claims || claims.sha256 !== d.sha256 || claims.sizeBytes !== d.sizeBytes) {
+        throw new PlatformError(`El documento «${d.name}» no fue verificado por el servidor: vuelve a adjuntarlo.`);
+      }
+      return { ...d, mimeType: claims.mimeType, storageKey: objectKey({ organizationId }, d.sha256) };
+    });
+    for (const f of files) {
+      await vault()
+        .copy(objectKey("staging", f.sha256), f.storageKey)
+        .catch(() => {
+          throw new PlatformError(`El archivo de «${f.name}» ya no está en la bóveda temporal: vuelve a adjuntarlo.`);
+        });
+      copied.push(f.storageKey);
+    }
 
     const message = await transaction(
       platformPrisma(),
@@ -441,6 +469,7 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
         const regimeKey = c.regime === "SARLAFT" ? "sarlaft" : "sagrilaft";
         const org = await tx.organization.create({
           data: {
+            id: organizationId,
             slug: c.slug,
             displayName: c.displayName,
             legalName: c.legalName,
@@ -460,12 +489,20 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
         });
         const onchainId = keccak256(toHex(org.id));
         await tx.organization.update({ where: { id: org.id }, data: { onchainId } });
-        await tx.user.createMany({
-          data: [
-            { organizationId: org.id, email: admin.email, fullName: admin.fullName, role: "TENANT_ADMIN", walletAddress: admin.wallet },
-            { organizationId: org.id, email: officer.email, fullName: officer.fullName, role: "COMPLIANCE_OFFICER", walletAddress: officer.wallet },
-          ],
-        });
+        // Without a password: each one activates the account from the invitation link (password + TOTP).
+        const team = await Promise.all(
+          (
+            [
+              [admin, "TENANT_ADMIN"],
+              [officer, "COMPLIANCE_OFFICER"],
+            ] as const
+          ).map(([p, role]) =>
+            tx.user.create({
+              data: { organizationId: org.id, email: p.email, fullName: p.fullName, role, walletAddress: p.wallet },
+              select: { id: true, email: true, fullName: true, role: true },
+            }),
+          ),
+        );
         const offering = await tx.offering.create({
           data: {
             organizationId: org.id,
@@ -509,8 +546,22 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
             status: "NOT_DEPLOYED",
           },
         });
+        await tx.vaultObject.createMany({
+          data: files.map((f) => ({ organizationId: org.id, sha256: f.sha256, sizeBytes: f.sizeBytes, mimeType: f.mimeType, storageKey: f.storageKey })),
+          skipDuplicates: true,
+        });
         await tx.dataRoomDocument.createMany({
-          data: documents.map((d) => ({ organizationId: org.id, offeringId: offering.id, ...d, uploadedAt: now })),
+          data: files.map((f) => ({
+            organizationId: org.id,
+            offeringId: offering.id,
+            folder: f.folder,
+            name: f.name,
+            restricted: f.restricted,
+            sha256: f.sha256,
+            sizeBytes: f.sizeBytes,
+            storageKey: f.storageKey,
+            uploadedAt: now,
+          })),
         });
         const fee = Number(fees.setupUsd) > 0
           ? await tx.feeLedgerEntry.create({
@@ -561,19 +612,104 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
             stage: o.stage,
             documents: documents.length,
             dataRoomRoot,
+            vault: files.map((f) => ({ sha256: f.sha256, mimeType: f.mimeType, sizeBytes: f.sizeBytes })),
             fees,
             setupFeeEntryId: fee?.id ?? null,
             registryChainTransactionId: registryTx.id,
           },
         });
-        return `${c.displayName} dado de alta · ${c.slug}.rwaxi.com en revisión · registro on-chain en cola`;
+        for (const user of team) {
+          const invitation = await issueInvitation(tx, {
+            organizationId: org.id,
+            tenant: { slug: c.slug, displayName: c.displayName },
+            user: { ...user, role: user.role as InvitedRole },
+          });
+          await audit(tx, session, meta, {
+            organizationId: org.id,
+            action: "STAFF_INVITED",
+            entityType: "User",
+            entityId: user.id,
+            payload: {
+              tenant: c.displayName,
+              email: user.email,
+              role: user.role,
+              invitationId: invitation.invitationId,
+              expiresAt: invitation.expiresAt.toISOString(),
+            },
+          });
+        }
+        return `${c.displayName} dado de alta · ${c.slug}.rwaxi.com en revisión · registro on-chain en cola · invitaciones de activación enviadas`;
       },
       { maxWait: 10_000, timeout: 30_000 },
     );
+    copied = [];
     refresh();
     return { ok: true, message, slug: parsed.plan.company.slug };
   } catch (e) {
+    // The tenant was not created: its vault copies go too (the staged originals stay).
+    await Promise.all(copied.map((key) => vault().remove(key).catch(() => undefined)));
     if (isUniqueViolation(e)) return { ok: false, error: onboardingConflict(e) };
+    return failure(e);
+  }
+}
+
+/**
+ * Module A · a new activation link for a staff member of a developer whose invitation expired unused (or
+ * that has none): earlier links are revoked, the email goes to mail_outbox, STAFF_INVITATION_RESENT is recorded.
+ */
+export async function resendStaffInvitation(userId: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof userId !== "string" || !ID.test(userId)) throw new PlatformError("Usuario inválido.");
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+    const message = await platformTx(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          active: true,
+          passwordHash: true,
+          organization: { select: { id: true, slug: true, displayName: true } },
+          invitations: { orderBy: { createdAt: "desc" }, take: 1 },
+        },
+      });
+      if (!user?.organization) throw new PlatformError("Usuario no encontrado.");
+      if (user.role !== "TENANT_ADMIN" && user.role !== "COMPLIANCE_OFFICER") throw new PlatformError("Sólo se invita al personal del desarrollador.");
+      if (user.passwordHash) throw new PlatformError(`La cuenta de ${user.email} ya está activa.`);
+      if (!user.active) throw new PlatformError(`La cuenta de ${user.email} está desactivada.`);
+      const last = user.invitations[0];
+      if (last && !last.consumedAt && !last.revokedAt && last.expiresAt.getTime() > Date.now()) {
+        throw new PlatformError(`La invitación de ${user.email} sigue vigente hasta ${last.expiresAt.toISOString().slice(0, 16).replace("T", " ")} UTC.`);
+      }
+      const invitation = await issueInvitation(tx, {
+        organizationId: user.organization.id,
+        tenant: { slug: user.organization.slug, displayName: user.organization.displayName },
+        user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role },
+      });
+      await audit(tx, session, meta, {
+        organizationId: user.organization.id,
+        action: "STAFF_INVITATION_RESENT",
+        entityType: "User",
+        entityId: user.id,
+        payload: {
+          tenant: user.organization.displayName,
+          email: user.email,
+          role: user.role,
+          invitationId: invitation.invitationId,
+          expiresAt: invitation.expiresAt.toISOString(),
+          previousInvitationId: last?.id ?? null,
+          previousExpiredAt: last?.expiresAt.toISOString() ?? null,
+          revoked: invitation.revoked,
+        },
+      });
+      return `Invitación reenviada a ${user.email} · vence ${invitation.expiresAt.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
     return failure(e);
   }
 }

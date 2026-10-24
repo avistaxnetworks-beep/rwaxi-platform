@@ -230,7 +230,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
             {open.documents.length > 0 && (
               <div className="border border-line">
                 <p className="px-4 py-2 border-b border-line bg-cloud font-mono text-[10.5px] tracking-[0.12em] text-muted uppercase">
-                  {tr("Documentos del expediente · SHA-256 calculado en el navegador del inversionista")}
+                  {tr("Documentos del expediente · SHA-256 verificado por el servidor al recibirlos")}
                 </p>
                 <ul>
                   {open.documents.map((doc) => (
@@ -242,7 +242,32 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                         {doc.kind === "front" ? `${tr("Frente")} · ` : doc.kind === "back" ? `${tr("Reverso")} · ` : ""}
                         {doc.name}
                       </span>
-                      <span className="font-mono text-[11px] text-muted">{shortHash(doc.sha256, 14, 8)}</span>
+                      <span className="inline-flex items-center gap-3">
+                        <span className="font-mono text-[11px] text-muted">{shortHash(doc.sha256, 14, 8)}</span>
+                        {doc.stored && open.kycCaseId ? (
+                          <>
+                            <a
+                              href={`/api/vault/kyc/${open.kycCaseId}/${doc.kind}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-rxBlue font-semibold inline-flex items-center gap-1 focus-ring"
+                              data-kyc-document={doc.kind}
+                            >
+                              <Icon name="Eye" size={13} />
+                              {tr("Abrir")}
+                            </a>
+                            <a
+                              href={`/api/vault/kyc/${open.kycCaseId}/${doc.kind}?download=1`}
+                              className="text-rxBlue inline-flex items-center gap-1 focus-ring"
+                              aria-label={tr("Descargar {name}", { name: doc.name })}
+                            >
+                              <Icon name="Download" size={13} />
+                            </a>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-muted">{tr("Sin archivo en la bóveda")}</span>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>

@@ -17,7 +17,7 @@ import { calldataOf, walletOf } from "./chain-queue";
  */
 export const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
 /** Calls the tenant signs with its own keys (compliance officer, issuer): RWAXI never holds those roles. */
-export const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED"]);
+export const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED"]);
 /** Who asks to execute: the tenant's backoffice, or RWAXI's platform console (RWAXI_OPERATOR_ROLE calls). */
 export type ExecutionOrigin = "tenant" | "platform";
 

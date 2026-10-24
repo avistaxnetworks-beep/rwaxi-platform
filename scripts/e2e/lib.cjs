@@ -418,6 +418,72 @@ async function staffLogin(page, email, password = DEMO_PASSWORD) {
   return totp;
 }
 
+/** RFC 4648 base32 (the enrolment key an authenticator app reads), decoded independently. */
+function fromBase32(s) {
+  let bits = 0;
+  let value = 0;
+  const out = [];
+  for (const ch of s.replace(/\s/g, "")) {
+    value = (value << 5) | "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".indexOf(ch);
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(out);
+}
+
+// ── DocumentVault (local driver of the dev server: <repo>/.vault, content-addressed per tenant) ──
+const VAULT_DIR = process.env.DOCUMENT_VAULT_DIR || path.join(ROOT, ".vault");
+const vaultPath = (organizationId, sha256) =>
+  path.join(VAULT_DIR, ...(organizationId ? ["tenants", organizationId] : ["staging"]), "sha256", sha256.replace(/^0x/, "").toLowerCase());
+const fileSha256 = (file) => "0x" + crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+/** A minimal PDF the vault accepts (magic bytes %PDF-), unique per call unless `seed` repeats. */
+const pdfBytes = (seed = crypto.randomBytes(12).toString("hex")) => Buffer.from(`%PDF-1.4\n% RWAXI E2E ${seed}\n%%EOF\n`);
+const sha256Of = (bytes) => "0x" + crypto.createHash("sha256").update(bytes).digest("hex");
+
+/** POST /api/vault/upload from `page` (its host and cookies): returns { status, body }. */
+const vaultUpload = (page, { purpose, bytes, type, name = "documento.pdf", sha256, fields = {} }) =>
+  page.evaluate(
+    async ({ purpose, b64, type, name, sha256, fields }) => {
+      const data = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const form = new FormData();
+      form.set("purpose", purpose);
+      form.set("sha256", sha256);
+      for (const [k, v] of Object.entries(fields)) form.set(k, v);
+      form.set("file", new File([data], name, { type }));
+      const r = await fetch("/api/vault/upload", { method: "POST", body: form });
+      return { status: r.status, body: await r.json().catch(() => null) };
+    },
+    { purpose, b64: Buffer.from(bytes).toString("base64"), type, name, sha256, fields },
+  );
+
+/** GET a vault file from `page`: status, headers and the SHA-256 of the body computed in the browser. */
+const vaultGet = (page, target) =>
+  page.evaluate(async (target) => {
+    const r = await fetch(target, { cache: "no-store" });
+    const buf = await r.arrayBuffer();
+    const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    let error = null;
+    if (!r.ok) {
+      try {
+        error = JSON.parse(new TextDecoder().decode(buf)).error;
+      } catch {
+        /* not JSON */
+      }
+    }
+    return {
+      status: r.status,
+      type: r.headers.get("content-type"),
+      disposition: r.headers.get("content-disposition"),
+      nosniff: r.headers.get("x-content-type-options"),
+      header: r.headers.get("x-rwaxi-sha256"),
+      sha256: `0x${hex}`,
+      error,
+    };
+  }, target);
+
 module.exports = {
   ROOT,
   PORT,
@@ -470,4 +536,12 @@ module.exports = {
   cookieOf,
   submitLogin,
   staffLogin,
+  fromBase32,
+  VAULT_DIR,
+  vaultPath,
+  fileSha256,
+  pdfBytes,
+  sha256Of,
+  vaultUpload,
+  vaultGet,
 };

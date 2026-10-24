@@ -364,7 +364,9 @@ async function broadcast(
         throw new ExecutionError(
           prepared.tx.kind === "DISTRIBUTION_ROOT_ANCHORED"
             ? msg("Modo RPC: el emisor firma anchorDistributionRoot con su propia wallet (RWAXI no custodia DISTRIBUTION_ROLE); registra luego su tx hash.")
-            : msg("Modo RPC: esta operación la firma el Oficial de Cumplimiento con su propia wallet (RWAXI no custodia COMPLIANCE_OFFICER_ROLE); registra luego su tx hash."),
+            : prepared.tx.kind === "DATA_ROOM_ROOT_ANCHORED"
+              ? msg("Modo RPC: el emisor firma updateDataRoomMerkleRoot con su propia wallet (RWAXI no custodia DATA_ROOM_ROLE); registra luego su tx hash.")
+              : msg("Modo RPC: esta operación la firma el Oficial de Cumplimiento con su propia wallet (RWAXI no custodia COMPLIANCE_OFFICER_ROLE); registra luego su tx hash."),
         );
       }
       const clients = rpcClients(prepared.tx.network, account); // a missing RPC_URL fails before claiming
@@ -428,8 +430,8 @@ export async function confirmExternalTransaction(
   if (executionMode() !== "RPC") throw new ExecutionError("Registrar un tx hash externo sólo aplica en modo RPC.");
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new ExecutionError("Tx hash inválido.");
   const { tx } = await withTenant(organizationId, (db) => prepare(db, chainTxId), TX_OPTIONS);
-  if (tx.kind !== "INVESTOR_WHITELISTED" && tx.kind !== "DISTRIBUTION_ROOT_ANCHORED") {
-    throw new ExecutionError("Sólo approveInvestor() y anchorDistributionRoot() se registran por hash.");
+  if (!TENANT_SIGNED_KINDS.has(tx.kind)) {
+    throw new ExecutionError("Sólo approveInvestor(), anchorDistributionRoot() y updateDataRoomMerkleRoot() se registran por hash.");
   }
   const { publicClient } = rpcClients(tx.network);
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
@@ -445,23 +447,37 @@ export async function confirmExternalTransaction(
             e.args.countryCode === Number(args.countryCode) &&
             lower(e.args.kycDossierHash) === lower(args.kycDossierHash),
         )
-      : parseEventLogs({ abi: rwaxiPropertyTokenAbi, logs: receipt.logs, eventName: "DistributionRootAnchored" }).some(
-          (e) =>
-            fromQueued(e.address) &&
-            lower(e.args.distributionId) === lower(args.distributionId) &&
-            lower(e.args.merkleRoot) === lower(args.merkleRoot) &&
-            e.args.totalAmountCents === BigInt(String(args.totalAmountCents)) &&
-            e.args.snapshotSupply === BigInt(String(args.snapshotSupply)),
-        );
+      : tx.kind === "DATA_ROOM_ROOT_ANCHORED"
+        ? parseEventLogs({ abi: rwaxiPropertyTokenAbi, logs: receipt.logs, eventName: "DataRoomMerkleRootAnchored" }).some(
+            (e) => fromQueued(e.address) && lower(e.args.newRoot) === lower(args.newRoot),
+          )
+        : parseEventLogs({ abi: rwaxiPropertyTokenAbi, logs: receipt.logs, eventName: "DistributionRootAnchored" }).some(
+            (e) =>
+              fromQueued(e.address) &&
+              lower(e.args.distributionId) === lower(args.distributionId) &&
+              lower(e.args.merkleRoot) === lower(args.merkleRoot) &&
+              e.args.totalAmountCents === BigInt(String(args.totalAmountCents)) &&
+              e.args.snapshotSupply === BigInt(String(args.snapshotSupply)),
+          );
   if (!match) {
-    const eventName = tx.kind === "INVESTOR_WHITELISTED" ? "InvestorWhitelisted" : "DistributionRootAnchored";
+    const eventName =
+      tx.kind === "INVESTOR_WHITELISTED"
+        ? "InvestorWhitelisted"
+        : tx.kind === "DATA_ROOM_ROOT_ANCHORED"
+          ? "DataRoomMerkleRootAnchored"
+          : "DistributionRootAnchored";
     throw new ExecutionError("La transacción no emitió {event} con los argumentos en cola.", { event: eventName });
   }
   const sent = await publicClient.getTransaction({ hash: txHash as Hex });
   const ex: Execution = {
     id: tx.id,
     kind: tx.kind,
-    fn: tx.kind === "INVESTOR_WHITELISTED" ? "approveInvestor" : "anchorDistributionRoot",
+    fn:
+      tx.kind === "INVESTOR_WHITELISTED"
+        ? "approveInvestor"
+        : tx.kind === "DATA_ROOM_ROOT_ANCHORED"
+          ? "updateDataRoomMerkleRoot"
+          : "anchorDistributionRoot",
     txHash: txHash as Hex,
     blockNumber: receipt.blockNumber,
     mode: "RPC",

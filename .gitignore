@@ -16,6 +16,9 @@ next-env.d.ts
 # e2e screenshots
 scripts/e2e/.artifacts/
 
+# DocumentVault local driver (KYC and Data Room files of development): private, never committed
+.vault/
+
 # hardhat
 contracts/artifacts/
 contracts/cache/

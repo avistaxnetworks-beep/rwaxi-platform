@@ -8,7 +8,9 @@ import { fieldCls } from "@/app/_components/ui/form";
 import { REGIMES } from "@/app/_lib/data/kyc";
 import { money, shortHash } from "@/app/_lib/format";
 import { envHref } from "@/app/_lib/hosts";
+import { samplePdf } from "@rwaxi/document-vault/sample";
 import { sha256Bytes } from "@/app/_lib/sha256";
+import { uploadToVault } from "@/app/_lib/vault-upload";
 import { checkSlugAvailability, onboardDeveloper } from "../actions";
 import {
   DOCUMENT_SLOTS,
@@ -67,10 +69,35 @@ function emptyInput(code: string, network: string): OnboardingInput {
   };
 }
 
-async function documentOf(slot: { folder: string; name: string; restricted: boolean }, file: Blob, fileName: string): Promise<OnboardingDocument> {
+/**
+ * A Data Room file, uploaded at once to the vault's staging area: the server recomputes its SHA-256 and checks
+ * its type; its receipt lets onboardDeveloper() move the verified bytes into the new tenant's vault.
+ */
+async function documentOf(
+  slot: { folder: string; name: string; restricted: boolean },
+  file: Blob,
+  fileName: string,
+): Promise<{ ok: true; doc: OnboardingDocument } | { ok: false; error: string }> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return { ...slot, sha256: `0x${await sha256Bytes(bytes)}`, sizeBytes: bytes.byteLength, fileName };
+  const sha256 = `0x${await sha256Bytes(bytes)}`;
+  const uploaded = await uploadToVault(new Blob([bytes], { type: file.type }), fileName, "onboarding");
+  if (!uploaded.ok || !uploaded.receipt) return { ok: false, error: (!uploaded.ok && uploaded.error) || "No se pudo subir el archivo a la bóveda." };
+  return { ok: true, doc: { ...slot, sha256, sizeBytes: uploaded.sizeBytes, fileName, receipt: uploaded.receipt } };
 }
+
+/** Illustrative PDF of a base Data Room slot (the same bytes for the same developer and slot). */
+const sampleFile = (legalName: string, slot: { folder: string; name: string }) =>
+  new Blob(
+    [
+      samplePdf([
+        "RWAXI - documento de ejemplo del Data Room",
+        legalName,
+        `${slot.folder} - ${slot.name}`,
+        "Documento ilustrativo de demostracion: no constituye oferta ni contrato.",
+      ]) as BlobPart,
+    ],
+    { type: "application/pdf" },
+  );
 
 function Text({ id, title, value, onChange, hint, mono, ...rest }: { id: string; title: string; value: string; onChange: (v: string) => void; hint?: ReactNode; mono?: boolean; placeholder?: string; inputMode?: "decimal" | "numeric" }) {
   return (
@@ -112,6 +139,8 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<string | null>(null);
+  /** server answer per Data Room slot that refused its file (type, size or SHA-256) */
+  const [rowError, setRowError] = useState<Record<number, string | null>>({});
   const [, startTransition] = useTransition();
 
   const set = <K extends keyof OnboardingInput>(section: K, patch: Partial<OnboardingInput[K]>) =>
@@ -188,16 +217,10 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
         tokenSymbol: (slugFrom(c.displayName || "costa azul").replace(/[^a-z]/g, "").slice(0, 3) || "TCA").toUpperCase(),
       });
     } else if (step === 3) {
-      const docs = await Promise.all(
-        DOCUMENT_SLOTS.map((slot) =>
-          documentOf(
-            slot,
-            new Blob([`RWAXI · documento de ejemplo\n${c.legalName}\n${slot.folder} · ${slot.name}\n${new Date().toISOString()}\n`], { type: "text/plain" }),
-            `${slot.name}.txt`,
-          ),
-        ),
-      );
-      setForm((f) => ({ ...f, documents: docs }));
+      const results = await Promise.all(DOCUMENT_SLOTS.map((slot) => documentOf(slot, sampleFile(c.legalName, slot), `${slot.name}.pdf`)));
+      const failed = results.find((r) => !r.ok);
+      if (failed && !failed.ok) setError(failed.error);
+      setForm((f) => ({ ...f, documents: results.flatMap((r) => (r.ok ? [r.doc] : [])) }));
     } else {
       set("fees", { setupUsd: "8000", monthlyUsd: "1200", usagePct: "1.2" });
     }
@@ -206,8 +229,10 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
   const attach = async (index: number, file: File | undefined) => {
     if (!file) return;
     const slot = DOCUMENT_SLOTS[index]!;
-    const doc = await documentOf(slot, file, file.name);
-    setForm((f) => ({ ...f, documents: [...f.documents.filter((d) => !(d.folder === slot.folder && d.name === slot.name)), doc] }));
+    setRowError((e) => ({ ...e, [index]: null }));
+    const result = await documentOf(slot, file, file.name);
+    if (!result.ok) return setRowError((e) => ({ ...e, [index]: result.error }));
+    setForm((f) => ({ ...f, documents: [...f.documents.filter((d) => !(d.folder === slot.folder && d.name === slot.name)), result.doc] }));
   };
   const docOf = (slot: { folder: string; name: string }) => form.documents.find((d) => d.folder === slot.folder && d.name === slot.name);
 
@@ -238,7 +263,8 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
         <div className="flex flex-col gap-4" data-onboarded-slug={created}>
           <p className="text-[13px] text-inkBody leading-relaxed">
             {`${c.displayName || c.legalName} quedó creado en PostgreSQL en estado REVIEW y fuera de la vitrina. Se causó el Setup Fee y `}
-            {"el despliegue de su RwaxiComplianceRegistry quedó en cola para el operador RWAXI."}
+            {"el despliegue de su RwaxiComplianceRegistry quedó en cola para el operador RWAXI. "}
+            {`${form.team.admin.email} y ${form.team.officer.email} recibieron su enlace de activación (contraseña + TOTP), válido 72 horas.`}
           </p>
           <div className="flex flex-wrap gap-2">
             <a href={envHref("portal", created)} target="_blank" rel="noreferrer" className="tc-btn px-3.5 py-2 text-[12.5px] font-semibold inline-flex items-center gap-1.5">
@@ -386,7 +412,9 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
           {step === 3 && (
             <div className="flex flex-col gap-3">
               <p className="text-[12px] text-muted">
-                Cada archivo se hashea (SHA-256) en este navegador; la raíz de Merkle del Data Room se recalcula en el servidor con @rwaxi/blockchain-sdk.
+                Cada archivo se hashea (SHA-256) en este navegador y se sube a la bóveda documental, que recalcula su SHA-256 y verifica su tipo
+                (PDF, imagen, DOCX o XLSX · máx. 20 MB) antes de guardarlo; la raíz de Merkle del Data Room se recalcula en el servidor con
+                @rwaxi/blockchain-sdk.
               </p>
               <div className="border border-line overflow-x-auto">
                 <table className="w-full min-w-[640px] text-[12px]">
@@ -400,7 +428,15 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
                             {slot.name}
                             <span className="block text-[10.5px] text-muted">{slot.restricted ? "Restringido (NDA + KYC)" : "Público"}</span>
                           </td>
-                          <td className="px-3 py-2 font-mono text-[10.5px] text-muted">{doc ? `${doc.fileName} · ${doc.sizeBytes} B · ${shortHash(doc.sha256, 10, 6)}` : "—"}</td>
+                          <td className="px-3 py-2 font-mono text-[10.5px] text-muted">
+                            {doc ? `${doc.fileName} · ${doc.sizeBytes} B · ${shortHash(doc.sha256, 10, 6)}` : "—"}
+                            {doc?.receipt && <span className="block font-sans text-aquaInk" data-doc-verified>SHA-256 verificado en el servidor</span>}
+                            {rowError[i] && (
+                              <span role="alert" className="block font-sans text-[#B42318]" data-doc-error={i}>
+                                {rowError[i]}
+                              </span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-right">
                             <label className="text-rxBlue font-semibold cursor-pointer text-[11.5px]">
                               {doc ? "Cambiar" : "Adjuntar"}

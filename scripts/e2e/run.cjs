@@ -6,9 +6,23 @@
 const { url } = require("./lib.cjs");
 const { seed, runSuite, waitForHttp, summary } = require("./runner.cjs");
 
-const SUITES = ["backoffice", "portal", "referrals-subscriptions", "payments-queue", "superadmin-ops", "onboarding", "distributions", "i18n", "auth"];
-// They act through the demo staff session (RWAXI_DEMO_AUTH); auth opts its browsers out and signs in for real.
-const DEMO_SUITES = SUITES.filter((s) => s !== "auth");
+const SUITES = [
+  "backoffice",
+  "portal",
+  "referrals-subscriptions",
+  "payments-queue",
+  "superadmin-ops",
+  "onboarding",
+  "distributions",
+  "i18n",
+  "auth",
+  "activation",
+  "vault",
+];
+// They act through the demo staff session (RWAXI_DEMO_AUTH); the last three opt their browsers out and sign in
+// for real (pnpm e2e:strict runs them against a server with RWAXI_DEMO_AUTH=0).
+const REAL_AUTH_SUITES = ["auth", "activation", "vault"];
+const DEMO_SUITES = SUITES.filter((s) => !REAL_AUTH_SUITES.includes(s));
 
 (async () => {
   const selected = process.argv.slice(2).length ? process.argv.slice(2) : SUITES;

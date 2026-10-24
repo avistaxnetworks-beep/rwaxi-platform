@@ -57,7 +57,8 @@ export interface OnboardingPlan {
     tokenSymbol: string;
     pipeline: string[];
   };
-  documents: { folder: string; name: string; restricted: boolean; sha256: string; sizeBytes: number }[];
+  /** `receipt`: the DocumentVault receipt of the file's verified upload to staging (/api/vault/upload) */
+  documents: { folder: string; name: string; restricted: boolean; sha256: string; sizeBytes: number; receipt: string }[];
   dataRoomRoot: string;
   fees: { setupUsd: string; monthlyUsd: string; usagePct: string };
 }
@@ -149,7 +150,9 @@ export function parseOnboarding(raw: unknown): { ok: true; plan: OnboardingPlan 
       if (!slots.has(folder)) throw new Invalid(`Documento ${i + 1}: carpeta del Data Room inválida.`);
       const sizeBytes = Number(d?.sizeBytes);
       if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > 50 * 1024 * 1024) throw new Invalid(`Documento ${i + 1}: tamaño entre 1 byte y 50 MB.`);
-      return { folder, name: text(d?.name, `Documento ${i + 1}: nombre`, 3, 120), restricted: d?.restricted !== false, sha256, sizeBytes };
+      const receipt = typeof d?.receipt === "string" ? d.receipt : "";
+      if (!receipt) throw new Invalid(`Documento ${i + 1}: el servidor no lo ha verificado; vuelve a adjuntarlo.`);
+      return { folder, name: text(d?.name, `Documento ${i + 1}: nombre`, 3, 120), restricted: d?.restricted !== false, sha256, sizeBytes, receipt };
     });
     if (new Set(documents.map((d) => d.sha256)).size !== documents.length) throw new Invalid("Data Room: hay documentos repetidos (mismo SHA-256).");
 

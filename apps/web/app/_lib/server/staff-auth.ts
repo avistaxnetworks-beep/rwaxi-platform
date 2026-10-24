@@ -91,7 +91,7 @@ function inScope<T>(
     : transaction(platformPrisma(), fn);
 }
 
-async function setSessionCookie(token: string, maxAgeMs: number) {
+export async function setSessionCookie(token: string, maxAgeMs: number) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -155,7 +155,8 @@ export const currentStaff = cache(
   },
 );
 
-async function audit(
+/** An AuditEvent of staff authentication (also used by the account activation, staff-activation.ts). */
+export async function audit(
   db: Db,
   scope: StaffScope,
   organizationId: string | null,
@@ -429,6 +430,35 @@ export async function completeLogin(
   if (opened instanceof AuthError) return { ok: false, error: opened.reason };
   await setSessionCookie(fresh, TTL[scope]);
   return { ok: true };
+}
+
+/**
+ * A session already verified with both factors, for a person who just proved them outside the login form (the
+ * account activation sets the password and confirms the first TOTP code). The caller sets the cookie.
+ */
+export async function openVerifiedSession(
+  db: Db,
+  scope: StaffScope,
+  organizationId: string | null,
+  userId: string,
+  meta: Meta,
+): Promise<{ id: string; token: string; maxAgeMs: number }> {
+  const token = newToken();
+  const now = new Date();
+  const row = await db.userSession.create({
+    data: {
+      organizationId,
+      userId,
+      scope,
+      tokenHash: tokenHash(token),
+      mfaVerifiedAt: now,
+      expiresAt: new Date(now.getTime() + TTL[scope]),
+      lastSeenAt: now,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    },
+  });
+  return { id: row.id, token, maxAgeMs: TTL[scope] };
 }
 
 /** Revokes the browser's session of this scope (verified or still pending) and forgets the cookie. */

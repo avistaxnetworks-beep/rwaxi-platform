@@ -175,6 +175,29 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
       : null;
 
     const offering = await db.offering.findFirst({ ...PORTAL_OFFERING, select: OFFERING_STATE_SELECT });
+    // The Data Room is listed to every visitor; its files only go out per NDA / AccessGrant (/api/vault/data-room).
+    const [room, documents] = offering
+      ? await Promise.all([
+          db.offering.findUnique({ where: { id: offering.id }, select: { dataRoomRoot: true } }),
+          db.dataRoomDocument.findMany({
+            where: { offeringId: offering.id },
+            orderBy: [{ folder: "asc" }, { uploadedAt: "asc" }, { name: "asc" }],
+            select: {
+              id: true,
+              folder: true,
+              name: true,
+              restricted: true,
+              sha256: true,
+              sizeBytes: true,
+              storageKey: true,
+            },
+          }),
+        ])
+      : [null, []];
+    const dataRoom = {
+      root: room?.dataRoomRoot ?? null,
+      documents: documents.map(({ storageKey, ...d }) => ({ ...d, stored: !!storageKey })),
+    };
     const anonymous: PersistedJourney = {
       portalStatus: tenant.portalStatus,
       investor: null,
@@ -185,6 +208,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
       holdings: [],
       distributions: [],
       offering: offering ? offeringState(offering) : null,
+      dataRoom,
     };
 
     const session = await readInvestorSession(tenant.id);
@@ -270,6 +294,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
         holdings: toHoldings(investor.subscriptions),
         distributions,
         offering: offeringState(offering),
+        dataRoom,
       },
     };
   } catch (e) {

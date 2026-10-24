@@ -9,12 +9,13 @@ import { PORTAL_STATUS } from "@/app/_lib/data/fees";
 import { REGIMES } from "@/app/_lib/data/kyc";
 import { money, shortHash } from "@/app/_lib/format";
 import { envHref } from "@/app/_lib/hosts";
-import { deployTenantRegistry, setOfferingCapture, setOrganizationPublished, setPortalStatus } from "../actions";
+import { deployTenantRegistry, resendStaffInvitation, setOfferingCapture, setOrganizationPublished, setPortalStatus } from "../actions";
 import type {
   PlatformActionResult,
   PlatformMetrics,
   PlatformMetricsResult,
   PlatformOfferingRow,
+  PlatformStaffRow,
   PlatformTenantRow,
   PortalStatusKey,
 } from "../_lib/types";
@@ -25,7 +26,8 @@ type Decision =
   | { kind: "status"; tenant: PlatformTenantRow; to: PortalStatusKey }
   | { kind: "publish"; tenant: PlatformTenantRow; to: boolean }
   | { kind: "capture"; tenant: PlatformTenantRow; offering: PlatformOfferingRow; pause: boolean }
-  | { kind: "registry"; tenant: PlatformTenantRow };
+  | { kind: "registry"; tenant: PlatformTenantRow }
+  | { kind: "invite"; tenant: PlatformTenantRow; user: PlatformStaffRow };
 
 const STATUSES: PortalStatusKey[] = ["ACTIVE", "REVIEW", "SUSPENDED"];
 const REGIME_KEY = { SAGRILAFT_PTEE: "sagrilaft", SARLAFT: "sarlaft" } as const;
@@ -36,6 +38,13 @@ const TOKEN_LABEL: Record<string, string> = {
   PAUSED: "pausado on-chain por el emisor",
 };
 const utc = (iso: string) => `${iso.slice(0, 16).replace("T", " ")} UTC`;
+const STAFF_ROLE: Record<PlatformStaffRow["role"], string> = { TENANT_ADMIN: "Administrador", COMPLIANCE_OFFICER: "Oficial de Cumplimiento" };
+const STAFF_STATUS: Record<PlatformStaffRow["status"], [string, string]> = {
+  ACTIVE: ["Activa · contraseña + TOTP", "bg-aquaTint text-aquaInk"],
+  PENDING: ["Pendiente de activación", "bg-goldTint text-goldInk"],
+  EXPIRED: ["Invitación vencida", "bg-[#FDECEA] text-[#B42318]"],
+  NO_INVITATION: ["Sin invitación vigente", "bg-cloud text-muted"],
+};
 
 /** What a decision does, as the confirmation dialog explains it (all controls are off-chain). */
 function effectOf(d: Decision): { title: string; effect: string; restrictive: boolean } {
@@ -55,6 +64,14 @@ function effectOf(d: Decision): { title: string; effect: string; restrictive: bo
         ? "Sus proyectos publicados vuelven al catálogo público de la vitrina RWAXI."
         : "Sus proyectos desaparecen del catálogo público de la vitrina; el portal del desarrollador sigue operando.",
       restrictive: !d.to,
+    };
+  }
+  if (d.kind === "invite") {
+    return {
+      title: `Reenviar la invitación de ${d.user.email}`,
+      effect:
+        "Se genera un nuevo enlace de activación de un solo uso, válido 72 horas, y cualquier enlace anterior deja de servir. El correo queda en la bandeja de salida (mail_outbox) y el reenvío se registra en el AuditEvent del desarrollador. Al activarlo, la persona define su contraseña y su verificación TOTP en el backoffice del tenant.",
+      restrictive: false,
     };
   }
   if (d.kind === "registry") {
@@ -115,6 +132,7 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
       if (d.kind === "status") result = await setPortalStatus(d.tenant.id, d.to, reason);
       else if (d.kind === "publish") result = await setOrganizationPublished(d.tenant.id, d.to, reason);
       else if (d.kind === "registry") result = await deployTenantRegistry(d.tenant.id);
+      else if (d.kind === "invite") result = await resendStaffInvitation(d.user.id);
       else result = await setOfferingCapture(d.offering.id, d.pause, reason);
       setBusy(false);
       if (result.ok) {
@@ -160,12 +178,13 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
           {onboarding}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] text-[12.5px]">
+          <table className="w-full min-w-[1480px] text-[12.5px]">
             <thead>
               <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
                 <th className="font-semibold px-5 py-3">Desarrollador</th>
                 <th className="font-semibold px-3 py-3">Portal</th>
                 <th className="font-semibold px-3 py-3">Régimen · registro on-chain</th>
+                <th className="font-semibold px-3 py-3">Equipo · activación</th>
                 <th className="font-semibold px-3 py-3">Proyecto · captación</th>
                 <th className="font-semibold px-3 py-3">Estado del portal</th>
                 <th className="font-semibold px-3 py-3">Vitrina RWAXI</th>
@@ -208,6 +227,31 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
                     ) : (
                       <span className="block text-[10.5px] text-muted mt-1">Sin registro on-chain</span>
                     )}
+                  </td>
+                  <td className="px-3 py-3.5 min-w-[230px]">
+                    {t.staff.map((u) => (
+                      <div key={u.id} className="mb-2 last:mb-0" data-staff={u.email} data-staff-status={u.status}>
+                        <p className="text-[11.5px] text-inkBody break-all">{u.email}</p>
+                        <p className="text-[10.5px] text-muted">{STAFF_ROLE[u.role]}</p>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <span className={`text-[10.5px] font-semibold px-2 py-0.5 ${STAFF_STATUS[u.status][1]}`}>
+                            {STAFF_STATUS[u.status][0]}
+                            {u.status === "PENDING" && u.invitationExpiresAt && ` · vence ${utc(u.invitationExpiresAt)}`}
+                          </span>
+                          {(u.status === "EXPIRED" || u.status === "NO_INVITATION") && (
+                            <button
+                              disabled={!canAct}
+                              data-resend-invitation={u.id}
+                              onClick={() => open({ kind: "invite", tenant: t, user: u })}
+                              className="text-[11px] font-semibold text-rxBlue inline-flex items-center gap-1 focus-ring disabled:opacity-40"
+                            >
+                              <Icon name="Mail" size={12} />
+                              Reenviar invitación
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </td>
                   <td className="px-3 py-3.5 min-w-[240px]">
                     {t.offerings.length === 0 && <span className="text-muted text-[11.5px]">Sin proyectos aún</span>}
@@ -348,6 +392,8 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
             <p className="text-[13px] text-inkBody leading-relaxed">{info.effect}</p>
             {decision.kind === "registry" ? (
               <p className="font-mono text-[11px] text-muted">{`${decision.tenant.slug}.rwaxi.com · deployTenantRegistry(bytes32,string,string,address,address) · red ${decision.tenant.registry.network ?? "—"}`}</p>
+            ) : decision.kind === "invite" ? (
+              <p className="font-mono text-[11px] text-muted">{`${decision.tenant.slug}.rwaxi.com/backoffice/activate · ${decision.user.email} · ${STAFF_ROLE[decision.user.role]}`}</p>
             ) : (
             <div className="flex flex-col gap-1.5">
               <label htmlFor="gov-reason" className="text-[11px] font-semibold tracking-[0.06em] uppercase text-muted">

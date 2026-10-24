@@ -5,8 +5,12 @@
  * Runs as the owner role (DIRECT_URL), which is not subject to RLS. Resets all data first.
  * Addresses and tx hashes are deterministic demo values, as in the prototype.
  */
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { computeDataRoomRoot, sha256Document, toOnchainId } from "@rwaxi/blockchain-sdk";
+import { LocalDiskStore, MIME, objectKey, vaultFromEnv } from "@rwaxi/document-vault";
+import { samplePdf } from "@rwaxi/document-vault/sample";
 import { DATAROOM, DEVELOPERS, LEADS } from "./seed-data/developers";
 import { LEGAL_COMPLIANCE, LEGAL_NDA } from "./seed-data/legal";
 import { OFFERING_TRANSLATIONS } from "./seed-data/translations";
@@ -23,13 +27,19 @@ const db = new PrismaClient({ datasourceUrl: process.env.DIRECT_URL ?? process.e
 const demoHash = (label: string) => sha256Document(`rwaxi-demo:${label}`);
 const demoAddress = (label: string) => `0x${demoHash(label).slice(2, 42)}`;
 const LEDGER_MONTHS = ["2026-08", "2026-09", "2026-10"];
+/** DocumentVault (DOCUMENT_VAULT_DRIVER): the Data Room files of the demo developers are real, verifiable bytes. */
+const vault = vaultFromEnv();
 const DAY = 86_400_000;
 
 async function reset() {
   await db.$executeRawUnsafe(`
-    TRUNCATE TABLE "user_sessions", "investor_otps", "mail_outbox", "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
+    TRUNCATE TABLE "vault_objects", "user_invitations", "user_sessions", "investor_otps", "mail_outbox", "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
       "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments",
       "offerings", "users", "organizations" CASCADE`);
+  // The database starts over, so do the local vault's files (a cloud bucket is never wiped from here).
+  if (vault instanceof LocalDiskStore) {
+    for (const area of ["tenants", "staging"]) await rm(path.join(vault.root, area), { recursive: true, force: true });
+  }
 }
 
 async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
@@ -78,19 +88,34 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
     }),
   ]);
 
-  // 9 · Data Room documents → Merkle root
-  const documents = DATAROOM.flatMap((f) =>
-    f.docs.map(([name, restricted]) => ({
-      organizationId: orgId,
-      offeringId: o.id,
-      folder: f.folder,
-      name,
-      restricted,
-      sha256: demoHash(`doc-${o.id}-${name}`),
-      sizeBytes: 180_000 + (parseInt(demoHash(name).slice(2, 6), 16) % 900_000),
-      uploadedAt: new Date("2026-09-30"),
-    })),
+  // 9 · Data Room documents → Merkle root. Each one is an illustrative PDF (deterministic bytes) stored in the
+  // tenant's DocumentVault: its SHA-256 is the Merkle leaf and the file can be downloaded and re-verified.
+  const files = DATAROOM.flatMap((f) =>
+    f.docs.map(([name, restricted]) => {
+      const bytes = samplePdf([
+        `${dev.displayName} - Data Room de ${o.code}`,
+        dev.legalName,
+        `${f.folder} - ${name}`,
+        "Documento ilustrativo de demostracion: no constituye oferta ni contrato.",
+      ]);
+      const sha256 = sha256Document(bytes);
+      return { folder: f.folder, name, restricted, bytes, sha256, storageKey: objectKey({ organizationId: orgId }, sha256) };
+    }),
   );
+  for (const f of files) {
+    await vault.put(f.storageKey, f.bytes, { sizeBytes: f.bytes.byteLength, mimeType: MIME.pdf, sha256: f.sha256.slice(2) });
+  }
+  const documents = files.map((f) => ({
+    organizationId: orgId,
+    offeringId: o.id,
+    folder: f.folder,
+    name: f.name,
+    restricted: f.restricted,
+    sha256: f.sha256,
+    sizeBytes: f.bytes.byteLength,
+    storageKey: f.storageKey,
+    uploadedAt: new Date("2026-09-30"),
+  }));
   const dataRoomRoot = computeDataRoomRoot(documents);
 
   // 3 · Offering
@@ -125,6 +150,15 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       translations: (OFFERING_TRANSLATIONS[o.id] ?? {}) as Prisma.InputJsonValue,
       published: true,
     },
+  });
+  await db.vaultObject.createMany({
+    data: files.map((f) => ({
+      organizationId: orgId,
+      sha256: f.sha256,
+      sizeBytes: f.bytes.byteLength,
+      mimeType: MIME.pdf,
+      storageKey: f.storageKey,
+    })),
   });
   await db.dataRoomDocument.createMany({ data: documents });
 

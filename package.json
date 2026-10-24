@@ -22,7 +22,8 @@
     "contracts:test": "pnpm --filter @rwaxi/contracts test",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
     "e2e": "pnpm --filter @rwaxi/e2e e2e",
-    "e2e:rpc": "pnpm --filter @rwaxi/e2e e2e:rpc"
+    "e2e:rpc": "pnpm --filter @rwaxi/e2e e2e:rpc",
+    "e2e:strict": "pnpm --filter @rwaxi/e2e e2e:strict"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

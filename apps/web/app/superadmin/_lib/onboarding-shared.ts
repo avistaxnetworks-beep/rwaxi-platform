@@ -94,10 +94,12 @@ export interface OnboardingDocument {
   folder: string;
   name: string;
   restricted: boolean;
-  /** SHA-256 of the file bytes, computed in the browser (0x + 64 hex) */
+  /** SHA-256 of the file bytes, computed in the browser (0x + 64 hex) and recomputed by the server on upload */
   sha256: string;
   sizeBytes: number;
   fileName: string;
+  /** DocumentVault receipt of the verified upload to staging, set when "Crear tenant" uploads the files */
+  receipt?: string;
 }
 
 export interface OnboardingInput {

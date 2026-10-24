@@ -36,7 +36,7 @@ export function formatDoc(docType: string | null, docNumber: string | null, tr: 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Documents and liveness recorded in KycCase.evidence by the portal (absent for seeded cases). */
-function evidenceSummary(evidence: unknown, tr: Translate): Pick<ComplianceRow, "documents" | "liveness"> {
+function evidenceSummary(evidence: unknown, stored: Set<string>, tr: Translate): Pick<ComplianceRow, "documents" | "liveness"> {
   const ev = (evidence ?? {}) as {
     documents?: { kind?: unknown; name?: unknown; sha256?: unknown }[];
     liveness?: { method?: unknown; result?: unknown };
@@ -44,7 +44,7 @@ function evidenceSummary(evidence: unknown, tr: Translate): Pick<ComplianceRow, 
   const documents = Array.isArray(ev.documents)
     ? ev.documents.flatMap((d) =>
         typeof d.name === "string" && typeof d.sha256 === "string"
-          ? [{ kind: String(d.kind ?? ""), name: d.name, sha256: d.sha256 }]
+          ? [{ kind: String(d.kind ?? ""), name: d.name, sha256: d.sha256, stored: stored.has(d.sha256.toLowerCase()) }]
           : [],
       )
     : [];
@@ -59,7 +59,7 @@ function evidenceSummary(evidence: unknown, tr: Translate): Pick<ComplianceRow, 
 
 async function readInbox(session: BackofficeSession, tr: Translate): Promise<ComplianceInboxData> {
   const db = forTenant(session.tenant.id);
-  const [org, investors, whitelistTxs, audit] = await Promise.all([
+  const [org, investors, whitelistTxs, audit, vaultObjects] = await Promise.all([
     db.organization.findUniqueOrThrow({
       where: { id: session.tenant.id },
       select: { slug: true, legalName: true, brandColor: true, complianceRegime: true },
@@ -82,7 +82,10 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
       select: { args: true, status: true, txHash: true },
     }),
     db.auditEvent.findMany({ orderBy: { createdAt: "desc" }, take: 12 }),
+    db.vaultObject.findMany({ select: { sha256: true } }),
   ]);
+  // Dossier documents whose file is in the tenant's DocumentVault (seeded cases predate it).
+  const stored = new Set(vaultObjects.map((o) => o.sha256));
 
   // Latest whitelist operation per wallet.
   const whitelistByWallet = new Map<string, ComplianceRow["whitelist"]>();
@@ -116,7 +119,7 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
       ptee: ptee && submitted,
       wallet: inv.walletAddress,
       dossierHash: kyc?.dossierHash ?? null,
-      ...evidenceSummary(kyc?.evidence, tr),
+      ...evidenceSummary(kyc?.evidence, stored, tr),
       whitelist: inv.walletAddress ? (whitelistByWallet.get(inv.walletAddress.toLowerCase()) ?? null) : null,
       rejectionReason: kyc?.rejectionReason ?? null,
       reviewedAt: kyc?.reviewedAt?.toISOString() ?? null,

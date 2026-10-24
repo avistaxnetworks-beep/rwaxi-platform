@@ -11,7 +11,18 @@ import { seededHex, sha256Hex } from "@/app/_lib/hash";
 import { folderLabel } from "@/app/_components/portal/data-room-panel";
 import { useI18n } from "@/app/_i18n/provider";
 
-export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: n, toast: l, emit: r }) {
+export function DataMintTab({
+  t: e,
+  p: a,
+  setTenant: t,
+  journey: o,
+  setJourney: n,
+  toast: l,
+  emit: r,
+  // Persisted Data Room and DocumentVault (app/tenant/[slug]/backoffice/_components/data-room-desk.tsx); the
+  // demo panel below stays for the prototype's own screens. Token issuance is still demo state.
+  dataRoomSlot: D,
+}) {
   const { tr } = useI18n();
   const i = useRef(),
     [s, c] = useState(DATAROOM[0].n + " " + DATAROOM[0].name),
@@ -189,147 +200,149 @@ export function DataMintTab({ t: e, p: a, setTenant: t, journey: o, setJourney: 
     U = e.mint.status === "minted";
   return (
     <div className="grid xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] gap-6 items-start">
-      <div className="bg-white border border-line min-w-0">
-        <div className="px-5 py-3.5 border-b border-line flex flex-wrap justify-between gap-3 items-center">
-          <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
-            {tr("Data Room · {n} documentos", { n: e.docs.length, count: e.docs.length })}
-          </p>
-          <span className="text-[11.5px] text-muted">
-            {"Merkle Root "}
-            <span className="font-mono text-aquaInk">{shortHash(e.merkle, 10, 6)}</span>
-          </span>
-        </div>
-        <div className="p-5 grid sm:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end border-b border-line">
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field id="dr-folder" label={tr("Carpeta")}>
-              <select id="dr-folder" value={s} onChange={(E) => c(E.target.value)} className={fieldCls()}>
-                {DATAROOM.map((E) => (
-                  <option key={E.n} value={E.n + " " + E.name}>
-                    {E.n} {tr(E.name)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <label className="flex items-center gap-2 text-[12.5px] text-inkBody self-end pb-3">
-              <input
-                id="dr-restricted"
-                type="checkbox"
-                checked={d}
-                onChange={(E) => p(E.target.checked)}
-                className="accent-[#2F145F]"
-              />
-              {tr("Requiere AccessGrant (NDA + KYC)")}
-            </label>
+      {D || (
+        <div className="bg-white border border-line min-w-0">
+          <div className="px-5 py-3.5 border-b border-line flex flex-wrap justify-between gap-3 items-center">
+            <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
+              {tr("Data Room · {n} documentos", { n: e.docs.length, count: e.docs.length })}
+            </p>
+            <span className="text-[11.5px] text-muted">
+              {"Merkle Root "}
+              <span className="font-mono text-aquaInk">{shortHash(e.merkle, 10, 6)}</span>
+            </span>
           </div>
-          <div>
-            <input
-              ref={i}
-              id="dr-upload"
-              type="file"
-              multiple={true}
-              className="sr-only"
-              onChange={(E) => {
-                (x(E.target.files), (E.target.value = ""));
-              }}
-            />
+          <div className="p-5 grid sm:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end border-b border-line">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field id="dr-folder" label={tr("Carpeta")}>
+                <select id="dr-folder" value={s} onChange={(E) => c(E.target.value)} className={fieldCls()}>
+                  {DATAROOM.map((E) => (
+                    <option key={E.n} value={E.n + " " + E.name}>
+                      {E.n} {tr(E.name)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <label className="flex items-center gap-2 text-[12.5px] text-inkBody self-end pb-3">
+                <input
+                  id="dr-restricted"
+                  type="checkbox"
+                  checked={d}
+                  onChange={(E) => p(E.target.checked)}
+                  className="accent-[#2F145F]"
+                />
+                {tr("Requiere AccessGrant (NDA + KYC)")}
+              </label>
+            </div>
+            <div>
+              <input
+                ref={i}
+                id="dr-upload"
+                type="file"
+                multiple={true}
+                className="sr-only"
+                onChange={(E) => {
+                  (x(E.target.files), (E.target.value = ""));
+                }}
+              />
+              <button
+                onClick={() => i.current.click()}
+                disabled={m}
+                className="tc-btn px-4 py-3 text-[12.5px] font-semibold inline-flex items-center gap-2 focus-ring disabled:opacity-60 w-full justify-center"
+              >
+                <Icon name={m ? "Loader2" : "Upload"} size={15} className={m ? "spin" : ""} />
+                {m ? tr("Calculando SHA-256…") : tr("Cargar documentos")}
+              </button>
+            </div>
+          </div>
+          <div className="overflow-x-auto max-h-[440px] overflow-y-auto">
+            <table className="w-full min-w-[640px] text-[12.5px]">
+              <thead className="sticky top-0 bg-white">
+                <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
+                  <th className="font-semibold px-5 py-2.5">{tr("Documento")}</th>
+                  <th className="font-semibold px-3 py-2.5">SHA-256</th>
+                  <th className="font-semibold px-3 py-2.5">{tr("Acceso")}</th>
+                  <th className="font-semibold px-3 py-2.5 text-end">{tr("Tamaño")}</th>
+                  <th className="px-3 py-2.5">
+                    <span className="sr-only">{tr("Acciones")}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {e.docs.map((E) => (
+                  <tr key={E.id} className="border-b border-line last:border-b-0">
+                    <td className="px-5 py-2.5">
+                      <p className="text-inkBody">
+                        {E.uploaded ? E.name : tr(E.name)}
+                        {E.uploaded && (
+                          <span className="ms-1.5 text-[10px] font-semibold text-goldInk">{tr("NUEVO")}</span>
+                        )}
+                      </p>
+                      <p className="text-[10.5px] text-muted">
+                        {folderLabel(E.folder, tr)}
+                        {" · "}
+                        {E.at}
+                      </p>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <CopyChip
+                        text={E.hash}
+                        display={shortHash(E.hash, 8, 6)}
+                        toast={l}
+                        className="text-[11px]"
+                      />
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px]">
+                      {E.restricted ? (
+                        <span className="text-goldInk font-semibold">AccessGrant</span>
+                      ) : (
+                        <span className="text-muted">{tr("Público")}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-[11px] text-muted tnum">
+                      {nf(0).format(E.size / 1024)}
+                      {" KB"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      {E.uploaded && (
+                        <button
+                          onClick={() => g(E.id)}
+                          aria-label={tr("Quitar {name}", { name: E.name })}
+                          className="text-muted hover:text-[#B42318] p-1 focus-ring"
+                        >
+                          <Icon name="Trash2" size={14} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-5 py-3.5 border-t border-line bg-cloud flex flex-wrap items-center justify-between gap-3 text-[12px]">
+            {e.mint.status !== "minted" ? (
+              <span className="text-muted">{tr("El Merkle Root se ancla al desplegar el token.")}</span>
+            ) : e.onchainRoot === e.merkle ? (
+              <span className="text-aquaInk inline-flex items-center gap-1.5">
+                <Icon name="CheckCircle2" size={14} />
+                {tr("Merkle Root anclado")}
+                {" · "}
+                <span className="font-mono">{shortHash(e.anchoredTx, 10, 6)}</span>
+              </span>
+            ) : (
+              <span className="text-goldInk">
+                {tr("El Merkle Root del Data Room difiere del anclado on-chain.")}
+              </span>
+            )}
             <button
-              onClick={() => i.current.click()}
-              disabled={m}
-              className="tc-btn px-4 py-3 text-[12.5px] font-semibold inline-flex items-center gap-2 focus-ring disabled:opacity-60 w-full justify-center"
+              onClick={w}
+              disabled={e.mint.status !== "minted" || e.onchainRoot === e.merkle}
+              className="border border-line bg-white px-3 py-1.5 font-semibold text-rxBlue disabled:opacity-40 focus-ring"
             >
-              <Icon name={m ? "Loader2" : "Upload"} size={15} className={m ? "spin" : ""} />
-              {m ? tr("Calculando SHA-256…") : tr("Cargar documentos")}
+              {tr("Anclar Merkle Root")}
             </button>
           </div>
         </div>
-        <div className="overflow-x-auto max-h-[440px] overflow-y-auto">
-          <table className="w-full min-w-[640px] text-[12.5px]">
-            <thead className="sticky top-0 bg-white">
-              <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
-                <th className="font-semibold px-5 py-2.5">{tr("Documento")}</th>
-                <th className="font-semibold px-3 py-2.5">SHA-256</th>
-                <th className="font-semibold px-3 py-2.5">{tr("Acceso")}</th>
-                <th className="font-semibold px-3 py-2.5 text-end">{tr("Tamaño")}</th>
-                <th className="px-3 py-2.5">
-                  <span className="sr-only">{tr("Acciones")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {e.docs.map((E) => (
-                <tr key={E.id} className="border-b border-line last:border-b-0">
-                  <td className="px-5 py-2.5">
-                    <p className="text-inkBody">
-                      {E.uploaded ? E.name : tr(E.name)}
-                      {E.uploaded && (
-                        <span className="ms-1.5 text-[10px] font-semibold text-goldInk">{tr("NUEVO")}</span>
-                      )}
-                    </p>
-                    <p className="text-[10.5px] text-muted">
-                      {folderLabel(E.folder, tr)}
-                      {" · "}
-                      {E.at}
-                    </p>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <CopyChip
-                      text={E.hash}
-                      display={shortHash(E.hash, 8, 6)}
-                      toast={l}
-                      className="text-[11px]"
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 text-[11px]">
-                    {E.restricted ? (
-                      <span className="text-goldInk font-semibold">AccessGrant</span>
-                    ) : (
-                      <span className="text-muted">{tr("Público")}</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-mono text-[11px] text-muted tnum">
-                    {nf(0).format(E.size / 1024)}
-                    {" KB"}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    {E.uploaded && (
-                      <button
-                        onClick={() => g(E.id)}
-                        aria-label={tr("Quitar {name}", { name: E.name })}
-                        className="text-muted hover:text-[#B42318] p-1 focus-ring"
-                      >
-                        <Icon name="Trash2" size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-5 py-3.5 border-t border-line bg-cloud flex flex-wrap items-center justify-between gap-3 text-[12px]">
-          {e.mint.status !== "minted" ? (
-            <span className="text-muted">{tr("El Merkle Root se ancla al desplegar el token.")}</span>
-          ) : e.onchainRoot === e.merkle ? (
-            <span className="text-aquaInk inline-flex items-center gap-1.5">
-              <Icon name="CheckCircle2" size={14} />
-              {tr("Merkle Root anclado")}
-              {" · "}
-              <span className="font-mono">{shortHash(e.anchoredTx, 10, 6)}</span>
-            </span>
-          ) : (
-            <span className="text-goldInk">
-              {tr("El Merkle Root del Data Room difiere del anclado on-chain.")}
-            </span>
-          )}
-          <button
-            onClick={w}
-            disabled={e.mint.status !== "minted" || e.onchainRoot === e.merkle}
-            className="border border-line bg-white px-3 py-1.5 font-semibold text-rxBlue disabled:opacity-40 focus-ring"
-          >
-            {tr("Anclar Merkle Root")}
-          </button>
-        </div>
-      </div>
+      )}
       <div className="bg-white border border-line min-w-0">
         <div className="px-5 py-3.5 border-b border-line flex justify-between items-center gap-3">
           <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">

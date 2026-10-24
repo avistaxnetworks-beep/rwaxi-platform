@@ -7,7 +7,13 @@ import type { Prisma } from "@rwaxi/database";
  */
 export async function queueMail(
   db: Prisma.TransactionClient,
-  mail: { organizationId: string | null; purpose: "INVESTOR_OTP"; to: string; subject: string; body: string },
+  mail: {
+    organizationId: string | null;
+    purpose: "INVESTOR_OTP" | "STAFF_INVITATION";
+    to: string;
+    subject: string;
+    body: string;
+  },
 ): Promise<void> {
   await db.mailOutbox.create({
     data: {

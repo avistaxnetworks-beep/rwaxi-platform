@@ -25,8 +25,8 @@ export interface ComplianceRow {
   ptee: boolean;
   wallet: string | null;
   dossierHash: string | null;
-  /** From KycCase.evidence (portal submissions): uploaded files, hashed in the browser. */
-  documents: { kind: string; name: string; sha256: string }[];
+  /** From KycCase.evidence (portal submissions): files verified by the DocumentVault; `stored` = file in the vault */
+  documents: { kind: string; name: string; sha256: string; stored: boolean }[];
   liveness: string | null;
   whitelist: { status: "PENDING" | "CONFIRMED" | "REVERTED"; txHash: string | null } | null;
   rejectionReason: string | null;
@@ -62,7 +62,16 @@ export interface AuditEntry {
     | "ACCOUNT_LOCKED"
     | "LOGOUT"
     | "INVESTOR_SESSION_RECOVERED"
-    | "INVESTOR_OTP_FAILED";
+    | "INVESTOR_OTP_FAILED"
+    // staff accounts invited by RWAXI and activated here
+    | "STAFF_INVITED"
+    | "STAFF_INVITATION_RESENT"
+    | "ACCOUNT_ACTIVATED"
+    // DocumentVault: verified uploads and audited access to files
+    | "DATA_ROOM_DOCUMENT_ADDED"
+    | "DATA_ROOM_DOCUMENT_DOWNLOADED"
+    | "KYC_DOCUMENT_VIEWED"
+    | "VAULT_INTEGRITY_FAILED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;
@@ -207,3 +216,39 @@ export interface DistributionsDeskData {
 }
 
 export type DistributionsDeskResult = { ok: true; data: DistributionsDeskData } | { ok: false; error: string };
+
+/** A Data Room document as the backoffice lists it, with whether its file is in the DocumentVault. */
+export interface DataRoomDocumentRow {
+  id: string;
+  folder: string;
+  name: string;
+  restricted: boolean;
+  /** 0x + SHA-256 (Merkle leaf) */
+  sha256: string;
+  sizeBytes: number;
+  mimeType: string | null;
+  stored: boolean;
+  uploadedAt: string;
+}
+
+export interface DataRoomOfferingRow {
+  id: string;
+  code: string;
+  assetName: string;
+  /** Merkle root of the documents (Offering.dataRoomRoot) */
+  root: string | null;
+  tokenDeployed: boolean;
+  /** last root confirmed on the token (updateDataRoomMerkleRoot) */
+  anchoredRoot: string | null;
+  /** an updateDataRoomMerkleRoot() waits in the queue (signed by the issuer) */
+  anchorPending: boolean;
+  documents: DataRoomDocumentRow[];
+}
+
+export interface DataRoomDeskData {
+  session: DeskSession;
+  folders: string[];
+  offerings: DataRoomOfferingRow[];
+}
+
+export type DataRoomDeskResult = { ok: true; data: DataRoomDeskData } | { ok: false; error: string };

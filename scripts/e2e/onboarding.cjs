@@ -93,9 +93,10 @@ const waitSlug = (page, state) => page.waitForFunction((s) => document.querySele
     await s.waitForSelector('[data-onboarding-step="3"]', { timeout: 30000 });
     await clickText(s, "Adjuntar documentos de ejemplo");
     await s.waitForFunction(() => document.querySelectorAll('[data-doc-loaded="true"]').length === 13, { timeout: 30000 });
+    // Real files are PDFs: the DocumentVault reads the type from the bytes and refuses plain text.
     const files = [0, 4].map((slot) => {
-      const file = path.join(ARTIFACTS, `onboarding-${suffix}-${slot}.txt`);
-      fs.writeFileSync(file, `Documento real ${slot} · ${legalName} · ${crypto.randomBytes(16).toString("hex")}\n`);
+      const file = path.join(ARTIFACTS, `onboarding-${suffix}-${slot}.pdf`);
+      fs.writeFileSync(file, `%PDF-1.4\n% Documento real ${slot} · ${legalName} · ${crypto.randomBytes(16).toString("hex")}\n%%EOF\n`);
       return { slot, file, sha256: "0x" + crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex") };
     });
     for (const f of files) {

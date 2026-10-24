@@ -11,6 +11,8 @@ import { useI18n } from "@/app/_i18n/provider";
 import { EMPTY_KYC } from "@/app/_lib/data/kyc";
 import { signNda, submitKyc, subscribe } from "../actions";
 import { KycFileError, toKycSubmission } from "../_lib/kyc-submission";
+import { REGIMES } from "@/app/_lib/data/kyc";
+import { InvestorDataRoom } from "./investor-data-room";
 import { InvestorDistributions } from "./investor-distributions";
 import { SessionRecovery } from "./session-recovery";
 import type {
@@ -158,6 +160,19 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
             />
           }
           recoverySlot={persisted.ok && !persisted.data.investor ? <SessionRecovery /> : null}
+          dataRoomSlot={
+            persisted.ok && persisted.data.dataRoom.documents.length > 0 ? (
+              <InvestorDataRoom
+                documents={persisted.data.dataRoom.documents}
+                root={persisted.data.dataRoom.root}
+                nda={!!persisted.data.nda}
+                kycApproved={persisted.data.kyc?.status === "aprobado"}
+                grant={persisted.data.grant}
+                regimeSys={REGIMES[tenant.regime as keyof typeof REGIMES]?.sys ?? ""}
+                code={persisted.data.offering?.code ?? ""}
+              />
+            ) : null
+          }
         />
       ) : (
         <div className="boot">{tr("RWAXI · CARGANDO TU PROCESO")}</div>

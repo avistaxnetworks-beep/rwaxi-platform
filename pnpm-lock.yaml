@@ -29,6 +29,9 @@ importers:
       '@rwaxi/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@rwaxi/document-vault':
+        specifier: workspace:*
+        version: link:../../packages/document-vault
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.1.1)
@@ -138,12 +141,27 @@ importers:
       '@rwaxi/blockchain-sdk':
         specifier: workspace:*
         version: link:../blockchain-sdk
+      '@rwaxi/document-vault':
+        specifier: workspace:*
+        version: link:../document-vault
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.5
       prisma:
         specifier: ^6.19.0
         version: 6.19.3(typescript@5.9.3)
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
+  packages/document-vault:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.5
       tsx:
         specifier: ^4.19.2
         version: 4.23.15

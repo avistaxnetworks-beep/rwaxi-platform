@@ -13,6 +13,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { evidenceHash, toOnchainId } from "@rwaxi/blockchain-sdk";
 import { Prisma, isUniqueViolation, withTenant, type RiskProfile } from "@rwaxi/database";
+import { objectKey } from "@rwaxi/document-vault";
 import { NUMBER_LOCALE, type Locale } from "@/app/_i18n/config";
 import { LocalizedError, msg } from "@/app/_i18n/marks";
 import { render, requestLocale, requestTranslate } from "@/app/_i18n/server";
@@ -22,6 +23,7 @@ import { REF_COOKIE, verifyReferral } from "@/app/_lib/referral";
 import { readInvestorSession, startInvestorSession } from "@/app/_lib/server/investor-session";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
+import { verifyReceipt } from "@/app/_lib/server/vault";
 import { OFFERING_STATE_SELECT, PORTAL_OFFERING, isoSeconds, offeringState, toHolding, toHoldings } from "./_lib/journey";
 import type {
   KycDocument,
@@ -193,7 +195,7 @@ export async function signNda(input: NdaSubmission): Promise<NdaResult> {
 
 // ───────────────────────────────────────────────────────────── Paso 2 · KYC
 
-function documentOf(value: unknown, label: string): KycDocument | null {
+function documentOf(value: unknown, label: string): (KycDocument & { label: string }) | null {
   if (value === null || value === undefined) return null;
   const d = value as Partial<KycDocument>;
   const ok =
@@ -206,9 +208,29 @@ function documentOf(value: unknown, label: string): KycDocument | null {
     typeof d.type === "string" &&
     /^(image\/[a-z0-9.+-]+|application\/pdf)$/.test(d.type) &&
     typeof d.sha256 === "string" &&
-    HEX64.test(d.sha256);
+    HEX64.test(d.sha256) &&
+    typeof d.receipt === "string";
   if (!ok) throw new OnboardingError('El archivo "{label}" no es válido; vuelve a cargarlo.', { label });
-  return { name: d.name!, size: d.size!, type: d.type!, sha256: hex0x(d.sha256!) };
+  return { name: d.name!, size: d.size!, type: d.type!, sha256: hex0x(d.sha256!), receipt: d.receipt!, label };
+}
+
+/**
+ * The dossier's documents as the DocumentVault verified them: each receipt must be this server's, for this
+ * investor of this tenant and these bytes; size and type are the server's, not the browser's.
+ */
+function vaultDocuments(
+  docs: { kind: "front" | "back"; doc: (KycDocument & { label: string }) | null }[],
+  organizationId: string,
+  investorId: string,
+) {
+  return docs.flatMap(({ kind, doc }) => {
+    if (!doc) return [];
+    const claims = verifyReceipt(doc.receipt, { scope: `tenant:${organizationId}`, subject: `inv:${investorId}` });
+    if (!claims || claims.sha256 !== doc.sha256) {
+      throw new OnboardingError('El archivo "{label}" no fue verificado por el servidor; vuelve a cargarlo.', { label: doc.label });
+    }
+    return [{ kind, name: doc.name, size: claims.sizeBytes, type: claims.mimeType, sha256: claims.sha256 }];
+  });
 }
 
 /** Same rules as the wizard (validateStep), re-applied on the server, plus closed lists. */
@@ -301,6 +323,26 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
         if (docTaken) throw new OnboardingError("Ese documento ya está registrado por otro inversionista de este portal.");
         if (walletTaken) throw new OnboardingError("Esa wallet ya está registrada por otro inversionista de este portal.");
 
+        // The files are already in this tenant's vault (verified on upload): register them with the dossier.
+        const documents = vaultDocuments(
+          [
+            { kind: "front", doc: data.docFront },
+            { kind: "back", doc: data.docBack },
+          ],
+          tenant.id,
+          investor.id,
+        );
+        await tx.vaultObject.createMany({
+          data: documents.map((d) => ({
+            organizationId: tenant.id,
+            sha256: d.sha256,
+            sizeBytes: d.size,
+            mimeType: d.type,
+            storageKey: objectKey({ organizationId: tenant.id }, d.sha256),
+          })),
+          skipDuplicates: true,
+        });
+
         const submittedAt = new Date();
         const countryCode = ISO_NUMERIC[data.country] ?? 0;
         // Canonical dossier: anyone holding it can recompute dossierHash = sha256(canonicalJson(evidence)).
@@ -325,10 +367,7 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
             incomeBracket: data.income,
             riskProfile: data.risk,
           },
-          documents: [
-            ...(data.docFront ? [{ kind: "front", ...data.docFront }] : []),
-            ...(data.docBack ? [{ kind: "back", ...data.docBack }] : []),
-          ],
+          documents,
           liveness: { result: data.liveness, method: "simulated" },
           declarations: {
             noPep: data.noPep,

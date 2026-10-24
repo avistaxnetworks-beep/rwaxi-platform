@@ -30,6 +30,8 @@ export function Backoffice({
   distributionsSlot: w,
   // Signed-in staff member (or the demo session) and «Cerrar sesión» (app/_components/auth/account-badge.tsx).
   accountSlot: z,
+  // Persisted Data Room and DocumentVault (app/tenant/[slug]/backoffice/_components/data-room-desk.tsx).
+  dataRoomSlot: D,
 }) {
   const { tr } = useI18n();
   const u = [
@@ -102,7 +104,16 @@ export function Backoffice({
         {s === "suscripciones" && q}
         {s === "distribuciones" && w}
         {s === "dataroom" && (
-          <DataMintTab emit={p} t={e} p={a} setTenant={t} setJourney={n} journey={o} toast={i} />
+          <DataMintTab
+            emit={p}
+            t={e}
+            p={a}
+            setTenant={t}
+            setJourney={n}
+            journey={o}
+            toast={i}
+            dataRoomSlot={D}
+          />
         )}
       </main>
     </div>

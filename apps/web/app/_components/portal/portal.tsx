@@ -38,6 +38,8 @@ export function Portal({
   distributionsSlot: D,
   // «Recuperar mi sesión» by email code, for a visitor without an investor session (app/tenant/[slug]/_components/session-recovery.tsx).
   recoverySlot: R,
+  // Persisted Data Room with verified downloads from the DocumentVault (app/tenant/[slug]/_components/investor-data-room.tsx).
+  dataRoomSlot: DR,
 }) {
   const { tr } = useI18n();
   const [m, u] = useState(() => (t.holdings.length || t.grant ? 3 : t.nda ? 1 : 0)),
@@ -177,7 +179,7 @@ export function Portal({
             {m === 1 && !(N && t.kyc.stage === "form") && (
               <KycPanel t={e} p={a} journey={t} setJourney={o} currency={n} toBackoffice={p} persist={Q} />
             )}
-            {m === 2 && <DataRoomPanel t={e} p={a} journey={t} openDoc={s} />}
+            {m === 2 && (DR || <DataRoomPanel t={e} p={a} journey={t} openDoc={s} />)}
             {m === 3 && (
               <SubscriptionPanel
                 t={e}

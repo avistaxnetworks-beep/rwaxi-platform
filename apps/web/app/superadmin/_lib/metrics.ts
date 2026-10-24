@@ -13,6 +13,7 @@ import type {
   PlatformMetrics,
   PlatformAuditRow,
   PlatformMetricsResult,
+  PlatformStaffRow,
   PlatformTenantRow,
   SubscribedVolume,
 } from "./types";
@@ -78,6 +79,19 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
                 published: true,
                 capturePausedAt: true,
                 token: { select: { status: true, symbol: true } },
+              },
+            },
+            users: {
+              where: { role: { in: ["TENANT_ADMIN", "COMPLIANCE_OFFICER"] } },
+              orderBy: { createdAt: "asc" },
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+                role: true,
+                active: true,
+                passwordHash: true,
+                invitations: { orderBy: { createdAt: "desc" }, take: 1, select: { expiresAt: true, consumedAt: true, revokedAt: true } },
               },
             },
           },
@@ -197,6 +211,26 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
           tokenStatus: f.token?.status ?? null,
           tokenSymbol: f.token?.symbol ?? null,
         })),
+        // Activation of the developer's staff: never the password hash itself, only whether there is one.
+        staff: o.users.map((u) => {
+          const last = u.invitations[0];
+          const status: PlatformStaffRow["status"] = u.passwordHash
+            ? "ACTIVE"
+            : !last || last.revokedAt || last.consumedAt
+              ? "NO_INVITATION"
+              : last.expiresAt.getTime() > Date.now()
+                ? "PENDING"
+                : "EXPIRED";
+          return {
+            id: u.id,
+            email: u.email,
+            fullName: u.fullName,
+            role: u.role as PlatformStaffRow["role"],
+            active: u.active,
+            status,
+            invitationExpiresAt: last && !u.passwordHash ? last.expiresAt.toISOString() : null,
+          };
+        }),
         leads: {
           referral: count(leadGroups, o.id, (r) => r.source === "REFERRAL"),
           direct: count(leadGroups, o.id, (r) => r.source === "DIRECT"),

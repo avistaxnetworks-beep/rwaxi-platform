@@ -44,6 +44,8 @@ export interface PlatformTenantRow {
   published: boolean;
   onboardedAt: string;
   offerings: PlatformOfferingRow[];
+  /** the developer's administrator and compliance officer, with the activation state of their accounts */
+  staff: PlatformStaffRow[];
   /** RwaxiComplianceRegistry of the tenant: deployed, queued for RWAXI's operator, or none */
   registry: { address: string | null; status: "DEPLOYED" | "PENDING" | "NONE"; network: string | null };
   leads: { referral: number; direct: number };
@@ -55,6 +57,17 @@ export interface PlatformTenantRow {
   offering: { code: string; assetName: string; totalUnits: number; unitsSubscribed: number } | null;
   feeRules: { setupUsd: number; monthlyUsd: number; usagePct: number };
   feesUsd: number;
+}
+
+/** A staff account of a developer: ACTIVE (password + MFA set) or waiting on its invitation link. */
+export interface PlatformStaffRow {
+  id: string;
+  email: string;
+  fullName: string;
+  role: "TENANT_ADMIN" | "COMPLIANCE_OFFICER";
+  active: boolean;
+  status: "ACTIVE" | "PENDING" | "EXPIRED" | "NO_INVITATION";
+  invitationExpiresAt: string | null;
 }
 
 export interface ReferralRow {

@@ -36,6 +36,7 @@ export function BackofficeLogin({ brand }: { brand: { name: string; legalName: s
           verify={backofficeVerify}
           next="/backoffice"
           aside={<LanguageToggle />}
+          hint={tr("¿Primera vez? Activa tu cuenta con el enlace personal que RWAXI te envió por correo.")}
         />
       </div>
     </EnvironmentFrame>

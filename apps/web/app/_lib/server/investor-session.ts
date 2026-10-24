@@ -32,6 +32,9 @@ const sign = (payload: string) => crypto.createHmac("sha256", secret()).update(p
 /** Key of the investor recovery codes' HMAC (investor-recovery.ts), derived from the same secret. */
 export const recoveryCodeKey = (): Buffer => crypto.createHmac("sha256", secret()).update("rwaxi.investor-otp.v1").digest();
 
+/** Key of the DocumentVault upload receipts (vault.ts), derived from the same secret. */
+export const vaultReceiptKey = (): Buffer => crypto.createHmac("sha256", secret()).update("rwaxi.vault-receipt.v1").digest();
+
 export interface InvestorSession {
   investorId: string;
   organizationId: string;

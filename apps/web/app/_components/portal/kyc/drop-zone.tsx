@@ -26,7 +26,7 @@ export function DropZone({ id: e, label: a, file: t, onFile: o, error: n }) {
       }
       const d = new FileReader();
       ((d.onload = () =>
-        // SHA-256 of the file bytes is the evidence sent with the KYC dossier (files stay in the browser).
+        // SHA-256 of the file bytes, shown now; on submission the file goes to the DocumentVault, which recomputes it.
         c
           .arrayBuffer()
           .then((p) => sha256Bytes(p))
@@ -38,6 +38,7 @@ export function DropZone({ id: e, label: a, file: t, onFile: o, error: n }) {
                 type: c.type,
                 sha256: p,
                 src: c.type.startsWith("image/") ? d.result : null,
+                file: c,
               }),
             () => o({ error: tr("Tu navegador no pudo calcular el hash SHA-256 del archivo.") }),
           )),

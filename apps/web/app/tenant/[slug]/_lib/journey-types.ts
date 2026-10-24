@@ -96,6 +96,20 @@ export interface PersistedDistribution {
   declaredAt: string;
 }
 
+/** A Data Room document of the portal's offering (metadata only: the file comes from /api/vault/data-room/{id}). */
+export interface PersistedDataRoomDocument {
+  id: string;
+  folder: string;
+  name: string;
+  /** needs a current AccessGrant (NDA + KYC approved); the others need the NDA */
+  restricted: boolean;
+  /** 0x + SHA-256 anchored as a Merkle leaf; the browser re-hashes the download against it */
+  sha256: string;
+  sizeBytes: number;
+  /** the file is in the DocumentVault */
+  stored: boolean;
+}
+
 export interface PersistedJourney {
   /** governance status of this portal (Super-Admin): SUSPENDED blocks new NDA, KYC and subscriptions */
   portalStatus: "ACTIVE" | "REVIEW" | "SUSPENDED";
@@ -110,6 +124,8 @@ export interface PersistedJourney {
   /** yield distributions allocated to the investor in this offering (newest first) */
   distributions: PersistedDistribution[];
   offering: PortalOfferingState | null;
+  /** Data Room of the offering: Merkle root and documents (listed to everyone, downloadable per NDA / grant) */
+  dataRoom: { root: string | null; documents: PersistedDataRoomDocument[] };
 }
 
 export type PersistedJourneyResult = { ok: true; data: PersistedJourney } | { ok: false; error: string };
@@ -129,8 +145,10 @@ export interface KycDocument {
   name: string;
   size: number;
   type: string;
-  /** SHA-256 of the file bytes, computed in the browser (files are not uploaded yet) */
+  /** SHA-256 of the file bytes, computed in the browser and recomputed by the server when it received them */
   sha256: string;
+  /** DocumentVault receipt of /api/vault/upload: the server verified and stored these bytes for this investor */
+  receipt: string;
 }
 
 export interface KycSubmission {

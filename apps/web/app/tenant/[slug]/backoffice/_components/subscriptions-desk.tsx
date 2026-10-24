@@ -22,7 +22,7 @@ const brandVars = (color: string) => ({ "--tc": color, "--tc-on": onColor(color)
 const hash = (h: string) => shortHash(h, 12, 6);
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
 /** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: distribution roots). */
-const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED"]);
+const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED"]);
 /** Role that executes a queued call (chain-actions.ts roleFor): the officer the registry, the admin the rest. */
 const SIGNER_ROLE = (kind: string) => (REGISTRY_KINDS.has(kind) ? "COMPLIANCE_OFFICER" : "TENANT_ADMIN");
 const ROLE_NAME = { COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento"), TENANT_ADMIN: msg("Administrador") } as const;

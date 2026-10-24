@@ -30,6 +30,13 @@ interface AuditPayload {
   minutes?: number;
   role?: string;
   attempts?: number;
+  // document vault
+  name?: string;
+  folder?: string;
+  kind?: string;
+  by?: "investor" | "staff";
+  dataRoomRoot?: string;
+  anchorChainTransactionId?: string | null;
 }
 
 const AUTH_ACTIONS = new Set<AuditEvent["action"]>([
@@ -41,6 +48,7 @@ const AUTH_ACTIONS = new Set<AuditEvent["action"]>([
   "LOGOUT",
   "INVESTOR_SESSION_RECOVERED",
   "INVESTOR_OTP_FAILED",
+  "ACCOUNT_ACTIVATED",
 ]);
 const ROLE_LABEL: Record<string, string> = {
   COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento"),
@@ -99,6 +107,29 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate):
     case "LOGOUT":
     case "INVESTOR_SESSION_RECOVERED":
       return null;
+    case "ACCOUNT_ACTIVATED":
+      return tr("{role} · contraseña y TOTP definidos desde la invitación", {
+        role: p.role && ROLE_LABEL[p.role] ? tr(ROLE_LABEL[p.role]!) : String(p.role ?? ""),
+      });
+    case "DATA_ROOM_DOCUMENT_ADDED":
+      return [
+        tr("{name} · {folder}", { name: String(p.name), folder: String(p.folder) }),
+        p.dataRoomRoot ? tr("nueva raíz {root}", { root: `${p.dataRoomRoot.slice(0, 10)}…` }) : null,
+        p.anchorChainTransactionId ? tr("updateDataRoomMerkleRoot en cola") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    case "DATA_ROOM_DOCUMENT_DOWNLOADED":
+      return tr("{name} · SHA-256 verificado al servirlo · {by}", {
+        name: String(p.name),
+        by: p.by === "staff" ? tr("personal del backoffice") : tr("inversionista con NDA"),
+      });
+    case "KYC_DOCUMENT_VIEWED":
+      return tr("{side} del documento de identidad · SHA-256 verificado al servirlo", {
+        side: p.kind === "back" ? tr("Reverso") : tr("Frente"),
+      });
+    case "VAULT_INTEGRITY_FAILED":
+      return tr("{name}: el archivo no coincide con su SHA-256 · acceso bloqueado", { name: String(p.name ?? "") });
     case "DISTRIBUTION_DECLARED":
       return tr("Distribución {period} · {total} USD entre {holders} tenedor(es) · anchorDistributionRoot en cola", {
         period: String(p.period),
@@ -128,7 +159,9 @@ export function toAuditEntry(e: AuditEvent, tr: Translate = spanish): AuditEntry
           ? p.offeringCode
             ? tr("Tenedores de {code}", { code: p.offeringCode })
             : tr("Tenedores de la oferta")
-          : e.entityId),
+          : e.action === "DATA_ROOM_DOCUMENT_ADDED" || e.action === "DATA_ROOM_DOCUMENT_DOWNLOADED" || e.action === "VAULT_INTEGRITY_FAILED"
+            ? tr("Data Room {code}", { code: p.offeringCode ?? "" })
+            : e.entityId),
     subjectHash: e.subjectHash,
     detail: detailOf(e.action, p, tr),
   };

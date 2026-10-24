@@ -31,6 +31,13 @@ const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   LOGOUT: msg("Cierre de sesión"),
   INVESTOR_SESSION_RECOVERED: msg("Sesión del inversionista recuperada con código"),
   INVESTOR_OTP_FAILED: msg("Código de recuperación agotado"),
+  STAFF_INVITED: msg("Invitación de activación enviada"),
+  STAFF_INVITATION_RESENT: msg("Invitación de activación reenviada"),
+  ACCOUNT_ACTIVATED: msg("Cuenta activada (contraseña + TOTP)"),
+  DATA_ROOM_DOCUMENT_ADDED: msg("Documento agregado al Data Room"),
+  DATA_ROOM_DOCUMENT_DOWNLOADED: msg("Documento del Data Room descargado"),
+  KYC_DOCUMENT_VIEWED: msg("Documento KYC consultado"),
+  VAULT_INTEGRITY_FAILED: msg("Integridad de la bóveda comprometida"),
 };
 const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "text-aquaInk",
@@ -56,6 +63,13 @@ const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   LOGOUT: "text-muted",
   INVESTOR_SESSION_RECOVERED: "text-aquaInk",
   INVESTOR_OTP_FAILED: "text-[#B42318]",
+  STAFF_INVITED: "text-rxPurple",
+  STAFF_INVITATION_RESENT: "text-rxPurple",
+  ACCOUNT_ACTIVATED: "text-aquaInk",
+  DATA_ROOM_DOCUMENT_ADDED: "text-rxBlue",
+  DATA_ROOM_DOCUMENT_DOWNLOADED: "text-muted",
+  KYC_DOCUMENT_VIEWED: "text-muted",
+  VAULT_INTEGRITY_FAILED: "text-[#B42318]",
 };
 const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: msg("SHA-256 expediente"),
@@ -81,6 +95,13 @@ const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   LOGOUT: msg("SHA-256 evento"),
   INVESTOR_SESSION_RECOVERED: msg("SHA-256 evento"),
   INVESTOR_OTP_FAILED: msg("SHA-256 evento"),
+  STAFF_INVITED: msg("SHA-256 decisión"),
+  STAFF_INVITATION_RESENT: msg("SHA-256 decisión"),
+  ACCOUNT_ACTIVATED: msg("SHA-256 evento"),
+  DATA_ROOM_DOCUMENT_ADDED: msg("SHA-256 documento"),
+  DATA_ROOM_DOCUMENT_DOWNLOADED: msg("SHA-256 documento"),
+  KYC_DOCUMENT_VIEWED: msg("SHA-256 documento"),
+  VAULT_INTEGRITY_FAILED: msg("SHA-256 esperado"),
 };
 
 export function AuditTrail({ entries, empty }: { entries: AuditEntry[]; empty?: string }) {

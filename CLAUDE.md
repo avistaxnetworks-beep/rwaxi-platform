@@ -22,8 +22,9 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
     backoffice/          actions.ts (KYC) · payment-actions.ts (confirmPayment) · chain-actions.ts (ejecutar la cola)
                          distribution-actions.ts (declareDistribution) · _lib/queries.ts (bandeja de cumplimiento)
                          _lib/subscriptions-desk.ts (Suscripciones y Pagos) · _lib/distributions-desk.ts (Distribuciones)
-  app/_lib/server/       tenant-context, staff-auth (contraseña + TOTP, sesiones), investor-session (HMAC),
-                         investor-recovery (código por correo) + mail-outbox, chain-queue (calldata viem, puro),
+  app/_lib/server/       tenant-context, staff-auth (contraseña + TOTP, sesiones), staff-invitations + staff-activation
+                         (cuentas del alta B2B), investor-session (HMAC), investor-recovery (código por correo) +
+                         mail-outbox, vault + vault-access (bóveda documental), chain-queue (calldata viem, puro),
                          chain-invariants (prelación + reverts de los contratos, puro), chain-executor (firma y confirma)
   app/_components/auth/  login del personal (contraseña → TOTP o enrolamiento) y cuenta en la cabecera
   app/_lib/referral.ts   tokens de referido firmados (HMAC-SHA256, Web Crypto: middleware y Server Actions)
@@ -32,13 +33,16 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   app/superadmin/_lib/   métricas consolidadas con platformPrisma() (rol BYPASSRLS, sólo host admin)
   app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
   app/api/inspector/sources   fuente .sol de los contratos, sólo con sesión de backoffice/consola (inspector-access.ts)
+  app/api/vault/         upload (KYC, staging del alta, Data Room) · kyc/[caso]/[lado] · data-room/[id] (bóveda documental)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
-packages/database        Prisma 6 · esquema multi-tenant (20 entidades) · RLS · cliente con tenant · seed
+packages/database        Prisma 6 · esquema multi-tenant (22 entidades) · RLS · cliente con tenant · seed
                          credentials.ts (scrypt, TOTP RFC 6238, AES-256-GCM, tokens y códigos de un solo uso)
   scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente)
 packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · distribution.ts (prorrata en centavos + árbol de asignaciones)
                          canonical.ts (evidenceHash) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
+packages/document-vault  DocumentVault: políticas (tipo por magic bytes, tamaño, SHA-256), claves por contenido y
+                         tenant, drivers local (disco privado) y s3 (S3/R2 con SigV4) · sample.ts (PDF deterministas)
 contracts                Hardhat 2 · solc 0.8.24 · @openzeppelin/contracts 5.6.1 (versión exacta: bytecode determinista)
 ```
 
@@ -105,8 +109,16 @@ Reglas:
    roles del tenant (o el primer `SUPER_ADMIN` en la consola, nunca en producción) y un navegador puede excluirse con
    la cookie `rwaxi_demo_auth=off` (la usa la suite `auth`). El seed da a todo el personal la contraseña demo
    `RwaxiDemo-2026!` y un secreto TOTP determinista (`SHA-256("rwaxi-demo-totp:" + email)[0..20]`,
-   `seed-data/credentials.ts`); nunca en producción salvo `RWAXI_SEED_DEMO_CREDENTIALS=1`. Los usuarios creados por el
-   alta B2B aún no tienen contraseña (pendiente: invitación). La consola actúa con `requirePlatformAccess()`
+   `seed-data/credentials.ts`); nunca en producción salvo `RWAXI_SEED_DEMO_CREDENTIALS=1`. **Activación**: los usuarios
+   que crea el alta B2B nacen sin contraseña y reciben una invitación (`staff-invitations.ts`: token de un solo uso en
+   el fragmento `#token=` de `{slug}.rwaxi.com/backoffice/activate`, en `user_invitations` sólo su SHA-256, 72 h; el
+   correo va a `mail_outbox`; `STAFF_INVITED`). La activación (`staff-activation.ts`, ES/EN/PT) aplica la política de
+   `app/_lib/password-policy.ts` en pantalla y en servidor (12–128, mayúsculas y minúsculas, número, símbolo, sin el
+   nombre, el correo, la empresa ni «rwaxi»), deja contraseña (scrypt) y secreto TOTP en la invitación y sólo con el
+   primer código válido, en una transacción, consume la invitación, activa la cuenta y abre una sesión verificada
+   (`ACCOUNT_ACTIVATED`, `MFA_ENROLLED`, `LOGIN_SUCCEEDED`). Un enlace usado, revocado, vencido o de otro tenant no
+   sirve. Si vence sin usarse, el Módulo A lo reenvía («Reenviar invitación», `resendStaffInvitation`, revoca los
+   anteriores, `STAFF_INVITATION_RESENT`). La consola actúa con `requirePlatformAccess()`
    (`platformActor`); sus acciones van en `AuditEvent` de la organización afectada (que el backoffice del tenant
    también ve) con `subjectHash = evidenceHash({ action, organizationId, entityId, ...payload })`.
    El inversionista se identifica con la cookie `rwaxi_inv` (HttpOnly, HMAC con `INVESTOR_SESSION_SECRET`, ligada a la
@@ -128,8 +140,9 @@ Reglas:
    emisor; la whitelist es del oficial de cumplimiento del tenant. No añadir roles a RWAXI sin revisión legal. En modo
    `RPC` el operador sólo envía `mintSubscription` y, desde la consola Super-Admin, `deployTenantRegistry` (el registro
    creado queda con el admin y el oficial del tenant); `approveInvestor` lo firma el oficial y `anchorDistributionRoot`
-   el emisor, cada uno con su propia wallet, y se registra su hash (`registerOfficerTransaction`, que exige recibo
-   exitoso y el evento `InvestorWhitelisted` / `DistributionRootAnchored` con los argumentos en cola). En `SIMULATION`
+   el emisor, igual que `updateDataRoomMerkleRoot`, cada uno con su propia wallet, y se registra su hash
+   (`registerOfficerTransaction`, que exige recibo exitoso y el evento `InvestorWhitelisted` /
+   `DistributionRootAnchored` / `DataRoomMerkleRootAnchored` con los argumentos en cola). En `SIMULATION`
    la clave del operador firma todo, sólo como demostración. Los controles de gobierno de la consola (suspender un portal,
    pausar la captación de una oferta, retirar de la vitrina) son **off-chain**: nunca pausan el token del emisor.
 7. **Integridad documental.** Cada documento del Data Room se hashea (SHA-256) en el navegador; la raíz se calcula con
@@ -138,6 +151,24 @@ Reglas:
    claves ordenadas, estable tras `jsonb`); `evidence` guarda formulario, SHA-256 del contenido de cada documento,
    declaraciones y NDA, de modo que cualquiera puede recalcular el hash que va on-chain. La evidencia persistida usa
    `app/_lib/sha256.ts` (Web Crypto, falla si no puede); nunca el `sha256Hex()` del prototipo, que inventa un hash.
+   **Bóveda documental** (`@rwaxi/document-vault`, `app/_lib/server/vault.ts`): los archivos detrás de esos hashes
+   (KYC y Data Room) se guardan direccionados por contenido y aislados por tenant (`tenants/{organización}/sha256/
+   {hex}`; `staging/sha256/{hex}` antes de que exista el tenant). Los bytes entran sólo por `POST /api/vault/upload`,
+   que lee el tipo de los bytes (PDF, PNG, JPG, WebP; en el Data Room también DOCX/XLSX), aplica el tamaño máximo
+   (KYC 10 MB, Data Room 20 MB) y recalcula el SHA-256: si no es exactamente el que declaró el navegador, no se
+   escribe nada. KYC (sesión del inversionista con NDA) y alta B2B (consola, a staging) devuelven un recibo HMAC que
+   `submitKyc()` / `onboardDeveloper()` exigen; el alta copia los archivos a la bóveda del tenant antes de crearlo. El
+   Data Room del backoffice (sólo `TENANT_ADMIN`) crea el `DataRoomDocument`, recalcula la raíz y, con el token
+   desplegado, deja un único `updateDataRoomMerkleRoot` `PENDING` (`DATA_ROOM_DOCUMENT_ADDED`). `vault_objects`
+   (metadato, append-only, CHECK de que la clave es la de su tenant) registra cada archivo. Descargas, siempre
+   re-hasheadas (si no coinciden: 409 y `VAULT_INTEGRITY_FAILED`) y auditadas: `GET /api/vault/kyc/{caso}/{front|back}`
+   sólo para el Oficial y el Administrador del tenant (`KYC_DOCUMENT_VIEWED`); `GET /api/vault/data-room/{id}` para el
+   inversionista con NDA de esa oferta (los restringidos, además, AccessGrant vigente) o con `?as=backoffice` para el
+   personal (`DATA_ROOM_DOCUMENT_DOWNLOADED`); el portal vuelve a hashear la copia en el navegador. Driver
+   `DOCUMENT_VAULT_DRIVER`: `local` (por defecto fuera de producción, `<repo>/.vault`, ignorado por git; el seed lo
+   reinicia y escribe PDF deterministas de los Data Room demo) o `s3` (S3/Cloudflare R2/MinIO con SigV4 propio y
+   payload firmado; obligatorio en producción, que sin configuración falla cerrada). En Vercel el cuerpo máximo de una
+   petición es 4,5 MB: archivos mayores requerirán subida directa prefirmada al bucket (pendiente).
 8. **Dominios propios**: mapa `DEFAULT_CUSTOM_DOMAINS` + `RWAXI_CUSTOM_DOMAINS` en `hosts.ts`
    (pendiente: Edge Config alimentado desde `Organization.customDomain`).
 
@@ -217,9 +248,11 @@ pnpm contracts:test                            # tests de cumplimiento (whitelis
 
 pnpm e2e                                       # suites E2E (Chrome headless) contra pnpm dev + la BD de .env; reseedea
 pnpm e2e portal onboarding                     # sólo esas (backoffice, portal, referrals-subscriptions, payments-queue,
-                                               #   superadmin-ops, onboarding, distributions, i18n, auth)
+                                               #   superadmin-ops, onboarding, distributions, i18n, auth, activation, vault)
 pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local (registry, token y factory) + next dev con
                                                #   CHAIN_EXECUTION=rpc y RWAXI_FACTORY_ADDRESS
+pnpm e2e:strict                                # auth, activation y vault contra un next dev propio con RWAXI_DEMO_AUTH=0
+                                               #   (puerto 3000 libre): ninguna petición puede caer en la sesión demo
 ```
 
 E2E (`scripts/e2e`, paquete `@rwaxi/e2e`): cada suite verifica la UI y, por separado, las filas en la BD con
@@ -255,8 +288,9 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   portafolio), pestañas "Cumplimiento y Leads" y "Suscripciones y Pagos" del backoffice, Inspector pestaña 4 (cola
   `ChainTransaction` y su ejecución), pestaña "Distribuciones y Rendimientos" del backoffice y su reflejo en el
   portafolio, Super-Admin (consolidado, alta de desarrolladores, módulo A Gobierno, B Atribución y C Tarifas, libro
-  mayor y facturación), login del personal con MFA y recuperación de sesión del inversionista. Siguen en estado demo: configuración White Label, Data Room y minting del backoffice y
-  pestañas 1–3 del inspector.
+  mayor y facturación), login del personal con MFA, activación de cuentas invitadas, recuperación de sesión del
+  inversionista y bóveda documental (Data Room del backoffice y del portal, documentos KYC). Siguen en estado demo:
+  configuración White Label, emisión del token (minting) del backoffice y pestañas 1–3 del inspector.
 - **Suscripciones**, en tres pasos, cada uno una transacción `withTenant` con transición condicional y `AuditEvent`:
   1. `subscribe()` (portal): KYC `APPROVED` + wallet; capital recalculado en servidor (`unitPriceUsd × units`, ticket
      mínimo, máx. 250.000 USD); unidades comprometidas con `UPDATE` condicional + `CHECK

@@ -22,6 +22,7 @@ export function StaffLogin({
   verify,
   next,
   aside,
+  hint,
 }: {
   brand: ReactNode;
   title: string;
@@ -32,6 +33,8 @@ export function StaffLogin({
   next: string;
   /** e.g. the language toggle of the backoffice */
   aside?: ReactNode;
+  /** a line under the password step (e.g. how invited accounts activate) */
+  hint?: ReactNode;
 }) {
   const { tr } = useI18n();
   const [step, setStep] = useState<Step>({ kind: "password" });
@@ -128,6 +131,7 @@ export function StaffLogin({
               <Icon name="ShieldCheck" size={13} className="text-aquaInk" />
               {tr("Acceso con contraseña y código de verificación de dos pasos (TOTP).")}
             </p>
+            {hint && <p className="text-[11.5px] text-muted border-t border-line pt-3">{hint}</p>}
           </form>
         ) : (
           <form onSubmit={submitCode} className="px-7 py-6 flex flex-col gap-4">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { tenantDisplayName } from "../_lib/tenant-view";
 import { loadComplianceInbox } from "./_lib/queries";
+import { loadDataRoomDesk } from "./_lib/data-room-desk";
 import { loadDistributionsDesk } from "./_lib/distributions-desk";
 import { ROLE_LABEL, backofficeIdentity } from "./_lib/session";
 import { loadSubscriptionsDesk } from "./_lib/subscriptions-desk";
@@ -19,10 +20,11 @@ export default async function BackofficePage() {
   // A signed-in staff member of this tenant, or the demo session where it is enabled; anyone else signs in.
   const identity = await backofficeIdentity().catch(() => null);
   if (!identity) redirect("/backoffice/login");
-  const [compliance, subscriptions, distributions] = await Promise.all([
+  const [compliance, subscriptions, distributions, dataRoom] = await Promise.all([
     loadComplianceInbox(),
     loadSubscriptionsDesk(),
     loadDistributionsDesk(),
+    loadDataRoomDesk(),
   ]);
   return (
     <BackofficeScreen
@@ -30,6 +32,7 @@ export default async function BackofficePage() {
       compliance={compliance}
       subscriptions={subscriptions}
       distributions={distributions}
+      dataRoom={dataRoom}
     />
   );
 }

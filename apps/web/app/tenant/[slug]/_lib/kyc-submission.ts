@@ -1,9 +1,10 @@
-// Browser-side: turns the wizard's form state into the KycSubmission sent to submitKyc().
+// Browser-side: turns the wizard's form state into the KycSubmission sent to submitKyc(). Each identity document
+// is first uploaded to the DocumentVault, which verifies its bytes against the SHA-256 computed here.
 import { LocalizedError } from "@/app/_i18n/marks";
-import { sha256Bytes } from "@/app/_lib/sha256";
+import { uploadToVault } from "@/app/_lib/vault-upload";
 import type { KycDocument, KycSubmission } from "./journey-types";
 
-/** A document of the wizard that could not be hashed; shown in the visitor's language. */
+/** A document of the wizard that could not be uploaded; shown in the visitor's language. */
 export class KycFileError extends LocalizedError {}
 
 interface WizardFile {
@@ -11,30 +12,42 @@ interface WizardFile {
   size?: number;
   type?: string;
   sha256?: string;
+  /** image preview or sample document (data URL) */
   src?: string | null;
+  /** the file chosen in this browser */
+  file?: Blob | null;
   error?: string;
 }
 
 async function documentOf(file: WizardFile | null | undefined): Promise<KycDocument | null> {
   if (!file || file.error) return null;
-  let { sha256, type, size } = file;
-  if (!sha256 && file.src) {
-    // Sample documents (and images previewed as data URLs) are hashed from their bytes here.
-    const bytes = await (await fetch(file.src)).arrayBuffer();
-    sha256 = await sha256Bytes(bytes);
-    type ||= /^data:([^;,]+)/.exec(file.src)?.[1];
-    size ||= bytes.byteLength;
-  }
-  if (!sha256)
-    throw new KycFileError("No se pudo calcular el SHA-256 de {name}; vuelve a cargarlo.", {
+  // The bytes: the file chosen in this browser, or the sample / preview data URL.
+  const blob = file.file ?? (file.src ? await (await fetch(file.src)).blob() : null);
+  if (!blob)
+    throw new KycFileError("Vuelve a cargar {name}: el archivo ya no está disponible en este navegador.", {
       name: file.name,
     });
-  return { name: file.name, size: size ?? 0, type: type || "application/octet-stream", sha256 };
+  const uploaded = await uploadToVault(blob, file.name, "kyc");
+  if (!uploaded.ok || !uploaded.receipt) {
+    throw uploaded.ok || uploaded.error === null
+      ? new KycFileError("No se pudo subir {name} a la bóveda documental; inténtalo de nuevo.", {
+          name: file.name,
+        })
+      : new KycFileError("{name}: {error}", { name: file.name, error: uploaded.error });
+  }
+  return {
+    name: file.name,
+    size: uploaded.sizeBytes,
+    type: uploaded.mimeType,
+    sha256: uploaded.sha256,
+    receipt: uploaded.receipt,
+  };
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the wizard state comes from the untyped prototype */
 export async function toKycSubmission(data: any): Promise<KycSubmission> {
-  const [docFront, docBack] = await Promise.all([documentOf(data.docFront), documentOf(data.docBack)]);
+  const docFront = await documentOf(data.docFront);
+  const docBack = data.docType === "CC" ? await documentOf(data.docBack) : null;
   return {
     fullName: String(data.fullName ?? ""),
     docType: String(data.docType ?? ""),
@@ -46,7 +59,7 @@ export async function toKycSubmission(data: any): Promise<KycSubmission> {
     income: typeof data.income === "number" ? data.income : null,
     risk: String(data.risk ?? ""),
     docFront,
-    docBack: data.docType === "CC" ? docBack : null,
+    docBack,
     liveness: String(data.liveness ?? ""),
     noPep: data.noPep === true,
     dataPolicy: data.dataPolicy === true,

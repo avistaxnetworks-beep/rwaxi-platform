@@ -12,6 +12,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "FEE_INVOICED",
   "FEE_PAYMENT_RECORDED",
   "ORGANIZATION_ONBOARDED",
+  "STAFF_INVITED",
+  "STAFF_INVITATION_RESENT",
 ] as const;
 export type PlatformAuditActionKey = (typeof PLATFORM_AUDIT_ACTIONS)[number];
 
@@ -33,7 +35,13 @@ interface PlatformPayload {
   taxId?: string;
   users?: unknown[];
   documents?: number;
+  email?: string;
+  role?: string;
+  expiresAt?: string;
 }
+
+const ROLE_LABEL: Record<string, string> = { TENANT_ADMIN: msg("Administrador"), COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento") };
+const utc = (iso: unknown) => `${String(iso).slice(0, 16).replace("T", " ")} UTC`;
 
 const STATUS_LABEL: Record<string, string> = { ACTIVE: msg("ACTIVO"), REVIEW: msg("EN REVISIÓN"), SUSPENDED: msg("SUSPENDIDO") };
 const TERMS: [key: string, label: string, unit: string][] = [
@@ -83,5 +91,12 @@ export function platformAuditSummary(action: PlatformAuditActionKey, raw: unknow
         code: String(p.offeringCode),
         documents: p.documents ?? 0,
       });
+    case "STAFF_INVITED":
+    case "STAFF_INVITATION_RESENT": {
+      const vars = { email: String(p.email), role: tr(ROLE_LABEL[String(p.role)] ?? String(p.role)), expires: utc(p.expiresAt) };
+      return action === "STAFF_INVITED"
+        ? tr("Invitación de activación enviada a {email} ({role}) · vence {expires}", vars)
+        : tr("Invitación de activación reenviada a {email} ({role}) · vence {expires}", vars);
+    }
   }
 }

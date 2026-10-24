@@ -169,6 +169,15 @@ enum AuditAction {
   // investor portal
   INVESTOR_SESSION_RECOVERED
   INVESTOR_OTP_FAILED
+  // staff accounts of onboarded developers: invitation from the console, activation on the tenant host
+  STAFF_INVITED
+  STAFF_INVITATION_RESENT
+  ACCOUNT_ACTIVATED
+  // document vault: verified uploads and audited access
+  DATA_ROOM_DOCUMENT_ADDED
+  DATA_ROOM_DOCUMENT_DOWNLOADED
+  KYC_DOCUMENT_VIEWED
+  VAULT_INTEGRITY_FAILED
 }
 
 enum SessionScope {
@@ -228,6 +237,8 @@ model Organization {
   userSessions   UserSession[]
   investorOtps   InvestorOtp[]
   mailOutbox     MailOutbox[]
+  invitations    UserInvitation[]
+  vaultObjects   VaultObject[]
 
   @@map("organizations")
 }
@@ -258,11 +269,12 @@ model User {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  organization          Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization          Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sessions              UserSession[]
-  reviewedCases         KycCase[]      @relation("KycReviewer")
+  invitations           UserInvitation[]
+  reviewedCases         KycCase[]        @relation("KycReviewer")
   auditEvents           AuditEvent[]
-  confirmedPayments     Subscription[] @relation("SubscriptionPaymentConfirmer")
+  confirmedPayments     Subscription[]   @relation("SubscriptionPaymentConfirmer")
   declaredDistributions Distribution[]
 
   @@index([organizationId])
@@ -769,7 +781,7 @@ model InvestorOtp {
 model MailOutbox {
   id             String    @id @default(cuid())
   organizationId String?   @map("organization_id")
-  /// INVESTOR_OTP
+  /// INVESTOR_OTP | STAFF_INVITATION
   purpose        String
   toEmail        String    @map("to_email")
   subject        String
@@ -782,4 +794,51 @@ model MailOutbox {
   @@index([toEmail, createdAt])
   @@index([organizationId, createdAt])
   @@map("mail_outbox")
+}
+
+/// Activation of a staff account created by the B2B onboarding (no password yet): a single-use link sent by
+/// email. Only the SHA-256 of its token is stored. Activating = password + TOTP enrolment, in two steps whose
+/// first one parks its results here until the code confirms them.
+model UserInvitation {
+  id                   String    @id @default(cuid())
+  organizationId       String    @map("organization_id")
+  userId               String    @map("user_id")
+  tokenHash            String    @unique @map("token_hash")
+  expiresAt            DateTime  @map("expires_at")
+  /// password and MFA set: the account is active
+  consumedAt           DateTime? @map("consumed_at")
+  /// replaced by a newer invitation of the same user
+  revokedAt            DateTime? @map("revoked_at")
+  /// scrypt hash chosen in the first activation step, applied with the TOTP enrolment
+  pendingPasswordHash  String?   @map("pending_password_hash")
+  /// TOTP secret of that enrolment (AES-256-GCM, bound to the user id)
+  pendingTotpSecretEnc String?   @map("pending_totp_secret_enc")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([organizationId])
+  @@map("user_invitations")
+}
+
+/// A file of the DocumentVault (@rwaxi/document-vault): content-addressed by its SHA-256 and isolated per
+/// tenant (storage key tenants/{organization}/sha256/{hex}). The server wrote it only after checking type, size
+/// and hash, and re-hashes it on every download. Append-only for the app roles.
+model VaultObject {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  /// 0x + SHA-256 of the bytes
+  sha256         String
+  sizeBytes      Int      @map("size_bytes")
+  /// read from the bytes (magic numbers), not from what the browser declared
+  mimeType       String   @map("mime_type")
+  storageKey     String   @map("storage_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, sha256])
+  @@map("vault_objects")
 }
