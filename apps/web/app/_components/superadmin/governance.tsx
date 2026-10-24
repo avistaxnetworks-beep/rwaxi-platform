@@ -195,7 +195,7 @@ export function Governance({
                       </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3.5 font-mono text-[11.5px] text-inkBody">{f.slug}.rwaxi.com</td>
+                  <td className="px-3 py-3.5 font-mono text-[11.5px] text-inkBody">{f.slug}.rwaxirealestate.com</td>
                   <td className="px-3 py-3.5 text-[11.5px]">{REGIMES[f.regime].short}</td>
                   <td className="px-3 py-3.5 text-[11.5px] text-muted">Sin proyectos aún</td>
                   <td className="px-3 py-3.5">
@@ -275,7 +275,7 @@ export function Governance({
             e(TX.registry(f)),
               l((N) => [...N, f]),
               u(false),
-              s(`${f.legalName} dado de alta · portal ${f.slug}.rwaxi.com en revisión`),
+              s(`${f.legalName} dado de alta · portal ${f.slug}.rwaxirealestate.com en revisión`),
               c(`Dio de alta el tenant ${f.legalName} (setup ${money(f.fees.setup, "USD")})`);
           }}
         />

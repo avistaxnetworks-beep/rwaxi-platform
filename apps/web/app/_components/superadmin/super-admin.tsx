@@ -74,7 +74,7 @@ export function SuperAdmin({
               RWA<span className="logo-x">X</span>I
             </span>
             <span className="mt-1 text-[9px] font-semibold tracking-[0.24em] text-[#D9A24A]">
-              CONSOLA SUPER-ADMIN · admin.rwaxi.com
+              CONSOLA SUPER-ADMIN · admin.rwaxirealestate.com
             </span>
           </div>
           <button

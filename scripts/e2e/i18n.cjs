@@ -1,6 +1,9 @@
 // E2E · commercial i18n. Vitrina in its 10 languages (cookie rwaxi_vitrina_lang, first render already in the
 // language, dir="rtl" in Arabic with LTR tabular figures, offering copy from Offering.translations, Korean
-// keep-all and strict CJK line breaking, German without overflowing buttons or badges). White Label portal and
+// keep-all and strict CJK line breaking): the commercial page — three anchors in the header, «Cómo Invertir»,
+// «Inversión Supercargada» with its comparison, the B2B links to rwaxi.com and the legal disclosure — translated,
+// and in every language, at 1360 px and on a 390 px phone, no text wider than its box, no horizontal page scroll and
+// nothing overlapping in the header. White Label portal and
 // backoffice in ES | EN | PT (cookie rwaxi_portal_lang shared by both), server messages and the On-Chain queue
 // blockers rendered in the visitor's language, and Spanish untouched by default.
 const fs = require("fs");
@@ -44,6 +47,37 @@ const STAGE_LABEL = {
   preventa: "Pre-venta",
 };
 const CARD_LABELS = ["TIR Estimada", "Distribución Anual Est.", "Valorización Anual Proy.", "Ticket Mínimo"];
+// The commercial page of the vitrina (header anchors, sections, B2B links, disclosure) and its Spanish sources.
+const NAV = { oportunidades: "Oportunidades", "como-funciona": "Cómo Invertir", "beneficios-tokenizacion": "Inversión Supercargada" };
+const B2B_URL = "https://rwaxi.com";
+const B2B = { header: "¿Eres desarrollador? Tokeniza tu inmueble", band: "Conoce cómo estructurar tu inmueble en rwaxi.com" };
+const HOW_TITLE = "Invierte en bienes raíces de grado institucional en 4 pasos claros";
+const HOW_STEPS = [
+  "Elige tu oportunidad y firma tu NDA digital",
+  "Accede al Data Room y valida el respaldo",
+  "Supera el proceso KYC y suscribe tus unidades",
+  "Paga al vehículo del proyecto y recibe tus tokens",
+];
+const SUPER_TITLE = "No es solo finca raíz fraccionada. Es una Inversión Supercargada.";
+const BENEFITS = [
+  "Alcance Global con el Mismo Capital",
+  "Respaldo Inmutable y Auditoría en Tiempo Real",
+  "Propiedad Programable y Rendimientos Exactos",
+  "Portabilidad y Estándar Abierto No-Custodial",
+];
+const COMPARISON = [
+  "Acceso global 100 % digital",
+  "Auditoría criptográfica del Data Room",
+  "Trazabilidad on-chain en tiempo real",
+  "Cálculo programable de rendimientos",
+  "Custodia directa en tu wallet",
+];
+const DISCLOSURE = [
+  "Naturaleza tecnológica B2B y no custodia",
+  "Emisor autónomo y relación contractual directa",
+  "Sin oferta pública no autorizada ni asesoría financiera",
+  "Advertencia de riesgos y proyecciones",
+];
 
 // The catalogues of the app (apps/web/app/_i18n/messages/<lang>.ts): an object literal keyed by the Spanish source.
 function loadCatalog(lang) {
@@ -110,9 +144,12 @@ const vitrinaSnapshot = (page) =>
         })),
         buttons: [...a.querySelectorAll("button")].map((b) => b.textContent.trim()),
       })),
-      // Text wider than its box: buttons, tabs and badges of the vitrina (ellipsis-truncated text is by design).
+      // Text wider than its box: buttons, tabs, badges and links of the vitrina, and the text blocks of its commercial
+      // sections (ellipsis-truncated text is by design).
       overflow: [
-        ...document.querySelectorAll('[data-env="vitrina"] :is(button, [role="tab"], [data-stage-label])'),
+        ...document.querySelectorAll(
+          '[data-env="vitrina"] :is(button, [role="tab"], [data-stage-label], a[data-b2b-link]), [data-vitrina-section]:not([data-vitrina-section="oportunidades"]) :is(h2, h3, p, th, td, dt, dd), [data-b2b-band] :is(h2, p), [data-legal-disclosure] :is(h2, p)',
+        ),
       ]
         .filter(
           (el) =>
@@ -121,6 +158,41 @@ const vitrinaSnapshot = (page) =>
             el.scrollWidth > el.clientWidth + 1,
         )
         .map((el) => `${el.textContent.trim().slice(0, 48)} (${el.scrollWidth}>${el.clientWidth})`),
+      // The page itself never scrolls sideways.
+      pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      // Boxes of the header that intersect: logo, the three anchors, language menu and the B2B link.
+      headerOverlap: (() => {
+        const header = document.querySelector('[data-env="vitrina"] header');
+        const items = [
+          ...header.querySelectorAll("button.brand-logo, [data-nav-section], [data-lang-menu] > button, [data-b2b-link]"),
+        ].filter(visible);
+        const hits = [];
+        for (let i = 0; i < items.length; i++)
+          for (let j = i + 1; j < items.length; j++) {
+            const a = items[i].getBoundingClientRect();
+            const b = items[j].getBoundingClientRect();
+            if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1)
+              hits.push(`«${items[i].textContent.trim().slice(0, 20)}»∩«${items[j].textContent.trim().slice(0, 20)}»`);
+          }
+        return hits;
+      })(),
+      nav: [...document.querySelectorAll("[data-nav-section]")].map((b) => ({ section: b.dataset.navSection, text: b.textContent.trim() })),
+      sections: [...document.querySelectorAll("[data-vitrina-section]")].map((n) => n.dataset.vitrinaSection),
+      legacy: !!document.getElementById("frontera-legal"),
+      b2b: [...document.querySelectorAll("[data-b2b-link]")].map((a) => ({
+        where: a.dataset.b2bLink,
+        href: a.getAttribute("href"),
+        text: a.textContent.replace("→", "").trim(),
+      })),
+      howTitle: document.querySelector("#como-funciona h2")?.textContent.trim(),
+      howSteps: [...document.querySelectorAll("[data-invest-step] h3")].map((n) => n.textContent.trim()),
+      superTitle: document.querySelector("#beneficios-tokenizacion h2")?.textContent.trim(),
+      benefits: [...document.querySelectorAll("[data-benefit] h3")].map((n) => n.textContent.trim()),
+      comparison: [...document.querySelectorAll("[data-comparison] [data-comparison-row]")]
+        .filter(visible)
+        .map((r) => (r.querySelector("th") ?? r.querySelector("p")).textContent.trim()),
+      marks: [...document.querySelectorAll("[data-comparison] [data-mark]")].filter(visible).length,
+      disclosure: [...document.querySelectorAll("[data-disclosure-point] p:first-child")].map((n) => n.textContent.trim()),
     };
   });
 
@@ -135,6 +207,32 @@ async function chooseVitrinaLanguage(page, lang) {
     BCP47[lang],
   );
 }
+
+/** The commercial page of the vitrina against the catalogue of `lang`. */
+function checkPage(lang, snap) {
+  const problems = [];
+  const want = (label, got, expected) => {
+    if (JSON.stringify(got) !== JSON.stringify(expected)) problems.push(`${label} «${JSON.stringify(got)}» ≠ «${JSON.stringify(expected)}»`);
+  };
+  want("anclas", snap.nav, Object.entries(NAV).map(([section, label]) => ({ section, text: tr(lang, label) })));
+  want("secciones", snap.sections, Object.keys(NAV));
+  if (snap.legacy) problems.push("sigue la sección «Frontera legal»");
+  want("enlaces B2B", snap.b2b, Object.entries(B2B).map(([where, label]) => ({ where, href: B2B_URL, text: tr(lang, label) })));
+  want("título Cómo Invertir", snap.howTitle, tr(lang, HOW_TITLE));
+  want("pasos", snap.howSteps, HOW_STEPS.map((x) => tr(lang, x)));
+  want("título Inversión Supercargada", snap.superTitle, tr(lang, SUPER_TITLE));
+  want("beneficios", snap.benefits, BENEFITS.map((x) => tr(lang, x)));
+  want("comparativo", snap.comparison, COMPARISON.map((x) => tr(lang, x)));
+  if (snap.marks !== COMPARISON.length * 3) problems.push(`${snap.marks} celdas del comparativo`);
+  want("aviso legal", snap.disclosure, DISCLOSURE.map((x) => tr(lang, x)));
+  return problems;
+}
+/** Layout at the current viewport: overflowing text, sideways page scroll, overlapping header items. */
+const layoutProblems = (snap) => [
+  ...snap.overflow,
+  ...(snap.pageOverflow > 0 ? [`página ${snap.pageOverflow}px más ancha que la pantalla`] : []),
+  ...snap.headerOverlap.map((h) => `cabecera ${h}`),
+];
 
 /** The vitrina cards against the catalogue and the offering copy stored in PostgreSQL. */
 function checkCards(lang, snap, offerings) {
@@ -286,6 +384,12 @@ const videoOverlaps = (page) =>
       !problems.length,
       problems.join(" | "),
     );
+    problems = checkPage("es", snap);
+    ok(
+      "página comercial en español: 3 anclas (Oportunidades · Cómo Invertir · Inversión Supercargada), secciones, comparativo, enlaces B2B a https://rwaxi.com y aviso legal; sin «Frontera legal»",
+      !problems.length,
+      problems.join(" | "),
+    );
 
     await v.click("[data-lang-menu] > button");
     const options = await v.$$eval("[data-lang-option]", (bs) =>
@@ -317,6 +421,22 @@ const videoOverlaps = (page) =>
         !problems.length,
         problems.join(" | "),
       );
+      problems = checkPage(lang, snap);
+      ok(
+        `[${lang}] página comercial traducida: anclas, Cómo Invertir, Inversión Supercargada y comparativo, enlaces B2B y aviso legal`,
+        !problems.length,
+        problems.join(" | "),
+      );
+      problems = layoutProblems(snap);
+      ok(`[${lang}] 1360 px: sin textos desbordados, sin scroll horizontal ni solapamientos en la cabecera`, !problems.length, problems.join(" | "));
+      await v.setViewport({ width: 390, height: 900 });
+      await new Promise((r) => setTimeout(r, 500));
+      const phone = await vitrinaSnapshot(v);
+      problems = [...layoutProblems(phone), ...(phone.comparison.length === COMPARISON.length ? [] : ["comparativo apilado incompleto"])];
+      ok(`[${lang}] móvil 390 px: sin textos desbordados, sin scroll horizontal ni solapamientos en la cabecera`, !problems.length, problems.join(" | "));
+      if (["de", "ar", "zh", "ja", "ko"].includes(lang)) await shot(v, `i18n-vitrina-${lang}-mobile`, { fullPage: true });
+      await v.setViewport({ width: 1360, height: 1000 });
+      await new Promise((r) => setTimeout(r, 300));
       const filters = snap.filters.map((f) => f.text.replace(/\s*\d+$/, ""));
       ok(
         `[${lang}] filtros de etapa traducidos`,
@@ -354,22 +474,6 @@ const videoOverlaps = (page) =>
           `${snap.stageSpacing} (es: ${latinTracking})`,
         );
       if (lang === "de") {
-        ok(
-          "[de] ningún botón ni badge desborda su caja (1360 px)",
-          !snap.overflow.length,
-          snap.overflow.join(" | "),
-        );
-        await v.setViewport({ width: 390, height: 900 });
-        await new Promise((r) => setTimeout(r, 500));
-        const narrow = await vitrinaSnapshot(v);
-        ok(
-          "[de] ningún botón ni badge desborda su caja (móvil, 390 px)",
-          !narrow.overflow.length,
-          narrow.overflow.join(" | "),
-        );
-        await shot(v, "i18n-vitrina-de-mobile", { fullPage: true });
-        await v.setViewport({ width: 1360, height: 1000 });
-
         // The inspector is translated to es · en · pt only: from a German vitrina it opens in English.
         const inspectorLabel = tr("de", "Inspector On-Chain (OpenZeppelin v5)");
         await clickText(v, inspectorLabel);
@@ -507,6 +611,19 @@ const videoOverlaps = (page) =>
 
     await chooseTenantLanguage(p, "en");
     await waitText(p, tr("en", "Firmar NDA con un clic"), 30000);
+    // The funnel in its order — NDA, Data Room, KYC, subscription — with its steps in English (avista: SAGRILAFT + PTEE).
+    const funnel = await p.$$eval('[id^="funnel-"]', (bs) => bs.map((b) => b.textContent));
+    const stepLabels = [
+      tr("en", "Firma de NDA digital"),
+      tr("en", "Data Room inmobiliario"),
+      tr("en", "KYC/AML + {regime}", { regime: "SAGRILAFT + PTEE" }),
+      tr("en", "Suscripción y portafolio"),
+    ];
+    ok(
+      "portal en inglés: el embudo NDA → Data Room → KYC → Suscripción con sus pasos traducidos",
+      funnel.length === 4 && stepLabels.every((label, i) => funnel[i].includes(label)),
+      funnel.map((f) => f.slice(0, 48)).join(" | "),
+    );
     const enCookie = await cookie(p, "avista", "rwaxi_portal_lang");
     ok(
       "portal en inglés: textos del embudo NDA y cookie rwaxi_portal_lang",

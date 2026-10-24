@@ -1,8 +1,8 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
 import { useRef, useState } from "react";
 import { VideoPitchCard } from "@/app/_components/backoffice/video-pitch-card";
 import { LegalEditor } from "@/app/_components/legal/legal-editor";
+import type { PortalProject, PortalTenant, RegimeKey } from "@/app/_components/portal/portal-types";
 import { PoweredSeal, TenantLogo } from "@/app/_components/portal/tenant-brand";
 import { Field, fieldCls } from "@/app/_components/ui/form";
 import { Icon } from "@/app/_components/ui/icon";
@@ -13,11 +13,44 @@ import { portalHost } from "@/app/_lib/hosts";
 import { videoTitle } from "@/app/_lib/data/video";
 import { useI18n } from "@/app/_i18n/provider";
 
-export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, photos: l }) {
+/** The portal's pitch video (app/_lib/data/video.ts): what the live preview reads. */
+interface PitchVideo {
+  title: string;
+  presenter: string;
+  role: string;
+  posterIdx: number;
+  poster: string | null;
+}
+
+/** The developer's White Label settings (prototype tenant state): what this tab edits and previews. */
+export interface WhiteLabelTenant extends PortalTenant {
+  domain: string;
+  domainStatus: "verificado" | "sin_verificar" | "sin_configurar";
+  ndaText: string;
+  video: PitchVideo;
+}
+
+export function ConfigTab({
+  t: e,
+  p: a,
+  setTenant: t,
+  toPortal: o,
+  toast: n,
+  photos: l,
+}: {
+  t: WhiteLabelTenant;
+  p: PortalProject;
+  setTenant: (update: (tenant: WhiteLabelTenant) => WhiteLabelTenant) => void;
+  toPortal: () => void;
+  toast: (message: string) => void;
+  photos: { src: string }[];
+}) {
   const { tr } = useI18n();
-  const r = useRef(),
+  const r = useRef<HTMLInputElement>(null),
     [i, s] = useState(false),
-    c = (u) => (v) =>
+    c =
+      <K extends keyof WhiteLabelTenant>(u: K) =>
+      (v: WhiteLabelTenant[K]) =>
       t((h) => ({
         ...h,
         [u]: v,
@@ -63,7 +96,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
         <Field
           id="cfg-regime"
           label={tr("Régimen de Cumplimiento del Oferente")}
-          hint={tr("Define las etiquetas y declaraciones del Paso 2 del portal. Autoridad: {authority}.", {
+          hint={tr("Define las etiquetas y declaraciones del Paso 3 del portal. Autoridad: {authority}.", {
             authority: tr(REGIMES[e.regime].authority),
           })}
         >
@@ -71,7 +104,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
             id="cfg-regime"
             value={e.regime}
             onChange={(u) => {
-              const v = u.target.value;
+              const v = u.target.value as RegimeKey;
               (t((h) => ({
                 ...h,
                 regime: v,
@@ -136,14 +169,14 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
               accept="image/png,image/svg+xml,image/jpeg,image/webp"
               className="sr-only"
               onChange={(u) => {
-                const v = u.target.files[0];
+                const v = u.target.files?.[0];
                 if (!v) return;
                 const h = new FileReader();
-                ((h.onload = () => c("logo")(h.result)), h.readAsDataURL(v), (u.target.value = ""));
+                ((h.onload = () => c("logo")(h.result as string)), h.readAsDataURL(v), (u.target.value = ""));
               }}
             />
             <button
-              onClick={() => r.current.click()}
+              onClick={() => r.current?.click()}
               className="border border-line bg-white px-3 py-2 text-[12.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring"
             >
               <Icon name="Upload" size={14} />
@@ -161,7 +194,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
             id="cfg-domain"
             label={tr("Dominio personalizado")}
             hint={tr(
-              "Crea un registro CNAME de {domain} hacia tenants.rwaxi.com. El portal siempre responde también en {host}.",
+              "Crea un registro CNAME de {domain} hacia tenants.rwaxirealestate.com. El portal siempre responde también en {host}.",
               { domain: e.domain || tr("tu dominio"), host: portalHost(e) },
             )}
           >
@@ -203,16 +236,16 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
           id="cfg-nda"
           label={tr("NDA · Paso 1 (Ley 527 de 1999)")}
           value={e.ndaText}
-          onChange={(u) => c("ndaText")(u)}
+          onChange={(u: string) => c("ndaText")(u)}
           onReset={() => c("ndaText")(LEGAL_NDA)}
           isDefault={e.ndaText === LEGAL_NDA}
           vars={legalVars(e, a)}
         />
         <LegalEditor
           id="cfg-sarlaft"
-          label={tr("Debida diligencia · Paso 2 ({regime})", { regime: REGIMES[e.regime].short })}
+          label={tr("Debida diligencia · Paso 3 ({regime})", { regime: REGIMES[e.regime].short })}
           value={e.complianceTpl[e.regime]}
-          onChange={(u) =>
+          onChange={(u: string) =>
             t((v) => ({
               ...v,
               complianceTpl: {
@@ -302,7 +335,7 @@ export function ConfigTab({ t: e, p: a, setTenant: t, toPortal: o, toast: n, pho
             <span className="tc-btn text-[12px] font-semibold py-2.5 text-center">
               {tr("Firmar NDA con un clic")}
             </span>
-            <PoweredSeal />
+            <PoweredSeal dark={false} />
           </div>
         </div>
         <p className="text-[11.5px] text-muted">

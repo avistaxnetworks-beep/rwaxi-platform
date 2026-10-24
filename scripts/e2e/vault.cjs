@@ -1,6 +1,6 @@
 // E2E · DocumentVault: KYC and Data Room files. The server only stores bytes it verified itself (type from the
 // bytes, size, SHA-256 equal to the browser's), content-addressed per tenant; every download is authorized
-// (role, NDA, AccessGrant, tenant), re-hashed against the anchored SHA-256 (a tampered file is refused and the
+// (role, NDA, compliance revocation, tenant), re-hashed against the anchored SHA-256 (a tampered file is refused and the
 // incident audited) and recorded in AuditEvent. All staff browsers sign in for real (demo session opted out),
 // so the suite behaves the same under RWAXI_DEMO_AUTH=0 (pnpm e2e:strict).
 const crypto = require("crypto");
@@ -276,7 +276,7 @@ async function signedIn(browser, label, slug, email) {
       `${largeUpload.status} ${largeUpload.body?.error ?? ""}`,
     );
 
-    // ── 4 · Investors download Data Room files by NDA and AccessGrant, never across tenants ──
+    // ── 4 · Investors download every Data Room file with the NDA (KYC is for investing), never across tenants ──
     const publicDoc = docs.find((d) => !d.restricted && d.storageKey);
     const restrictedDoc = docs.find((d) => d.restricted && d.storageKey && d.id !== added.id);
     const anonymous = await vaultGet(stranger, `/api/vault/data-room/${publicDoc.id}`);
@@ -287,15 +287,30 @@ async function signedIn(browser, label, slug, email) {
     await waitText(b, "Firmar NDA con un clic", 180000);
     await clickText(b, "Completar con datos de ejemplo");
     await clickText(b, "Firmar NDA con un clic");
-    await waitText(b, "Paso 2 · Verificación KYC", 60000);
+    await waitText(b, lib.NDA_LANDING, 60000);
+    await b.waitForSelector('[data-investor-data-room][data-room-access="nda"]', { timeout: 60000 });
     const pubForB = await vaultGet(b, `/api/vault/data-room/${publicDoc.id}`);
     const resForB = await vaultGet(b, `/api/vault/data-room/${restrictedDoc.id}`);
+    const ndaDownload = await lastAudit({
+      organizationId: avista.id,
+      action: "DATA_ROOM_DOCUMENT_DOWNLOADED",
+      entityId: restrictedDoc.id,
+    });
     ok(
-      "inversionista con NDA (KYC sin aprobar): documento público → 200 con su SHA-256; restringido → 403 (exige AccessGrant)",
+      "tras el NDA aterriza en el Paso 2 (Data Room) y, sin KYC, descarga también el documento reservado: ambos 200 con su SHA-256",
       pubForB.status === 200 &&
         pubForB.sha256 === publicDoc.sha256 &&
-        resForB.status === 403 &&
-        /AccessGrant/.test(resForB.error ?? ""),
+        resForB.status === 200 &&
+        resForB.sha256 === restrictedDoc.sha256,
+      `${pubForB.status} · ${resForB.status} ${resForB.error ?? ""}`,
+    );
+    ok(
+      "DATA_ROOM_DOCUMENT_DOWNLOADED del reservado: acceso por NDA, sin KYC aún, con su NdaAcceptance",
+      ndaDownload?.payload.by === "investor" &&
+        ndaDownload.payload.access === "nda" &&
+        ndaDownload.payload.kycStatus === null &&
+        !!ndaDownload.payload.ndaAcceptanceId &&
+        !("accessGrantId" in ndaDownload.payload),
     );
 
     await clickIn(officer, `tr[data-investor="${inv.investor.id}"]`, "Aprobar Inversionista").catch(
@@ -309,7 +324,6 @@ async function signedIn(browser, label, slug, email) {
       { timeout: 90000 },
       inv.investor.id,
     );
-    const grant = await db.dataRoomAccessGrant.findFirstOrThrow({ where: { investorId: inv.investor.id } });
     const resForA = await vaultGet(inv.page, `/api/vault/data-room/${restrictedDoc.id}`);
     const downloaded = await lastAudit({
       organizationId: avista.id,
@@ -317,19 +331,20 @@ async function signedIn(browser, label, slug, email) {
       entityId: restrictedDoc.id,
     });
     ok(
-      "con KYC aprobado (AccessGrant): documento restringido → 200, SHA-256 idéntico; DATA_ROOM_DOCUMENT_DOWNLOADED del inversionista con su grant",
+      "con KYC aprobado: el reservado sigue en 200, SHA-256 idéntico; DATA_ROOM_DOCUMENT_DOWNLOADED registra el KYC APPROVED",
       resForA.status === 200 &&
         resForA.sha256 === restrictedDoc.sha256 &&
         downloaded?.actorEmail === inv.email &&
         downloaded.payload.by === "investor" &&
-        downloaded.payload.accessGrantId === grant.id,
+        downloaded.payload.access === "nda" &&
+        downloaded.payload.kycStatus === "APPROVED",
     );
     const named = decodeURIComponent(/filename\*=UTF-8''([^;]+)/.exec(resForA.disposition ?? "")?.[1] ?? "");
     ok("el archivo llega con el título del documento y la extensión de su tipo verificado", named === `${restrictedDoc.name}.pdf`, named);
 
     await inv.page.goto(url("avista"), { waitUntil: "domcontentloaded", timeout: 180000 });
     await inv.page.waitForSelector("#funnel", { timeout: 180000 });
-    await clickText(inv.page, "Data Room desbloqueado");
+    await inv.page.click("#funnel-2"); // step 2 of the funnel: the Data Room
     await inv.page.waitForSelector(`[data-room-document="${restrictedDoc.id}"]`, { timeout: 60000 });
     await clickIn(inv.page, `[data-room-document="${restrictedDoc.id}"]`, "");
     await inv.page.waitForSelector(`[data-room-document="${restrictedDoc.id}"][data-verified="true"]`, {

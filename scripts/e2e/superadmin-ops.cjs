@@ -262,7 +262,7 @@ const vitrinaCard = async (page, code) => {
     await waitText(fresh, "Firmar NDA con un clic");
     await clickText(fresh, "Completar con datos de ejemplo");
     await clickText(fresh, "Firmar NDA con un clic");
-    await waitText(fresh, "Paso 2 · Verificación KYC");
+    await waitText(fresh, lib.NDA_LANDING);
     ok(
       "reactivado: la vitrina vuelve a enlazar el portal y el NDA se firma",
       cardA.portal === "ACTIVE" && cardA.cta && (await db.investor.count({ where: { organizationId: avista.id } })) === investorsBefore + 1,

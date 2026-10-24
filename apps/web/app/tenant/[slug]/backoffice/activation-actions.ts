@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Activation of an invited staff account ({slug}.rwaxi.com/backoffice/activate#token=…): password, then the TOTP
+ * Activation of an invited staff account ({slug}.rwaxirealestate.com/backoffice/activate#token=…): password, then the TOTP
  * enrolment confirmed by its first code (staff-activation.ts). The tenant comes from the host.
  */
 import { LocalizedError } from "@/app/_i18n/marks";

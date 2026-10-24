@@ -151,7 +151,7 @@ function OfferingDataRoom({
               onChange={(e) => setRestricted(e.target.checked)}
               className="accent-[#2F145F]"
             />
-            {tr("Requiere AccessGrant (NDA + KYC)")}
+            {tr("Documento reservado (jurídico, fiduciario o financiero)")}
           </label>
         </div>
         <div>
@@ -223,9 +223,9 @@ function OfferingDataRoom({
                 </td>
                 <td className="px-3 py-2.5 text-[11px]">
                   {d.restricted ? (
-                    <span className="text-goldInk font-semibold">AccessGrant</span>
+                    <span className="text-goldInk font-semibold">{tr("Reservado · con NDA")}</span>
                   ) : (
-                    <span className="text-muted">{tr("Público")}</span>
+                    <span className="text-muted">{tr("Con NDA")}</span>
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-right font-mono text-[11px] text-muted tnum">{`${nf(0).format(d.sizeBytes / 1024)} KB`}</td>

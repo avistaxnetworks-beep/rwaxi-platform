@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  Blocks,
   Boxes,
   Building2,
   Calculator,
@@ -31,6 +32,7 @@ import {
   FlaskConical,
   Folder,
   FolderLock,
+  FolderOpen,
   Globe,
   Image,
   ImagePlus,
@@ -43,6 +45,7 @@ import {
   Mail,
   MapPin,
   Maximize,
+  MinusCircle,
   Network,
   Pause,
   PauseOctagon,
@@ -63,6 +66,7 @@ import {
   VolumeX,
   Wallet,
   X,
+  XCircle,
 } from "lucide-react";
 
 export const L = {
@@ -71,6 +75,7 @@ export const L = {
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  Blocks,
   Boxes,
   Building2,
   Calculator,
@@ -96,6 +101,7 @@ export const L = {
   FlaskConical,
   Folder,
   FolderLock,
+  FolderOpen,
   Globe,
   Image,
   ImagePlus,
@@ -108,6 +114,7 @@ export const L = {
   Mail,
   MapPin,
   Maximize,
+  MinusCircle,
   Network,
   Pause,
   PauseOctagon,
@@ -128,4 +135,5 @@ export const L = {
   VolumeX,
   Wallet,
   X,
+  XCircle,
 };

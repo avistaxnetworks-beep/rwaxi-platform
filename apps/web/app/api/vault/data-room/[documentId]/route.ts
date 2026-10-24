@@ -14,8 +14,9 @@ const ID = /^[A-Za-z0-9_-]{1,64}$/;
 /**
  * GET /api/vault/data-room/{documentId}[?download=1] — a Data Room file of the host's tenant (read under RLS:
  * another tenant's document "does not exist").
- *   investor (default): the session of this portal and its NDA for the document's offering; a restricted
- *     document also needs a current AccessGrant (NDA + KYC approved).
+ *   investor (default): the session of this portal and its NDA for the document's offering open every document of
+ *     that Data Room — restricted ones included: KYC is what investing requires, not reading —, unless the
+ *     compliance officer revoked the investor (latest KYC case of the offering REVOKED): then none.
  *   ?as=backoffice: any staff member of the tenant (or the demo session).
  * Re-hashed against the anchored SHA-256 and recorded as DATA_ROOM_DOCUMENT_DOWNLOADED.
  */
@@ -86,23 +87,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ docu
       throw new VaultError(
         "Firma el NDA del proyecto para acceder a los documentos del Data Room.",
       ).withStatus(403);
-    let grantId: string | null = null;
-    if (doc.restricted) {
-      const grant = await db.dataRoomAccessGrant.findFirst({
-        where: {
-          investorId: investor.id,
-          offeringId: doc.offeringId,
-          revokedAt: null,
-          expiresAt: { gt: new Date() },
-        },
-        select: { id: true },
-      });
-      if (!grant)
-        throw new VaultError("Este documento exige un AccessGrant vigente (NDA + KYC aprobado).").withStatus(
-          403,
-        );
-      grantId = grant.id;
-    }
+    const kyc = await db.kycCase.findFirst({
+      where: { investorId: investor.id, offeringId: doc.offeringId },
+      orderBy: { createdAt: "desc" },
+      select: { status: true },
+    });
+    if (kyc?.status === "REVOKED")
+      throw new VaultError(
+        "Tu verificación fue revocada: el Data Room de este proyecto ya no está disponible.",
+      ).withStatus(403);
     return await serveVaultFile({
       tenantId: tenant.id,
       actor: { id: null, email: investor.email ?? investor.fullName },
@@ -115,7 +108,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ docu
         by: "investor",
         investorId: investor.id,
         ndaAcceptanceId: nda.id,
-        accessGrantId: grantId,
+        access: "nda",
+        kycStatus: kyc?.status ?? null,
       },
       download,
     });

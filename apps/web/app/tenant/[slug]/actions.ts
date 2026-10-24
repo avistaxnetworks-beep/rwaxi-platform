@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Investor onboarding Server Actions of the White Label portal ({slug}.rwaxi.com).
+ * Investor onboarding Server Actions of the White Label portal ({slug}.rwaxirealestate.com).
  *
  * The tenant comes from the host and the investor from the signed session cookie issued at
  * the NDA; the browser never sends organization or investor ids. Every write runs in one
@@ -23,7 +23,7 @@ import { REF_COOKIE, verifyReferral } from "@/app/_lib/referral";
 import { readInvestorSession, startInvestorSession } from "@/app/_lib/server/investor-session";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
-import { REGISTRY_KIND_LIST, registryEntry } from "@/app/_lib/server/chain-invariants";
+import { REGISTRY_KIND_LIST, REGISTRY_TX_SELECT, walletFrozen } from "@/app/_lib/server/chain-invariants";
 import { verifyReceipt } from "@/app/_lib/server/vault";
 import { HOLDING_SELECT, OFFERING_STATE_SELECT, PORTAL_OFFERING, isoSeconds, offeringState, toHolding, toHoldings } from "./_lib/journey";
 import type {
@@ -495,15 +495,9 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         const registryTxs = await tx.chainTransaction.findMany({
           where: { kind: { in: [...REGISTRY_KIND_LIST] }, args: { path: ["wallet"], equals: wallet } },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: REGISTRY_TX_SELECT,
         });
-        const entry = registryEntry(
-          { registry: org.complianceRegistry, txs: registryTxs, subscriptions: [], tokens: [], distributions: [] },
-          wallet.toLowerCase(),
-        );
-        const freezing = registryTxs.some(
-          (t) => t.kind === "INVESTOR_FREEZE_UPDATED" && t.status === "PENDING" && (t.args as { frozen?: unknown }).frozen === true,
-        );
-        if (entry.frozen || freezing) {
+        if (walletFrozen({ registry: org.complianceRegistry, txs: registryTxs }, wallet.toLowerCase())) {
           throw new OnboardingError("Tu wallet está congelada por una decisión de cumplimiento: no se reciben nuevas suscripciones.");
         }
         const state = offeringState(offering);

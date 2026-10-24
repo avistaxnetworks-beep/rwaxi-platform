@@ -44,7 +44,7 @@ enum ComplianceRegime {
 }
 
 enum UserRole {
-  SUPER_ADMIN // Dirección RWAXI (admin.rwaxi.com)
+  SUPER_ADMIN // Dirección RWAXI (admin.rwaxirealestate.com)
   RWAXI_OPERATOR // operación técnica RWAXI: factory + mint
   TENANT_ADMIN // administrador del desarrollador (backoffice)
   COMPLIANCE_OFFICER // oficial de cumplimiento del desarrollador
@@ -79,7 +79,7 @@ enum TokenStatus {
 }
 
 enum LeadSource {
-  REFERRAL // referido por la vitrina www.rwaxi.com (token HMAC verificado y de un solo uso)
+  REFERRAL // referido por la vitrina www.rwaxirealestate.com (token HMAC verificado y de un solo uso)
   DIRECT // tráfico propio del desarrollador, o referido sin firma válida
 }
 
@@ -152,7 +152,7 @@ enum AuditAction {
   PAYMENT_CONFIRMED
   CHAIN_TX_CONFIRMED
   SUBSCRIPTION_MINTED
-  // platform governance and B2B billing (admin.rwaxi.com)
+  // platform governance and B2B billing (admin.rwaxirealestate.com)
   PORTAL_STATUS_CHANGED
   ORGANIZATION_PUBLICATION_CHANGED
   OFFERING_CAPTURE_PAUSED
@@ -190,8 +190,8 @@ enum AuditAction {
 }
 
 enum SessionScope {
-  TENANT // developer backoffice ({slug}.rwaxi.com), bound to one organization
-  PLATFORM // RWAXI console (admin.rwaxi.com), organization-less staff
+  TENANT // developer backoffice ({slug}.rwaxirealestate.com), bound to one organization
+  PLATFORM // RWAXI console (admin.rwaxirealestate.com), organization-less staff
 }
 
 enum DistributionStatus {
@@ -221,7 +221,7 @@ enum MailRedaction {
 
 model Organization {
   id                     String           @id @default(cuid())
-  slug                   String           @unique // {slug}.rwaxi.com
+  slug                   String           @unique // {slug}.rwaxirealestate.com
   displayName            String           @map("display_name")
   legalName              String           @map("legal_name")
   taxId                  String           @unique @map("tax_id") // NIT

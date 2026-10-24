@@ -1,4 +1,3 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
 import { useState } from "react";
 import { LegalText } from "@/app/_components/legal/legal-text";
@@ -11,8 +10,29 @@ import { nowISO, shortHash } from "@/app/_lib/format";
 import { sha256Hex } from "@/app/_lib/hash";
 import { sha256Text } from "@/app/_lib/sha256";
 import { useI18n } from "@/app/_i18n/provider";
+import type { NdaResult, NdaSubmission } from "@/app/tenant/[slug]/_lib/journey-types";
+import type { PortalJourney, PortalNda, PortalProject, PortalTenant } from "./portal-types";
 
-export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist: g }) {
+/**
+ * Step 1 of the funnel: the developer's NDA, signed with a click (ConsentRecord with the SHA-256 of the accepted text).
+ * Once signed, the whole Data Room opens (step 2). `persist` records it on the server (signNda); without it, the
+ * prototype's demo.
+ */
+export function NdaPanel({
+  t: e,
+  p: a,
+  journey: t,
+  onSign: o,
+  toast: n,
+  persist: g,
+}: {
+  t: PortalTenant & { ndaText: string };
+  p: PortalProject;
+  journey: PortalJourney;
+  onSign: (nda: PortalNda) => void;
+  toast: (message: string) => void;
+  persist?: (input: NdaSubmission) => Promise<NdaResult>;
+}) {
   const { locale, tr } = useI18n();
   const [l, r] = useState(""),
     [i, s] = useState(""),
@@ -30,7 +50,7 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
           </p>
           <p className="text-[13.5px] text-inkBody leading-[1.65]">
             {tr(
-              "Ya puedes ver los detalles reservados del proyecto. El siguiente paso es tu verificación KYC/AML con el Oficial de Cumplimiento del desarrollador.",
+              "Ya tienes acceso al 100 % del Data Room del proyecto (Paso 2). Cuando decidas invertir, completa tu verificación KYC/AML con el Oficial de Cumplimiento del desarrollador (Paso 3).",
             )}
           </p>
         </div>
@@ -39,7 +59,7 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
             CONSENTRECORD
           </div>
           {[
-            ["ID", b.id],
+            ["ID", b.id ?? "—"],
             [tr("Firmante"), `${b.signer} · ${b.email}`],
             [tr("Contraparte"), `${e.legalName} · NIT ${e.nit}`],
             [tr("Fecha (UTC)"), b.at],
@@ -52,12 +72,7 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
           <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-3 px-4 py-2">
             <dt className="text-muted">SHA-256</dt>
             <dd className="min-w-0">
-              <CopyChip
-                text={b.hash}
-                display={shortHash(b.hash, 14, 8)}
-                toast={n}
-                className="text-[11.5px]"
-              />
+              <CopyChip text={b.hash} display={shortHash(b.hash, 14, 8)} toast={n} className="text-[11.5px]" />
             </dd>
           </div>
         </dl>
@@ -74,9 +89,9 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
       return;
     }
     v(""), m(true);
-    const b = nowISO(),
+    const b: string = nowISO(),
       // Persisted evidence must come from Web Crypto: sha256Hex() falls back to a fake hash on failure.
-      y = await (g ? sha256Text : sha256Hex)(
+      y: string | null = await (g ? sha256Text : sha256Hex)(
         JSON.stringify({
           tenant: e.slug,
           nit: e.nit,
@@ -119,18 +134,12 @@ export function NdaPanel({ t: e, p: a, journey: t, onSign: o, toast: n, persist:
           </p>
         )}
         <div className="border border-line bg-stone max-h-[300px] overflow-y-auto p-5" lang="es">
-          <LegalText tpl={e.ndaText} vars={legalVars(e, a)} />
+          <LegalText tpl={e.ndaText} vars={legalVars(e, a)} compact={false} />
         </div>
       </div>
       <div className="flex flex-col gap-3">
         <Field id="nda-name" label={tr("Nombre completo del firmante")}>
-          <input
-            id="nda-name"
-            value={l}
-            onChange={(b) => r(b.target.value)}
-            className={fieldCls()}
-            autoComplete="name"
-          />
+          <input id="nda-name" value={l} onChange={(b) => r(b.target.value)} className={fieldCls()} autoComplete="name" />
         </Field>
         <Field id="nda-email" label={tr("Correo electrónico")}>
           <input

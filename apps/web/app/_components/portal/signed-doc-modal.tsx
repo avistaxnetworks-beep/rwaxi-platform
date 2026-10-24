@@ -1,4 +1,3 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/app/_components/ui/modal";
@@ -6,10 +5,18 @@ import { CopyChip } from "@/app/_components/ui/primitives";
 import { WALLET } from "@/app/_lib/data/projects";
 import { nf, shortHash } from "@/app/_lib/format";
 import { seededHex } from "@/app/_lib/hash";
-import { folderLabel } from "@/app/_components/portal/data-room-panel";
+import { folderLabel, type OpenedDoc } from "@/app/_components/portal/data-room-panel";
 import { useI18n } from "@/app/_i18n/provider";
 
-export function SignedDocModal({ doc: e, onClose: a, toast: t }) {
+export function SignedDocModal({
+  doc: e,
+  onClose: a,
+  toast: t,
+}: {
+  doc: OpenedDoc;
+  onClose: () => void;
+  toast: (message: string) => void;
+}) {
   const { rich, tr } = useI18n();
   const [o, n] = useState(900);
   useEffect(() => {
@@ -17,10 +24,10 @@ export function SignedDocModal({ doc: e, onClose: a, toast: t }) {
     return () => clearInterval(s);
   }, []);
   const l = useMemo(() => seededHex("sig" + e.name + Date.now(), 40), [e.name]),
-    r = `https://dataroom.rwaxi.com/${e.tenant.slug}/${e.hash.slice(0, 16)}?X-Expires=900&X-Signature=${l}`,
+    r = `https://dataroom.rwaxirealestate.com/${e.tenant.slug}/${e.hash.slice(0, 16)}?X-Expires=900&X-Signature=${l}`,
     i = `${String(Math.floor(o / 60)).padStart(2, "0")}:${String(o % 60).padStart(2, "0")}`;
   return (
-    <Modal title={tr(e.name)} onClose={a}>
+    <Modal title={tr(e.name)} onClose={a} wide={false}>
       <div className="flex flex-col gap-4">
         <div className="bg-stone border border-line p-5">
           <p className="font-mono text-[10.5px] tracking-[0.12em] uppercase text-muted">
@@ -86,7 +93,7 @@ export function SignedDocModal({ doc: e, onClose: a, toast: t }) {
         </div>
         <p className="text-[11.5px] text-muted">
           {tr(
-            "Vista previa de demostración. En producción el archivo se sirve solo a través de la Signed URL y cada acceso queda registrado en el AccessGrant.",
+            "Vista previa de demostración. En producción el archivo se sirve solo a través de la Signed URL y cada acceso queda registrado en la bitácora de auditoría del desarrollador.",
           )}
         </p>
       </div>

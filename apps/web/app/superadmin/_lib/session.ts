@@ -8,7 +8,7 @@ export interface PlatformSession {
 }
 
 /**
- * RWAXI staff acting in admin.rwaxi.com: the signed-in SUPER_ADMIN (password + TOTP), or the demo session
+ * RWAXI staff acting in admin.rwaxirealestate.com: the signed-in SUPER_ADMIN (password + TOTP), or the demo session
  * (first active SUPER_ADMIN) where it is enabled outside production. See staff-auth.ts.
  */
 export async function requirePlatformSession(): Promise<PlatformSession> {

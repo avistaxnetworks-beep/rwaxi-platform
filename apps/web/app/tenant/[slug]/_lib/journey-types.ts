@@ -101,7 +101,8 @@ export interface PersistedDataRoomDocument {
   id: string;
   folder: string;
   name: string;
-  /** needs a current AccessGrant (NDA + KYC approved); the others need the NDA */
+  /** classified as reserved by the developer (legal, fiduciary, financial): informational — every document opens
+   *  with the NDA of its offering, and none once the investor is revoked */
   restricted: boolean;
   /** 0x + SHA-256 anchored as a Merkle leaf; the browser re-hashes the download against it */
   sha256: string;
@@ -124,8 +125,10 @@ export interface PersistedJourney {
   /** yield distributions allocated to the investor in this offering (newest first) */
   distributions: PersistedDistribution[];
   offering: PortalOfferingState | null;
-  /** Data Room of the offering: Merkle root and documents (listed to everyone, downloadable per NDA / grant) */
+  /** Data Room of the offering: Merkle root and documents (listed to everyone, all downloadable with the NDA) */
   dataRoom: { root: string | null; documents: PersistedDataRoomDocument[] };
+  /** the investor's wallet is frozen in the registry, or a freeze is queued: no new subscription */
+  frozen: boolean;
 }
 
 export type PersistedJourneyResult = { ok: true; data: PersistedJourney } | { ok: false; error: string };

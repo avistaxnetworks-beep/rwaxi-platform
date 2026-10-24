@@ -10,7 +10,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-/** admin.rwaxi.com/login — RWAXI direction sign-in (password + TOTP). */
+/** admin.rwaxirealestate.com/login — RWAXI direction sign-in (password + TOTP). */
 export default async function ConsoleLoginPage() {
   const actor = await platformActor();
   if (actor && !actor.demo) redirect("/");

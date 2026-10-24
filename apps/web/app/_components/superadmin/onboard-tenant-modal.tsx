@@ -88,7 +88,7 @@ export function OnboardTenantModal({ onClose: e, onCreate: a, existing: t }) {
             id="on-name"
             label="Nombre comercial"
             error={l.displayName}
-            hint={s ? `Portal: ${s}.rwaxi.com` : null}
+            hint={s ? `Portal: ${s}.rwaxirealestate.com` : null}
           >
             <input
               id="on-name"

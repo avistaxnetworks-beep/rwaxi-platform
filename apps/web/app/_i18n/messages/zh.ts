@@ -1,48 +1,75 @@
 import type { Catalog } from "../translate";
 
-// Simplified Chinese · vitrina (www.rwaxi.com). Keys are the Spanish source texts.
+// Simplified Chinese · vitrina (www.rwaxirealestate.com). Keys are the Spanish source texts.
 const catalog: Catalog = {
+  "¿Cómo te protege la blockchain aquí?": "区块链在这里如何保护您？",
+  "¿Eres desarrollador o estructurador inmobiliario y te gustaría tokenizar tu proyecto?":
+    "您是房地产开发商或项目架构设计方，希望将项目代币化吗？",
+  "¿Eres desarrollador? Tokeniza tu inmueble": "您是开发商？将不动产代币化",
   "{asset} · el desarrollador es responsable de la relación contractual y del cumplimiento.":
     "{asset} · 合同关系及合规事宜由开发商负责。",
   "{committed} / {total} unidades": "{committed} / {total} 份",
   "{n} unidades disponibles": "剩余 {n} 份可认购",
   "{pct} suscrito": "已认购 {pct}",
   "01 / Oportunidades estructuradas": "01 / 结构化投资机会",
-  "02 / Cómo funciona": "02 / 运作方式",
-  "03 / Frontera legal": "03 / 法律边界",
+  "02 / Cómo invertir": "02 / 如何投资",
+  "Abre tu propio portal institucional White Label, automatiza tu cumplimiento KYC/SAGRILAFT y conecta tu inmueble con inversionistas globales sin ceder el control fiduciario.":
+    "开设您专属的 White Label 官方门户，实现 KYC/SAGRILAFT 合规自动化，并在不让渡信托控制权的前提下，让您的不动产对接全球投资者。",
   "Abriendo portal oficial de {name}…": "正在打开 {name} 的官方门户……",
-  "Acceso Desarrolladores": "开发商入口",
+  "Accede al Data Room y valida el respaldo": "进入 Data Room，核验项目底层资料",
+  "Acceso global 100 % digital": "100% 数字化全球准入",
   "Activo real": "实物资产",
   "ACTIVOS REALES · INVERSIONES DIGITALES": "实物资产 · 数字化投资",
   "Activos Tokenizados": "代币化资产",
+  "Advertencia de riesgos y proyecciones": "风险与预测提示",
+  "Alcance Global con el Mismo Capital": "同等资本，布局全球",
+  "Antes de comprometer capital, entras al Data Room privado. Allí encuentras de manera detallada toda la información jurídica, financiera y comercial que respalda al proyecto: estudios de títulos, encargo fiduciario, modelo financiero y contratos verificados criptográficamente.":
+    "在承诺出资之前，您将进入私密 Data Room，详细查阅支撑该项目的全部法律、财务及商业资料：产权调查报告、信托委托协议、财务模型，以及经密码学验证的合同。",
   "ATRIBUCIÓN DE LEAD": "线索归因",
   "Atribución deshabilitada: falta REFERRAL_SECRET en el servidor.":
     "归因功能已停用：服务器未配置 REFERRAL_SECRET。",
+  "Auditoría criptográfica del Data Room": "Data Room 密码学审计",
+  "Aviso legal y regulatorio": "法律与监管声明",
   "Backoffice del desarrollador": "开发商后台",
-  "Cada proyecto se gestiona en el portal de su desarrollador: NDA, KYC/AML con SAGRILAFT + PTEE o SARLAFT según el régimen del oferente, Data Room y suscripción con el vehículo jurídico.":
-    "每个项目均在其开发商的门户中办理：NDA、KYC/AML（依发售方适用的制度采用 SAGRILAFT + PTEE 或 SARLAFT）、Data Room，以及向法律载体认购。",
+  "Cada desarrollador o vehículo de propósito especial (SPV) es el único emisor y responsable de su inmueble, de la información de su Data Room, de su proceso de conocimiento del inversionista (KYC/SAGRILAFT o SARLAFT) y del recaudo a través de sus cuentas fiduciarias o bancarias. El inversionista contrata directamente con el emisor.":
+    "每个开发商或特殊目的载体（SPV）均为唯一发行人，并独自负责其不动产、其 Data Room 中的信息、其投资者身份识别流程（KYC/SAGRILAFT 或 SARLAFT），以及通过其信托账户或银行账户收取投资者资金。投资者直接与发行人订立合同。",
+  "Cada documento del Data Room, cada unidad emitida y cada corte de distribución queda sellado en blockchain con prueba SHA-256 y árboles de Merkle verificables al instante.":
+    "Data Room 中的每份文件、每一份已发行的份额以及每期分派，均通过 SHA-256 证明和可即时验证的 Merkle 树封存于区块链上。",
+  "Cálculo programable de rendimientos": "可编程收益计算",
   "Capital suscrito / objetivo": "已认购资本 / 募集目标",
   "Captación pausada temporalmente": "募集已临时暂停",
+  Característica: "特性",
   "Catálogo en vivo no disponible: se muestran los datos ilustrativos del prototipo.":
     "实时目录暂不可用：当前显示原型的示意数据。",
   Cerrar: "关闭",
   "Coinversión inmobiliaria tokenizada, uno de los modelos de mayor crecimiento a nivel global. Cada proyecto cuenta con seguridad jurídica mediante un vehículo legal propio y activos tokenizados en blockchain, brindándote trazabilidad inmutable sobre tu inversión y tus rendimientos.":
     "代币化房地产共同投资是全球增长最快的投资模式之一。每个项目均设有专属法律载体以确保法律确定性，资产在区块链上代币化，使您的投资与收益全程可追溯、不可篡改。",
-  "Cómo funciona": "运作方式",
+  "Combinamos el rigor jurídico de la estructuración inmobiliaria tradicional con la agilidad y trazabilidad de la tecnología blockchain. Así es tu proceso de principio a fin:":
+    "我们将传统房地产项目架构的法律严谨性，与区块链技术的敏捷性和可追溯性相结合。您的完整投资流程如下：",
+  "Cómo Invertir": "如何投资",
+  "Comparativo de modelos de inversión": "投资模式对比",
   Completada: "已完成",
+  "Con el mismo capital con el que antes quedabas atado a un trámite lento, local y de papel, hoy eres partícipe de un negocio inmobiliario global. La tokenización toma la seguridad histórica del ladrillo y la supercarga en blockchain con bondades que la inversión inmobiliaria tradicional —así sea fraccionada en papel— simplemente no permite.":
+    "过去，同样的资金只会让您受困于缓慢、局限于本地且依赖纸质文件的繁琐手续；如今，它能让您参与全球化的房地产项目。代币化在保留“砖瓦”资产历来稳健性的同时，借助区块链为其全面升级，带来传统房地产投资——即便是纸质份额化投资——根本无法提供的优势。",
+  "Conoce cómo estructurar tu inmueble en rwaxi.com": "前往 rwaxi.com 了解不动产架构方案",
   "Consola Super-Admin": "Super-Admin 控制台",
   "Copiado al portapapeles": "已复制到剪贴板",
+  "Cuando decides invertir, completas tu verificación de identidad (KYC/SAGRILAFT) para proteger a todos los co-inversionistas. Una vez aprobado por el Oficial de Cumplimiento del emisor, defines cuántas unidades deseas adquirir y firmas tu acuerdo de suscripción.":
+    "决定投资时，您需完成身份核验（KYC/SAGRILAFT），以保护全体共同投资者。经发行人的合规官审核通过后，您即可确定拟认购的份数，并签署认购协议。",
+  "Custodia directa en tu wallet": "资产直接存于您的钱包",
   "Data Room Auditado con Hash SHA-256": "经 SHA-256 哈希审计的 Data Room",
   "Debida Diligencia": "尽职调查",
   "Derecho económico": "经济权益",
   "Desarrollador y emisor responsable": "开发商暨责任发行人",
-  "Descubre en RWAXI": "在 RWAXI 发现项目",
   "Dirección RWAXI": "RWAXI 管理层",
   "Distribución Anual Est.": "预计年分派收益率",
   Dólares: "美元",
   "Dólares estadounidenses": "美元",
+  "El nuevo estándar del patrimonio inmobiliario": "不动产财富的新标准",
   "El portal de este desarrollador no está disponible desde la vitrina.":
     "该开发商的门户目前无法通过展示平台访问。",
+  "Elige tu oportunidad y firma tu NDA digital": "选择投资机会，签署电子 NDA",
+  "Emisor autónomo y relación contractual directa": "独立发行人与直接合同关系",
   "Emisor:": "发行人：",
   "En curso": "进行中",
   "En estructuración": "架构搭建中",
@@ -55,40 +82,50 @@ const catalog: Catalog = {
   "Escenario Estimado.": "预估情景。",
   "Este desarrollador no está publicado en la vitrina.": "该开发商尚未在展示平台上线。",
   "Este desarrollador no existe en la red RWAXI.": "RWAXI 网络中不存在该开发商。",
+  "Explora las ofertas activas de cada desarrollador e ingresa a su portal exclusivo. Con un clic firmas el Acuerdo de Confidencialidad (NDA) electrónico para desbloquear la información reservada del proyecto.":
+    "浏览各开发商正在募集的项目，并进入其专属门户。只需一键签署电子保密协议（NDA），即可解锁项目的非公开资料。",
   Fachada: "外立面",
   "Filtrar por etapa": "按阶段筛选",
+  "Finca Raíz Tradicional": "传统房地产投资",
   "Foto anterior": "上一张照片",
   "Foto siguiente": "下一张照片",
   Fotografía: "实景照片",
   "Fotografías cargadas en orden: Fachada, Interior, Zona Común, Ubicación":
     "照片已按顺序上传：外立面、室内、公共区域、区位",
   Fotos: "照片",
-  "Frontera legal": "法律边界",
-  "FRONTERA LEGAL DE RWAXI\n\nRWAXI es un canal de descubrimiento y un proveedor de infraestructura tecnológica (portales white label, Data Room, firma electrónica, expediente KYC y adaptador de tokenización). En la vitrina www.rwaxi.com y en cada portal:\n\n1. RWAXI no es emisor, oferente, estructurador financiero, administrador ni custodio de los activos, de los recursos ni de las unidades digitales de ningún proyecto.\n2. RWAXI no capta recursos del público, no recibe dinero de los inversionistas, no presta asesoría de inversión ni actúa como intermediario del mercado de valores.\n3. Cada proyecto es ofrecido exclusivamente por su desarrollador, identificado con razón social y NIT, a través de su propio vehículo jurídico independiente. La relación contractual, la debida diligencia (SAGRILAFT + PTEE o SARLAFT) y las decisiones sobre los inversionistas son responsabilidad del desarrollador.\n4. En la cadena de bloques, los contratos del registro de cumplimiento y del token pertenecen al desarrollador. RWAXI no tiene facultades para pausar, congelar ni transferir unidades digitales; solo ejecuta, como adaptador técnico, las instrucciones de emisión que el desarrollador aprueba.\n5. Las cifras de TIR, distribuciones y valorización son escenarios estimados elaborados por cada desarrollador. No constituyen promesa de rentabilidad y el capital invertido está sujeto a riesgo.":
-    "RWAXI 法律边界\n\nRWAXI 是项目发现渠道及技术基础设施提供方（White Label 门户、Data Room、电子签名、KYC 档案及代币化适配器）。在展示平台 www.rwaxi.com 及各门户中：\n\n1. RWAXI 并非任何项目的发行人、发售方或财务架构设计方，亦非任何项目资产、资金或数字份额的管理人或托管人。\n2. RWAXI 不向公众募集资金，不收取投资者款项，不提供投资咨询，亦不担任证券市场中介机构。\n3. 每个项目仅由其开发商（以公司法定名称及税号 NIT 标识）通过其自有的独立法律载体发售。合同关系、尽职调查（SAGRILAFT + PTEE 或 SARLAFT）及有关投资者的决定均由开发商负责。\n4. 在区块链上，合规登记合约与代币合约均归开发商所有。RWAXI 无权暂停、冻结或转让数字份额；仅作为技术适配器，执行经开发商批准的发行指令。\n5. 内部收益率（IRR）、分派及资产增值数据均为各开发商编制的预估情景，不构成收益承诺；投资本金存在风险。",
+  "Fraccionamiento en Papel": "纸质份额化投资",
   Idioma: "语言",
-  "Infraestructura Powered by RWAXI": "Powered by RWAXI 基础设施",
   "Inspector On-Chain (OpenZeppelin v5)": "On-Chain 检查器（OpenZeppelin v5）",
   Interior: "室内",
+  "Inversión Supercargada": "升级版投资",
+  "Inversión Supercargada en Blockchain": "区块链升级版投资",
+  "Invierte en bienes raíces de grado institucional en 4 pasos claros": "清晰 4 步，投资机构级房地产",
   "Ir al Portal Oficial del Desarrollador": "前往开发商官方门户",
   "La captación de este proyecto está pausada temporalmente.": "该项目的募集已临时暂停。",
-  "LeadReferral para la atribución, ConsentRecord con hash SHA-256, AccessGrant con Signed URLs y tokens OpenZeppelin con whitelist.":
-    "用于来源归因的 LeadReferral、附带 SHA-256 哈希的 ConsentRecord、采用 Signed URLs 的 AccessGrant，以及配备白名单的 OpenZeppelin 代币。",
+  "La información de esta vitrina es referencial: no constituye oferta pública de valores ni recomendación o asesoría financiera, legal o tributaria. Los documentos vinculantes de cada proyecto están en el portal de su emisor: el Data Room se abre con la firma del NDA y la suscripción exige, además, la verificación KYC.":
+    "本展示平台所载信息仅供参考，不构成证券公开发行，亦不构成任何财务、法律或税务方面的推荐或建议。各项目具有约束力的文件存放于其发行人的门户中：签署 NDA 后即可查阅 Data Room，认购则须另行完成 KYC 核验。",
   "LeadReferral Token generado: {token}": "已生成 LeadReferral 令牌：{token}",
   "Los referidos sólo se emiten desde la vitrina.": "推荐凭证仅可由展示平台签发。",
   "Marca del desarrollador": "开发商品牌",
   "Marca RWAXI": "RWAXI 品牌",
   "mintSubscription(): {n} tokens {symbol}": "mintSubscription()：{n} 枚 {symbol} 代币",
   Moneda: "币种",
+  "Naturaleza tecnológica B2B y no custodia": "B2B 技术服务性质与非托管",
   "Negocios Inmobiliarios.": "房地产投资。",
+  No: "不支持",
+  "No es solo finca raíz fraccionada. Es una Inversión Supercargada.": "这不只是份额化的房地产，而是升级版投资。",
   "No hay proyectos publicados en esta etapa en este momento.": "该阶段目前暂无已发布项目。",
   "No hay proyectos publicados en la vitrina en este momento.": "展示平台目前暂无已发布项目。",
+  "No necesitas ser experto en criptomonedas. En esta plataforma, la blockchain funciona como un libro contable incorruptible: sella con prueba matemática que los documentos del Data Room no han sido alterados, certifica que solo inversionistas verificados participan en el proyecto y registra tu participación y tus derechos económicos sin depender de hojas de cálculo manuales.":
+    "您无需精通加密货币。在本平台上，区块链如同一本不可篡改的账本：以数学证明封存 Data Room 中的文件、确保其未被改动，证明只有经过核验的投资者参与项目，并记录您的持有份额与经济权益，无需依赖人工维护的电子表格。",
   "No se pudo generar el enlace al portal. Inténtalo de nuevo.": "无法生成门户链接，请重试。",
   "Oferente responsable: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Vehículo emisor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Régimen de cumplimiento: {{COMPLIANCE_REGIME}}. RWAXI actúa solo como proveedor de infraestructura tecnológica: no es parte de la oferta, no recibe recursos y no controla las unidades digitales emitidas.":
     "责任发售方：{{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}。发行载体：{{LEGAL_ENTITY_NAME}}（{{LEGAL_WRAPPER_TYPE}}）。合规制度：{{COMPLIANCE_REGIME}}。RWAXI 仅作为技术基础设施提供方：并非发售当事方，不接收资金，亦不控制已发行的数字份额。",
-  "Oferentes publicados": "已上线发售方",
   Oportunidades: "投资机会",
   "Origen: {from} → {to}": "来源：{from} → {to}",
+  "Paga al vehículo del proyecto y recibe tus tokens": "向项目载体付款，接收您的代币",
+  Parcial: "部分支持",
+  "Paso {n}": "步骤 {n}",
   "Paso {n} de 4 · {step}": "第 {n} 步，共 4 步 · {step}",
   "Patrimonio Autónomo / Encargo Fiduciario": "独立信托财产 / 信托委托",
   Pendiente: "待处理",
@@ -98,6 +135,7 @@ const catalog: Catalog = {
     "本平台受尽职调查及监管合规标准（KYC/AML）保护。",
   "Por renta": "租金收入",
   "Por renta · desde mes {month}": "租金收入 · 自第 {month} 个月起",
+  "Portabilidad y Estándar Abierto No-Custodial": "可携带性与非托管开放标准",
   "Portal del desarrollador en revisión": "开发商门户审核中",
   "Portal inválido.": "门户无效。",
   "Portal oficial del desarrollador": "开发商官方门户",
@@ -105,33 +143,49 @@ const catalog: Catalog = {
   "Portal White Label": "White Label 门户",
   "Pre-venta": "预售",
   Principal: "主导航",
+  "Propiedad Programable y Rendimientos Exactos": "可编程所有权与精确收益",
   "Proyectos publicados por desarrolladores": "开发商发布的项目",
-  "Quién ofrece, quién responde y qué hace RWAXI": "谁发售、谁负责，以及 RWAXI 的角色",
+  "Realizas tu aporte directamente a las cuentas bancarias o fiduciarias autorizadas del proyecto. Al conciliarse tu pago, el contrato inteligente emite tus tokens directamente en tu billetera digital (wallet), acreditando tu participación y habilitando el cobro de tus rendimientos.":
+    "您将出资款直接汇入项目经授权的银行账户或信托账户。款项完成对账后，智能合约会将代币直接发行至您的数字钱包（wallet），以确认您的持有份额，并让您能够领取收益。",
   Redes: "网络",
   "Registro Inmutable en Blockchain": "区块链不可篡改记录",
   "Render ilustrativo": "示意效果图",
   "Rentas y Valorización.": "租金收益与资产增值。",
   "Reserva registrada: {n} unidades": "预约已登记：{n} 份",
+  "Respaldo Inmutable y Auditoría en Tiempo Real": "不可篡改的凭证与实时审计",
   "Respaldo Jurídico Real.": "切实法律保障。",
+  "Rompe las fronteras geográficas y accede desde cualquier lugar a negocios inmobiliarios institucionales con tickets accesibles, sin trámites notariales presenciales.":
+    "打破地域限制，无论身处何地，都能以可负担的起投金额参与机构级房地产项目，无需亲赴公证处办理手续。",
   "RWAXI actúa como canal de descubrimiento y proveedor de infraestructura tecnológica. Cada oferta, vehículo y proceso de cumplimiento es responsabilidad del desarrollador. Proyectos, cifras y entidades son ilustrativos.":
     "RWAXI 担任项目发现渠道及技术基础设施提供方。每项发售、载体及合规流程均由开发商负责。所示项目、数据及实体仅供示意。",
+  "RWAXI es un proveedor de software como servicio (SaaS) para desarrolladores y un canal de descubrimiento. No es sociedad fiduciaria, establecimiento bancario, sociedad comisionista de bolsa ni intermediario del mercado de valores; no capta recursos del público, no recibe los aportes de los inversionistas y no custodia llaves privadas ni activos digitales.":
+    "RWAXI 是面向开发商的软件即服务（SaaS）提供方，也是项目发现渠道。RWAXI 并非信托公司、银行机构、证券经纪公司或证券市场中介机构；不向公众募集资金，不接收投资者的出资款，亦不托管私钥或数字资产。",
   "RWAXI REAL ESTATE — COINVERSIÓN INMOBILIARIA TOKENIZADA EN COLOMBIA":
     "RWAXI REAL ESTATE — 哥伦比亚代币化房地产共同投资",
   "RWAXI, ir a oportunidades": "RWAXI，前往投资机会",
   "Seguridad Jurídica": "法律确定性",
   "Selecciona el texto para copiarlo": "请选中文本进行复制",
   "Sellos de confianza": "信任标识",
+  Sí: "支持",
   "SIMULACIÓN DE ARQUITECTURA": "架构模拟",
+  "Sin oferta pública no autorizada ni asesoría financiera": "不构成未经授权的公开发行或财务建议",
   "SPV Sociedad por Acciones Simplificada (S.A.S.)": "SPV 简易股份公司（S.A.S.）",
+  "Supera el proceso KYC y suscribe tus unidades": "通过 KYC 审核，认购您的份额",
   "Tenant admin": "Tenant admin",
   "Ticket desde": "起投金额",
   "Ticket Mínimo": "最低投资额",
   "TIR Estimada": "预计内部收益率（IRR）",
   "TIR, distribuciones y valorización son escenarios estimados con base en el modelo financiero de cada vehículo; el desempeño real puede ser inferior y el capital invertido está sujeto a riesgo. Valores en COP calculados con TRM de referencia de COP {trm} / USD.":
     "内部收益率（IRR）、分派及资产增值均为基于各载体财务模型的预估情景；实际表现可能低于预估，投资本金存在风险。COP 金额按 TRM 参考汇率（COP {trm} / USD）折算。",
+  "Toda inversión inmobiliaria implica riesgos, incluida la pérdida parcial o total del capital y una liquidez limitada. Las tasas de TIR, distribución y valorización proyectadas son estimaciones de cada desarrollador y no garantizan rendimientos fijos ni futuros.":
+    "任何房地产投资均存在风险，包括部分或全部本金损失以及流动性受限。预测的内部收益率（IRR）、分派率及资产增值率均为各开发商的估算，并不保证固定收益或未来收益。",
   Todos: "全部",
+  "Trazabilidad on-chain en tiempo real": "实时 on-chain 可追溯性",
+  "Tus participaciones viven en tu propia wallet bajo estándares abiertos (ERC-20 con registro de cumplimiento), listas para transferencias autorizadas entre inversionistas en lista blanca sin semanas de papeleo.":
+    "您的持有份额存放在您自己的钱包中，采用符合监管要求的标准（附带合规登记的 ERC-20），可在白名单投资者之间进行经授权的转让，无需耗费数周处理纸质文件。",
+  "Tus tokens representan tu posición verificada en el proyecto. Cuando se declaran distribuciones de rentas o valorización, el cálculo de tu participación es exacto y auditable criptográficamente.":
+    "您的代币代表您在项目中经核验的持仓。当宣布租金收益或资产增值分派时，您所占份额的计算精确无误，并可通过密码学方式审计。",
   "Ubicación / Render": "区位 / 效果图",
-  "Un canal de descubrimiento, un portal por desarrollador": "一个发现渠道，每家开发商一个门户",
   "Valorización Anual Proy.": "预测年资产增值率",
   "Vehículo de Propósito Especial (SPV / Cuentas en Participación)": "特殊目的载体（SPV / 隐名合伙）",
   "Vehículo Jurídico Independiente (Legal Wrapper)": "独立法律载体（Legal Wrapper）",
@@ -141,8 +195,6 @@ const catalog: Catalog = {
   "Ver cifras en": "显示币种",
   "Ver foto {n}": "查看第 {n} 张照片",
   "Vitrina pública": "公开展示平台",
-  "www.rwaxi.com es una vitrina de descubrimiento e infraestructura tecnológica. RWAXI no capta recursos ni ofrece valores.":
-    "www.rwaxi.com 是项目发现展示平台及技术基础设施。RWAXI 不募集资金，也不发售证券。",
   "Zona Común": "公共区域",
   "Activos reales · Inversiones digitales. Infraestructura de tokenización inmobiliaria White Label.":
     "真实资产 · 数字化投资。White Label 房地产代币化基础设施。",

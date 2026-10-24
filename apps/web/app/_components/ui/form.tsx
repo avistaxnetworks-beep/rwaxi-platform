@@ -1,13 +1,26 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
+import type { ReactNode } from "react";
 import { Icon } from "@/app/_components/ui/icon";
 import { useI18n } from "@/app/_i18n/provider";
 import { STEPS } from "@/app/_lib/data/kyc";
 
-export const fieldCls = (e) =>
+/** Classes of a text field; `e` truthy marks it invalid. */
+export const fieldCls = (e?: unknown) =>
   `w-full border ${e ? "border-[#B42318]" : "border-[#C9C4D6]"} bg-white px-3 py-2.5 text-[14px] text-inkBody focus:outline-none focus:tc-border focus:ring-2 focus:ring-[#2F145F]/15`;
 
-export function Field({ id: e, label: a, hint: t, error: o, children: n }) {
+export function Field({
+  id: e,
+  label: a,
+  hint: t,
+  error: o,
+  children: n,
+}: {
+  id: string;
+  label: ReactNode;
+  hint?: ReactNode;
+  error?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1.5 min-w-0">
       <label htmlFor={e} className="text-[12px] font-semibold text-inkBody">
@@ -25,7 +38,7 @@ export function Field({ id: e, label: a, hint: t, error: o, children: n }) {
   );
 }
 
-export function Stepper({ step: e, steps: a = STEPS }) {
+export function Stepper({ step: e, steps: a = STEPS }: { step: number; steps?: string[] }) {
   const { tr } = useI18n();
   return (
     <div>
@@ -45,22 +58,32 @@ export function Stepper({ step: e, steps: a = STEPS }) {
             >
               {o < e ? <Icon name="Check" size={13} /> : o + 1}
             </span>
-            <span
-              className={`hidden md:block text-[12px] leading-tight pt-0.5 ${o === e ? "text-rxPurple font-semibold" : "text-muted"}`}
-            >
+            <span className={`hidden md:block text-[12px] leading-tight pt-0.5 ${o === e ? "text-rxPurple font-semibold" : "text-muted"}`}>
               {t}
             </span>
           </li>
         ))}
       </ol>
-      <p className="md:hidden text-[12.5px] font-semibold text-rxPurple mt-2">
-        {tr("Paso {n} de 4 · {step}", { n: e + 1, step: a[e] })}
-      </p>
+      <p className="md:hidden text-[12.5px] font-semibold text-rxPurple mt-2">{tr("Paso {n} de 4 · {step}", { n: e + 1, step: a[e] })}</p>
     </div>
   );
 }
 
-export function CheckRow({ id: e, checked: a, onChange: t, error: o, title: n, children: l }) {
+export function CheckRow({
+  id: e,
+  checked: a,
+  onChange: t,
+  error: o,
+  title: n,
+  children: l,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  error?: ReactNode;
+  title: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className={`border ${o ? "border-[#B42318]" : a ? "tc-border" : "border-line"} bg-white`}>
       <label htmlFor={e} className="flex gap-3 p-4 cursor-pointer">

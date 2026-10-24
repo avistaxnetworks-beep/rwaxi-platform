@@ -10,12 +10,12 @@ export function ArchBar({ env: e, setEnv: a, tenantId: t, setTenantId: o, tenant
   const r = n[t],
     i =
       e === "vitrina"
-        ? "www.rwaxi.com"
+        ? "www.rwaxirealestate.com"
         : e === "portal"
           ? portalHost(r)
           : e === "superadmin"
-            ? "admin.rwaxi.com"
-            : `${r.slug}.rwaxi.com/backoffice`;
+            ? "admin.rwaxirealestate.com"
+            : `${r.slug}.rwaxirealestate.com/backoffice`;
   return (
     <div className="bg-[#0E0620] text-white border-b border-white/10">
       <div className="gutter max-w-[1240px] mx-auto py-2.5 flex flex-wrap items-center gap-x-5 gap-y-2">

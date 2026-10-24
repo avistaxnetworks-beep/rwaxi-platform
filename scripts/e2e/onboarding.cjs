@@ -305,7 +305,7 @@ const waitSlug = (page, state) => page.waitForFunction((s) => document.querySele
     ok("KYC aprobado tras el despliegue: approveInvestor() en cola contra el registro del tenant", wl.status === "PENDING" && wl.contractAddress === expected && wl.args.wallet === investor.walletAddress);
     await inv.goto(url(slug), { waitUntil: "domcontentloaded" });
     await waitText(inv, "Firmar contrato y reservar unidades");
-    ok("portal: AccessGrant emitido y suscripción como reserva de pre-venta (token aún sin emitir)", await lib.has(inv, "Firmar contrato y reservar unidades"));
+    ok("portal: KYC aprobado y suscripción como reserva de pre-venta (token aún sin emitir)", await lib.has(inv, "Firmar contrato y reservar unidades"));
 
     // ── 10 · Activated and published, it joins the live vitrina ──
     await db.organization.update({ where: { id: org.id }, data: { portalStatus: "ACTIVE", published: true } });

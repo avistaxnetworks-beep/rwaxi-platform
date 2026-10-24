@@ -1,7 +1,7 @@
 // E2E · HMAC-signed referrals (vitrina → portal) and attacks on attribution, subscription signing
 // (PAYMENT_PENDING: units reserved, no mint or fee yet) and the Super-Admin consolidated figures.
 const crypto = require("crypto");
-const { launch, ownerDb, ok, fail, shot, url, viem, abi, canon, sha256, webEnv, text, waitText, clickText } = require("./lib.cjs");
+const { launch, ownerDb, ok, fail, shot, url, viem, abi, canon, sha256, webEnv, text, waitText, clickText, NDA_LANDING, toKycWizard } = require("./lib.cjs");
 
 const registryAbi = abi("RwaxiComplianceRegistry");
 const db = ownerDb();
@@ -27,7 +27,7 @@ async function signNdaWith(browser, ref) {
   await clickText(p, "Completar con datos de ejemplo");
   const email = await p.$eval("#nda-email", (i) => i.value);
   await clickText(p, "Firmar NDA con un clic");
-  await waitText(p, "Paso 2 · Verificación KYC");
+  await waitText(p, NDA_LANDING);
   return { p, email, cookieSet: !!cookie };
 }
 
@@ -67,7 +67,7 @@ async function signNdaWith(browser, ref) {
     await clickText(a, "Completar con datos de ejemplo");
     const emailA = await a.$eval("#nda-email", (i) => i.value);
     await clickText(a, "Firmar NDA con un clic");
-    await waitText(a, "Paso 2 · Verificación KYC");
+    await waitText(a, NDA_LANDING);
     const leadA = await leadOf(emailA);
     ok("NDA con firma válida → Lead REFERRAL con el id de un solo uso del token", leadA?.source === "REFERRAL" && leadA.referralToken === m?.[1], leadA?.referralToken);
     ok("landedAt del Lead = timestamp firmado", leadA?.landedAt.getTime() === Number(m?.[3]));
@@ -94,6 +94,7 @@ async function signNdaWith(browser, ref) {
     }
 
     // ── 3 · KYC → approval → subscription ───────────────────────────────────
+    await toKycWizard(a);
     for (let step = 0; step < 4; step++) {
       await waitText(a, `Paso 0${step + 1}`);
       await clickText(a, "Completar con datos de ejemplo");

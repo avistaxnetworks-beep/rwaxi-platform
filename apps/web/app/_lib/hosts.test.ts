@@ -1,14 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { internalPath, resolveHost } from "./hosts";
+import { internalPath, PLATFORM_DOMAIN, resolveHost } from "./hosts";
+import { RWAXI_B2B_URL } from "../vitrina/_lib/links";
 
 test("production hosts map to the 4 environments", () => {
-  const root = "rwaxi.com";
-  assert.deepEqual(resolveHost("www.rwaxi.com", root), { kind: "www" });
-  assert.deepEqual(resolveHost("rwaxi.com", root), { kind: "www" });
-  assert.deepEqual(resolveHost("admin.rwaxi.com", root), { kind: "admin" });
-  assert.deepEqual(resolveHost("avista.rwaxi.com", root), { kind: "tenant", slug: "avista", via: "subdomain" });
-  assert.deepEqual(resolveHost("AVISTA.RWAXI.COM.", root), { kind: "tenant", slug: "avista", via: "subdomain" });
+  const root = "rwaxirealestate.com";
+  assert.equal(PLATFORM_DOMAIN, root);
+  assert.deepEqual(resolveHost("www.rwaxirealestate.com", root), { kind: "www" });
+  assert.deepEqual(resolveHost("rwaxirealestate.com", root), { kind: "www" });
+  assert.deepEqual(resolveHost("admin.rwaxirealestate.com", root), { kind: "admin" });
+  assert.deepEqual(resolveHost("avista.rwaxirealestate.com", root), { kind: "tenant", slug: "avista", via: "subdomain" });
+  assert.deepEqual(resolveHost("AVISTA.RWAXIREALESTATE.COM.", root), {
+    kind: "tenant",
+    slug: "avista",
+    via: "subdomain",
+  });
+});
+
+test("rwaxi.com is RWAXI's separate B2B site: the platform never serves it and the vitrina links out to it", () => {
+  const root = "rwaxirealestate.com";
+  assert.equal(resolveHost("rwaxi.com", root).kind, "unknown");
+  assert.equal(resolveHost("www.rwaxi.com", root).kind, "unknown");
+  assert.equal(resolveHost("avista.rwaxi.com", root).kind, "unknown");
+  assert.equal(resolveHost(new URL(RWAXI_B2B_URL).host, root).kind, "unknown");
 });
 
 test("development hosts on *.localhost keep the port out of the slug", () => {
@@ -23,7 +37,7 @@ test("development hosts on *.localhost keep the port out of the slug", () => {
 });
 
 test("verified custom domains resolve to their tenant", () => {
-  assert.deepEqual(resolveHost("invest.avistaresort.co", "rwaxi.com"), {
+  assert.deepEqual(resolveHost("invest.avistaresort.co", "rwaxirealestate.com"), {
     kind: "tenant",
     slug: "avista",
     via: "custom-domain",
@@ -31,11 +45,11 @@ test("verified custom domains resolve to their tenant", () => {
 });
 
 test("reserved, nested and foreign hosts are not tenants", () => {
-  const root = "rwaxi.com";
-  assert.equal(resolveHost("api.rwaxi.com", root).kind, "unknown");
-  assert.equal(resolveHost("a.b.rwaxi.com", root).kind, "unknown");
-  assert.equal(resolveHost("evil-rwaxi.com", root).kind, "unknown");
-  assert.equal(resolveHost("rwaxi.com.evil.io", root).kind, "unknown");
+  const root = "rwaxirealestate.com";
+  assert.equal(resolveHost("api.rwaxirealestate.com", root).kind, "unknown");
+  assert.equal(resolveHost("a.b.rwaxirealestate.com", root).kind, "unknown");
+  assert.equal(resolveHost("evil-rwaxirealestate.com", root).kind, "unknown");
+  assert.equal(resolveHost("rwaxirealestate.com.evil.io", root).kind, "unknown");
   assert.equal(resolveHost(null, root).kind, "unknown");
 });
 

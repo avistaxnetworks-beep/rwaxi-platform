@@ -202,7 +202,7 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
                     <p className="font-mono text-[10.5px] text-muted">{`NIT ${t.taxId} · cliente desde ${t.onboardedAt}`}</p>
                   </td>
                   <td className="px-3 py-3.5 font-mono text-[11.5px] text-inkBody">
-                    {`${t.slug}.rwaxi.com`}
+                    {`${t.slug}.rwaxirealestate.com`}
                     {t.customDomain && <span className="block text-muted">{t.customDomain}</span>}
                   </td>
                   <td className="px-3 py-3.5 text-[11.5px] min-w-[190px]" data-registry-status={t.registry.status}>
@@ -391,9 +391,9 @@ function GovernanceView({ data, currency, toast, onboarding }: { data: PlatformM
           <div className="flex flex-col gap-4" data-governance-dialog>
             <p className="text-[13px] text-inkBody leading-relaxed">{info.effect}</p>
             {decision.kind === "registry" ? (
-              <p className="font-mono text-[11px] text-muted">{`${decision.tenant.slug}.rwaxi.com · deployTenantRegistry(bytes32,string,string,address,address) · red ${decision.tenant.registry.network ?? "—"}`}</p>
+              <p className="font-mono text-[11px] text-muted">{`${decision.tenant.slug}.rwaxirealestate.com · deployTenantRegistry(bytes32,string,string,address,address) · red ${decision.tenant.registry.network ?? "—"}`}</p>
             ) : decision.kind === "invite" ? (
-              <p className="font-mono text-[11px] text-muted">{`${decision.tenant.slug}.rwaxi.com/backoffice/activate · ${decision.user.email} · ${STAFF_ROLE[decision.user.role]}`}</p>
+              <p className="font-mono text-[11px] text-muted">{`${decision.tenant.slug}.rwaxirealestate.com/backoffice/activate · ${decision.user.email} · ${STAFF_ROLE[decision.user.role]}`}</p>
             ) : (
             <div className="flex flex-col gap-1.5">
               <label htmlFor="gov-reason" className="text-[11px] font-semibold tracking-[0.06em] uppercase text-muted">

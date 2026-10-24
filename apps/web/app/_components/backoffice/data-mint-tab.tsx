@@ -1,6 +1,5 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Field, fieldCls } from "@/app/_components/ui/form";
 import { Icon } from "@/app/_components/ui/icon";
 import { CopyChip } from "@/app/_components/ui/primitives";
@@ -8,8 +7,46 @@ import { DEMO_WALLET, TX, leadWallet, subIdOf, txHash } from "@/app/_lib/chain/s
 import { DATAROOM } from "@/app/_lib/data/projects";
 import { money, nf, shortHash } from "@/app/_lib/format";
 import { seededHex, sha256Hex } from "@/app/_lib/hash";
-import { folderLabel } from "@/app/_components/portal/data-room-panel";
+import { folderLabel, type DemoDoc } from "@/app/_components/portal/data-room-panel";
+import type { PortalJourney, PortalProject, PortalTenant } from "@/app/_components/portal/portal-types";
 import { useI18n } from "@/app/_i18n/provider";
+
+/** A Data Room document of the prototype, or one uploaded in this demo panel. */
+interface IssuanceDoc extends DemoDoc {
+  size: number;
+  /** YYYY-MM-DD */
+  at: string;
+}
+
+/** The token as the prototype's issuance flow keeps it. */
+interface DemoMint {
+  status: string;
+  name: string;
+  symbol: string;
+  supply: number;
+  price: number;
+  network: string;
+  contract?: string;
+  contractFull?: string;
+  tx?: string;
+}
+
+/** A lead of the prototype's backoffice: what the issuance reads (approved KYC, subscribed capital in USD). */
+interface DemoLead {
+  id: string;
+  kyc: string;
+  subCapital?: number | null;
+}
+
+/** The developer as the demo issuance edits it (prototype tenant state). */
+export interface IssuanceTenant extends PortalTenant {
+  mint: DemoMint;
+  docs: IssuanceDoc[];
+  merkle: string;
+  onchainRoot?: string | null;
+  anchoredTx?: string | null;
+  leads: DemoLead[];
+}
 
 export function DataMintTab({
   t: e,
@@ -22,9 +59,19 @@ export function DataMintTab({
   // Persisted Data Room and DocumentVault (app/tenant/[slug]/backoffice/_components/data-room-desk.tsx); the
   // demo panel below stays for the prototype's own screens. Token issuance is still demo state.
   dataRoomSlot: D,
+}: {
+  t: IssuanceTenant;
+  p: PortalProject;
+  setTenant: (update: (tenant: IssuanceTenant) => IssuanceTenant) => void;
+  journey: PortalJourney;
+  setJourney: (update: (journey: PortalJourney) => PortalJourney) => void;
+  toast: (message: string) => void;
+  /** records a simulated transaction in the On-Chain Inspector */
+  emit: (tx: unknown) => void;
+  dataRoomSlot?: ReactNode;
 }) {
   const { tr } = useI18n();
-  const i = useRef(),
+  const i = useRef<HTMLInputElement>(null),
     [s, c] = useState(DATAROOM[0].n + " " + DATAROOM[0].name),
     [d, p] = useState(true),
     [m, u] = useState(false),
@@ -36,7 +83,7 @@ export function DataMintTab({
       price: e.mint.price,
       network: e.mint.network,
     }),
-    f = useRef([]);
+    f = useRef<ReturnType<typeof setTimeout>[]>([]);
   (useEffect(() => () => f.current.forEach(clearTimeout), []),
     useEffect(
       () =>
@@ -49,17 +96,17 @@ export function DataMintTab({
         }),
       [e.slug],
     ));
-  const N = async (E) =>
+  const N = async (E: IssuanceDoc[]) =>
       sha256Hex(
         E.map((I) => I.hash)
           .sort()
           .join(""),
       ),
-    x = async (E) => {
+    x = async (E: FileList | null) => {
       const I = Array.from(E || []).slice(0, 10);
       if (!I.length) return;
       u(true);
-      const $ = [];
+      const $: IssuanceDoc[] = [];
       for (const T of I) {
         const C = await sha256Hex(await T.arrayBuffer());
         $.push({
@@ -100,7 +147,7 @@ export function DataMintTab({
           }),
         ));
     },
-    g = async (E) => {
+    g = async (E: string) => {
       const I = e.docs.filter((_) => _.id !== E),
         $ = await N(I);
       t((_) => ({
@@ -143,7 +190,7 @@ export function DataMintTab({
                         .map((T) => [
                           subIdOf(T.id),
                           leadWallet(T),
-                          Math.round(T.subCapital / a.unit),
+                          Math.round((T.subCapital ?? 0) / a.unit),
                           txHash("pay" + T.id),
                         ]),
                     ].forEach(([T, C, S, k]) => r(TX.mint(e, a, $, T, C, S, k))),
@@ -165,7 +212,7 @@ export function DataMintTab({
                         C.status === "reservado"
                           ? {
                               ...C,
-                              status: "en_wallet",
+                              status: "en_wallet" as const,
                             }
                           : C,
                       ),
@@ -230,7 +277,7 @@ export function DataMintTab({
                   onChange={(E) => p(E.target.checked)}
                   className="accent-[#2F145F]"
                 />
-                {tr("Requiere AccessGrant (NDA + KYC)")}
+                {tr("Documento reservado (jurídico, fiduciario o financiero)")}
               </label>
             </div>
             <div>
@@ -245,7 +292,7 @@ export function DataMintTab({
                 }}
               />
               <button
-                onClick={() => i.current.click()}
+                onClick={() => i.current?.click()}
                 disabled={m}
                 className="tc-btn px-4 py-3 text-[12.5px] font-semibold inline-flex items-center gap-2 focus-ring disabled:opacity-60 w-full justify-center"
               >
@@ -293,9 +340,9 @@ export function DataMintTab({
                     </td>
                     <td className="px-3 py-2.5 text-[11px]">
                       {E.restricted ? (
-                        <span className="text-goldInk font-semibold">AccessGrant</span>
+                        <span className="text-goldInk font-semibold">{tr("Reservado · con NDA")}</span>
                       ) : (
-                        <span className="text-muted">{tr("Público")}</span>
+                        <span className="text-muted">{tr("Con NDA")}</span>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right font-mono text-[11px] text-muted tnum">

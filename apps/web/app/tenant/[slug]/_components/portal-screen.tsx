@@ -11,7 +11,6 @@ import { useI18n } from "@/app/_i18n/provider";
 import { EMPTY_KYC } from "@/app/_lib/data/kyc";
 import { signNda, submitKyc, subscribe } from "../actions";
 import { KycFileError, toKycSubmission } from "../_lib/kyc-submission";
-import { REGIMES } from "@/app/_lib/data/kyc";
 import { InvestorDataRoom } from "./investor-data-room";
 import { InvestorDistributions } from "./investor-distributions";
 import { SessionRecovery } from "./session-recovery";
@@ -38,7 +37,7 @@ const freshKyc = () => ({
  * an in-progress KYC form for the same NDA survives, since the database does not hold drafts.
  */
 function applyPersisted(j: any, p: PersistedJourney | null, firstApply: boolean): any {
-  if (!p) return { ...j, lead: null, nda: null, kyc: freshKyc(), grant: null, holdings: [], offering: null };
+  if (!p) return { ...j, lead: null, nda: null, kyc: freshKyc(), grant: null, holdings: [], offering: null, frozen: false };
   const sameNda = !!p.nda && j.nda?.id === p.nda.id;
   const kyc = p.kyc
     ? {
@@ -63,6 +62,7 @@ function applyPersisted(j: any, p: PersistedJourney | null, firstApply: boolean)
     grant: p.grant,
     holdings: p.holdings,
     offering: p.offering,
+    frozen: p.frozen,
   };
 }
 
@@ -165,10 +165,9 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
               <InvestorDataRoom
                 documents={persisted.data.dataRoom.documents}
                 root={persisted.data.dataRoom.root}
-                nda={!!persisted.data.nda}
-                kycApproved={persisted.data.kyc?.status === "aprobado"}
-                grant={persisted.data.grant}
-                regimeSys={REGIMES[tenant.regime as keyof typeof REGIMES]?.sys ?? ""}
+                // the journey, not the server snapshot: an NDA just signed opens the Data Room at once
+                nda={journey?.nda ?? null}
+                revoked={journey?.kyc?.status === "revocado"}
                 code={persisted.data.offering?.code ?? ""}
               />
             ) : null

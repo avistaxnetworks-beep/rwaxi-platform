@@ -1,52 +1,79 @@
 import type { Catalog } from "../translate";
 
-// Korean · vitrina (www.rwaxi.com). Keys are the Spanish source texts.
+// Korean · vitrina (www.rwaxirealestate.com). Keys are the Spanish source texts.
 const catalog: Catalog = {
+  "¿Cómo te protege la blockchain aquí?": "블록체인은 어떻게 투자자를 보호하나요?",
+  "¿Eres desarrollador o estructurador inmobiliario y te gustaría tokenizar tu proyecto?":
+    "부동산 시행사 또는 구조화 주관사로서 프로젝트 토큰화를 검토하고 계신가요?",
+  "¿Eres desarrollador? Tokeniza tu inmueble": "시행사이신가요? 부동산을 토큰화하세요",
   "{asset} · el desarrollador es responsable de la relación contractual y del cumplimiento.":
     "{asset} · 계약 관계와 컴플라이언스는 시행사가 책임집니다.",
   "{committed} / {total} unidades": "{committed} / {total}좌",
   "{n} unidades disponibles": "청약 가능 {n}좌",
   "{pct} suscrito": "청약률 {pct}",
   "01 / Oportunidades estructuradas": "01 / 구조화된 투자 기회",
-  "02 / Cómo funciona": "02 / 이용 방법",
-  "03 / Frontera legal": "03 / 법적 책임 범위",
+  "02 / Cómo invertir": "02 / 투자 방법",
+  "Abre tu propio portal institucional White Label, automatiza tu cumplimiento KYC/SAGRILAFT y conecta tu inmueble con inversionistas globales sin ceder el control fiduciario.":
+    "귀사만의 White Label 공식 포털을 개설하고 KYC/SAGRILAFT 컴플라이언스를 자동화하세요. 신탁 통제권을 넘기지 않고도 부동산을 글로벌 투자자와 연결할 수 있습니다.",
   "Abriendo portal oficial de {name}…": "{name} 공식 포털로 이동 중…",
-  "Acceso Desarrolladores": "시행사 로그인",
+  "Accede al Data Room y valida el respaldo": "Data Room에 접속해 근거 자료를 검증하세요",
+  "Acceso global 100 % digital": "100% 디지털 글로벌 접근성",
   "Activo real": "실물자산",
   "ACTIVOS REALES · INVERSIONES DIGITALES": "실물자산 · 디지털 투자",
   "Activos reales · Inversiones digitales. Infraestructura de tokenización inmobiliaria White Label.":
     "실물자산 · 디지털 투자. White Label 부동산 토큰화 인프라.",
   "Activos Tokenizados": "토큰화 자산",
+  "Advertencia de riesgos y proyecciones": "투자 위험 및 예측 정보 고지",
+  "Alcance Global con el Mismo Capital": "같은 자본으로 넓히는 글로벌 투자",
+  "Antes de comprometer capital, entras al Data Room privado. Allí encuentras de manera detallada toda la información jurídica, financiera y comercial que respalda al proyecto: estudios de títulos, encargo fiduciario, modelo financiero y contratos verificados criptográficamente.":
+    "투자를 약정하기 전에 비공개 Data Room에 접속합니다. 이곳에서 권리분석 보고서, 신탁회사 위탁계약, 재무 모델, 암호학적으로 검증된 계약서 등 프로젝트를 뒷받침하는 법률·재무·사업 정보를 모두 상세히 확인할 수 있습니다.",
   "ATRIBUCIÓN DE LEAD": "리드 어트리뷰션",
   "Atribución deshabilitada: falta REFERRAL_SECRET en el servidor.":
     "어트리뷰션 비활성화: 서버에 REFERRAL_SECRET이 설정되어 있지 않습니다.",
+  "Auditoría criptográfica del Data Room": "Data Room 암호학적 감사",
+  "Aviso legal y regulatorio": "법률 및 규제 고지",
   "Backoffice del desarrollador": "시행사 백오피스",
-  "Cada proyecto se gestiona en el portal de su desarrollador: NDA, KYC/AML con SAGRILAFT + PTEE o SARLAFT según el régimen del oferente, Data Room y suscripción con el vehículo jurídico.":
-    "각 프로젝트는 해당 시행사의 포털에서 관리됩니다. NDA, 모집 주체의 규제 체계에 따른 KYC/AML(SAGRILAFT + PTEE 또는 SARLAFT), Data Room, 투자기구와의 청약이 모두 이 포털에서 이루어집니다.",
+  "Cada desarrollador o vehículo de propósito especial (SPV) es el único emisor y responsable de su inmueble, de la información de su Data Room, de su proceso de conocimiento del inversionista (KYC/SAGRILAFT o SARLAFT) y del recaudo a través de sus cuentas fiduciarias o bancarias. El inversionista contrata directamente con el emisor.":
+    "각 시행사 또는 특수목적기구(SPV)는 유일한 발행인으로서 자신의 부동산, Data Room 정보, 투자자 확인 절차(KYC/SAGRILAFT 또는 SARLAFT), 그리고 자체 신탁 계좌 또는 은행 계좌를 통한 투자자금 수납에 대해 단독으로 책임을 집니다. 투자자는 발행인과 직접 계약을 체결합니다.",
+  "Cada documento del Data Room, cada unidad emitida y cada corte de distribución queda sellado en blockchain con prueba SHA-256 y árboles de Merkle verificables al instante.":
+    "Data Room의 모든 문서, 발행된 모든 유닛, 모든 분배 회차가 SHA-256 증명과 즉시 검증 가능한 Merkle 트리를 통해 블록체인에 봉인됩니다.",
+  "Cálculo programable de rendimientos": "프로그래밍 가능한 수익 계산",
   "Capital suscrito / objetivo": "청약 금액 / 목표 금액",
   "Captación pausada temporalmente": "투자 모집 일시 중단",
+  Característica: "특징",
   "Catálogo en vivo no disponible: se muestran los datos ilustrativos del prototipo.":
     "실시간 카탈로그를 불러올 수 없어 프로토타입의 예시 데이터를 표시합니다.",
   Cerrar: "닫기",
   "Coinversión inmobiliaria tokenizada, uno de los modelos de mayor crecimiento a nivel global. Cada proyecto cuenta con seguridad jurídica mediante un vehículo legal propio y activos tokenizados en blockchain, brindándote trazabilidad inmutable sobre tu inversión y tus rendimientos.":
     "토큰화 부동산 공동투자는 전 세계적으로 가장 빠르게 성장하는 투자 모델 중 하나입니다. 각 프로젝트는 고유한 투자기구를 통해 법적 안정성을 확보하고, 자산을 블록체인에서 토큰화하여 투자 내역과 수익을 변경 불가능한 기록으로 추적할 수 있도록 합니다.",
-  "Cómo funciona": "이용 방법",
+  "Combinamos el rigor jurídico de la estructuración inmobiliaria tradicional con la agilidad y trazabilidad de la tecnología blockchain. Así es tu proceso de principio a fin:":
+    "전통적인 부동산 구조화의 법적 엄격함에 블록체인 기술의 신속성과 추적 가능성을 결합했습니다. 처음부터 끝까지의 투자 과정은 다음과 같습니다.",
+  "Cómo Invertir": "투자 방법",
+  "Comparativo de modelos de inversión": "투자 모델 비교",
   Completada: "완료",
+  "Con el mismo capital con el que antes quedabas atado a un trámite lento, local y de papel, hoy eres partícipe de un negocio inmobiliario global. La tokenización toma la seguridad histórica del ladrillo y la supercarga en blockchain con bondades que la inversión inmobiliaria tradicional —así sea fraccionada en papel— simplemente no permite.":
+    "예전에는 느리고 지역에 국한된 서류 중심의 절차에 묶여 있던 같은 자본으로, 이제는 글로벌 부동산 사업에 참여할 수 있습니다. 토큰화는 실물 부동산이 오랫동안 쌓아 온 안정성을 바탕으로 블록체인을 통해 투자를 한 단계 진화시키며, 서류 기반 조각투자를 포함한 전통적인 부동산 투자로는 누릴 수 없던 이점을 제공합니다.",
+  "Conoce cómo estructurar tu inmueble en rwaxi.com": "rwaxi.com에서 부동산 구조화 방법 알아보기",
   "Consola Super-Admin": "Super-Admin 콘솔",
   "Copiado al portapapeles": "클립보드에 복사되었습니다",
+  "Cuando decides invertir, completas tu verificación de identidad (KYC/SAGRILAFT) para proteger a todos los co-inversionistas. Una vez aprobado por el Oficial de Cumplimiento del emisor, defines cuántas unidades deseas adquirir y firmas tu acuerdo de suscripción.":
+    "투자를 결정하면 모든 공동투자자를 보호하기 위해 신원 확인(KYC/SAGRILAFT)을 완료합니다. 발행인의 준법감시인이 승인하면 취득할 좌수를 정하고 청약 계약서에 서명합니다.",
+  "Custodia directa en tu wallet": "내 지갑에 직접 보관",
   "Data Room Auditado con Hash SHA-256": "SHA-256 해시로 검증된 Data Room",
   "Debida Diligencia": "실사",
   "Derecho económico": "경제적 권리",
   "Desarrollador y emisor responsable": "시행사 겸 책임 발행인",
-  "Descubre en RWAXI": "RWAXI에서 탐색",
   "Dirección RWAXI": "RWAXI 경영진",
   "Distribución Anual Est.": "예상 연 분배수익률",
   Dólares: "달러",
   "Dólares estadounidenses": "미국 달러",
   "El dominio no corresponde a ningún desarrollador activo en la red RWAXI.":
     "이 도메인은 RWAXI 네트워크에서 활성 상태인 시행사와 연결되어 있지 않습니다.",
+  "El nuevo estándar del patrimonio inmobiliario": "부동산 자산의 새로운 기준",
   "El portal de este desarrollador no está disponible desde la vitrina.":
     "이 시행사의 포털은 쇼케이스를 통해 이용할 수 없습니다.",
+  "Elige tu oportunidad y firma tu NDA digital": "투자 기회를 선택하고 전자 NDA에 서명하세요",
+  "Emisor autónomo y relación contractual directa": "독립 발행인 및 직접 계약 관계",
   "Emisor:": "발행인:",
   "En curso": "진행 중",
   "En estructuración": "구조화 중",
@@ -60,42 +87,52 @@ const catalog: Catalog = {
   "Este desarrollador no está publicado en la vitrina.": "쇼케이스에 게시되지 않은 시행사입니다.",
   "Este desarrollador no existe en la red RWAXI.": "RWAXI 네트워크에 등록되지 않은 시행사입니다.",
   "Este portal no existe": "존재하지 않는 포털입니다",
+  "Explora las ofertas activas de cada desarrollador e ingresa a su portal exclusivo. Con un clic firmas el Acuerdo de Confidencialidad (NDA) electrónico para desbloquear la información reservada del proyecto.":
+    "각 시행사가 모집 중인 투자 상품을 살펴보고 해당 시행사의 전용 포털에 접속하세요. 클릭 한 번으로 전자 비밀유지계약(NDA)에 서명하면 프로젝트의 비공개 정보를 열람할 수 있습니다.",
   Fachada: "외관",
   "Filtrar por etapa": "단계별 필터",
+  "Finca Raíz Tradicional": "전통적 부동산 투자",
   "Foto anterior": "이전 사진",
   "Foto siguiente": "다음 사진",
   Fotografía: "실제 사진",
   "Fotografías cargadas en orden: Fachada, Interior, Zona Común, Ubicación":
     "사진이 외관, 실내, 공용 공간, 위치 순으로 업로드되었습니다",
   Fotos: "사진",
-  "Frontera legal": "법적 책임 범위",
-  "FRONTERA LEGAL DE RWAXI\n\nRWAXI es un canal de descubrimiento y un proveedor de infraestructura tecnológica (portales white label, Data Room, firma electrónica, expediente KYC y adaptador de tokenización). En la vitrina www.rwaxi.com y en cada portal:\n\n1. RWAXI no es emisor, oferente, estructurador financiero, administrador ni custodio de los activos, de los recursos ni de las unidades digitales de ningún proyecto.\n2. RWAXI no capta recursos del público, no recibe dinero de los inversionistas, no presta asesoría de inversión ni actúa como intermediario del mercado de valores.\n3. Cada proyecto es ofrecido exclusivamente por su desarrollador, identificado con razón social y NIT, a través de su propio vehículo jurídico independiente. La relación contractual, la debida diligencia (SAGRILAFT + PTEE o SARLAFT) y las decisiones sobre los inversionistas son responsabilidad del desarrollador.\n4. En la cadena de bloques, los contratos del registro de cumplimiento y del token pertenecen al desarrollador. RWAXI no tiene facultades para pausar, congelar ni transferir unidades digitales; solo ejecuta, como adaptador técnico, las instrucciones de emisión que el desarrollador aprueba.\n5. Las cifras de TIR, distribuciones y valorización son escenarios estimados elaborados por cada desarrollador. No constituyen promesa de rentabilidad y el capital invertido está sujeto a riesgo.":
-    "RWAXI의 법적 책임 범위\n\nRWAXI는 투자 기회 탐색 채널이자 기술 인프라(white label 포털, Data Room, 전자서명, KYC 서류 및 토큰화 어댑터) 제공자입니다. www.rwaxi.com 쇼케이스와 각 포털에 적용되는 사항은 다음과 같습니다.\n\n1. RWAXI는 어떠한 프로젝트에 대해서도 발행인, 모집 주체 또는 금융 구조화 주관사가 아니며, 그 자산, 자금 또는 디지털 유닛의 관리자나 보관기관도 아닙니다.\n2. RWAXI는 일반 대중으로부터 자금을 모집하지 않고, 투자자의 금전을 수령하지 않으며, 투자자문을 제공하거나 증권시장의 중개업자로 활동하지 않습니다.\n3. 각 프로젝트의 투자 모집은 상호와 NIT(콜롬비아 납세자 식별번호)로 식별되는 해당 시행사가 자체 독립 투자기구를 통해 단독으로 수행합니다. 계약 관계, 실사(SAGRILAFT + PTEE 또는 SARLAFT) 및 투자자에 관한 결정은 시행사의 책임입니다.\n4. 블록체인상의 컴플라이언스 레지스트리 컨트랙트와 토큰 컨트랙트는 시행사에 귀속됩니다. RWAXI는 디지털 유닛을 일시 정지, 동결 또는 이전할 권한이 없으며, 기술 어댑터로서 시행사가 승인한 발행 지시만을 실행합니다.\n5. IRR(내부수익률), 분배수익률 및 가치상승률 수치는 각 시행사가 작성한 예상 시나리오입니다. 이는 수익을 약속하는 것이 아니며, 투자 원금에 손실이 발생할 수 있습니다.",
+  "Fraccionamiento en Papel": "서류 기반 조각투자",
   Idioma: "언어",
-  "Infraestructura Powered by RWAXI": "Powered by RWAXI 인프라",
   "Inspector On-Chain (OpenZeppelin v5)": "On-Chain 인스펙터 (OpenZeppelin v5)",
   Interior: "실내",
+  "Inversión Supercargada": "진화한 투자",
+  "Inversión Supercargada en Blockchain": "블록체인으로 진화한 투자",
+  "Invierte en bienes raíces de grado institucional en 4 pasos claros": "명확한 4단계로 기관투자자 수준의 부동산에 투자하세요",
   "Ir al Portal Oficial del Desarrollador": "시행사 공식 포털로 이동",
   "La captación de este proyecto está pausada temporalmente.":
     "이 프로젝트의 투자 모집이 일시 중단되었습니다.",
-  "LeadReferral para la atribución, ConsentRecord con hash SHA-256, AccessGrant con Signed URLs y tokens OpenZeppelin con whitelist.":
-    "어트리뷰션을 위한 LeadReferral, SHA-256 해시 기반 ConsentRecord, Signed URLs 기반 AccessGrant, 화이트리스트를 적용한 OpenZeppelin 토큰으로 구성됩니다.",
+  "La información de esta vitrina es referencial: no constituye oferta pública de valores ni recomendación o asesoría financiera, legal o tributaria. Los documentos vinculantes de cada proyecto están en el portal de su emisor: el Data Room se abre con la firma del NDA y la suscripción exige, además, la verificación KYC.":
+    "이 쇼케이스의 정보는 참고용이며, 증권의 공모나 금융·법률·세무상 추천 또는 자문에 해당하지 않습니다. 각 프로젝트의 구속력 있는 문서는 해당 발행인의 포털에 있습니다. Data Room은 NDA 서명 후 열람할 수 있으며, 청약에는 KYC 확인이 추가로 필요합니다.",
   "LeadReferral Token generado: {token}": "LeadReferral 토큰 생성: {token}",
   "Los referidos sólo se emiten desde la vitrina.": "추천 링크는 쇼케이스에서만 발급됩니다.",
   "Marca del desarrollador": "시행사 브랜드",
   "Marca RWAXI": "RWAXI 브랜드",
   "mintSubscription(): {n} tokens {symbol}": "mintSubscription(): {symbol} 토큰 {n}개",
   Moneda: "통화",
+  "Naturaleza tecnológica B2B y no custodia": "B2B 기술 서비스의 성격 및 자산 비보관",
   "Negocios Inmobiliarios.": "부동산 비즈니스.",
+  No: "미지원",
+  "No es solo finca raíz fraccionada. Es una Inversión Supercargada.": "단순한 부동산 조각투자가 아닙니다. 진화한 투자입니다.",
   "No hay proyectos publicados en esta etapa en este momento.": "현재 이 단계에 게시된 프로젝트가 없습니다.",
   "No hay proyectos publicados en la vitrina en este momento.": "현재 쇼케이스에 게시된 프로젝트가 없습니다.",
+  "No necesitas ser experto en criptomonedas. En esta plataforma, la blockchain funciona como un libro contable incorruptible: sella con prueba matemática que los documentos del Data Room no han sido alterados, certifica que solo inversionistas verificados participan en el proyecto y registra tu participación y tus derechos económicos sin depender de hojas de cálculo manuales.":
+    "암호화폐 전문 지식이 없어도 괜찮습니다. 이 플랫폼에서 블록체인은 위변조가 불가능한 장부 역할을 합니다. Data Room 문서가 변경되지 않았음을 수학적 증명으로 봉인하고, 검증을 마친 투자자만 프로젝트에 참여한다는 사실을 인증하며, 수작업 스프레드시트에 의존하지 않고 보유 지분과 경제적 권리를 기록합니다.",
   "No se pudo generar el enlace al portal. Inténtalo de nuevo.":
     "포털 링크를 생성하지 못했습니다. 다시 시도해 주십시오.",
   "Oferente responsable: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Vehículo emisor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Régimen de cumplimiento: {{COMPLIANCE_REGIME}}. RWAXI actúa solo como proveedor de infraestructura tecnológica: no es parte de la oferta, no recibe recursos y no controla las unidades digitales emitidas.":
     "책임 모집 주체: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. 발행 투자기구: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). 컴플라이언스 체계: {{COMPLIANCE_REGIME}}. RWAXI는 기술 인프라 제공자의 역할만 수행하며, 모집의 당사자가 아니고 자금을 수령하지 않으며 발행된 디지털 유닛을 통제하지 않습니다.",
-  "Oferentes publicados": "게시된 모집 주체",
   Oportunidades: "투자 기회",
   "Origen: {from} → {to}": "유입 경로: {from} → {to}",
+  "Paga al vehículo del proyecto y recibe tus tokens": "프로젝트 투자기구에 납입하고 토큰을 받으세요",
+  Parcial: "일부 지원",
+  "Paso {n}": "{n}단계",
   "Paso {n} de 4 · {step}": "4단계 중 {n}단계 · {step}",
   "Patrimonio Autónomo / Encargo Fiduciario": "독립 신탁재산 / 신탁회사 위탁계약",
   Pendiente: "대기",
@@ -105,6 +142,7 @@ const catalog: Catalog = {
     "실사 및 규제 준수(KYC/AML) 기준에 따라 보호되는 플랫폼입니다.",
   "Por renta": "임대수익 기반",
   "Por renta · desde mes {month}": "임대수익 기반 · {month}개월 차부터",
+  "Portabilidad y Estándar Abierto No-Custodial": "이동성과 비수탁형 개방 표준",
   "Portal del desarrollador en revisión": "시행사 포털 검토 중",
   "Portal inválido.": "유효하지 않은 포털입니다.",
   "Portal oficial del desarrollador": "시행사 공식 포털",
@@ -112,34 +150,50 @@ const catalog: Catalog = {
   "Portal White Label": "White Label 포털",
   "Pre-venta": "선분양",
   Principal: "주 메뉴",
+  "Propiedad Programable y Rendimientos Exactos": "프로그래밍 가능한 소유권과 정확한 수익",
   "Proyectos publicados por desarrolladores": "시행사가 게시한 프로젝트",
-  "Quién ofrece, quién responde y qué hace RWAXI": "모집 주체와 책임 주체, 그리고 RWAXI의 역할",
+  "Realizas tu aporte directamente a las cuentas bancarias o fiduciarias autorizadas del proyecto. Al conciliarse tu pago, el contrato inteligente emite tus tokens directamente en tu billetera digital (wallet), acreditando tu participación y habilitando el cobro de tus rendimientos.":
+    "투자금은 프로젝트가 지정한 은행 계좌 또는 신탁 계좌로 직접 납입합니다. 납입이 확인되면 스마트 컨트랙트가 본인의 디지털 지갑(wallet)으로 토큰을 직접 발행해 지분을 증명하고, 수익을 수령할 수 있게 합니다.",
   Redes: "네트워크",
   "Registro Inmutable en Blockchain": "블록체인 기반 불변 기록",
   "Render ilustrativo": "참고용 렌더링",
   "Rentas y Valorización.": "임대수익과 가치상승.",
   "Reserva registrada: {n} unidades": "예약 등록 완료: {n}좌",
+  "Respaldo Inmutable y Auditoría en Tiempo Real": "위변조 불가능한 근거와 실시간 감사",
   "Respaldo Jurídico Real.": "실질적인 법적 기반.",
+  "Rompe las fronteras geográficas y accede desde cualquier lugar a negocios inmobiliarios institucionales con tickets accesibles, sin trámites notariales presenciales.":
+    "지리적 경계를 넘어 어디서든 부담 없는 투자금액으로 기관투자자 수준의 부동산 사업에 참여하세요. 공증 사무소를 직접 방문하는 절차도 필요 없습니다.",
   "RWAXI · CARGANDO PLATAFORMA": "RWAXI · 플랫폼 로딩 중",
   "RWAXI actúa como canal de descubrimiento y proveedor de infraestructura tecnológica. Cada oferta, vehículo y proceso de cumplimiento es responsabilidad del desarrollador. Proyectos, cifras y entidades son ilustrativos.":
     "RWAXI는 투자 기회 탐색 채널 및 기술 인프라 제공자의 역할을 합니다. 각 투자 모집, 투자기구 및 컴플라이언스 절차는 해당 시행사의 책임입니다. 표시된 프로젝트, 수치 및 법인은 예시입니다.",
+  "RWAXI es un proveedor de software como servicio (SaaS) para desarrolladores y un canal de descubrimiento. No es sociedad fiduciaria, establecimiento bancario, sociedad comisionista de bolsa ni intermediario del mercado de valores; no capta recursos del público, no recibe los aportes de los inversionistas y no custodia llaves privadas ni activos digitales.":
+    "RWAXI는 시행사를 위한 서비스형 소프트웨어(SaaS) 제공자이자 투자 기회 탐색 채널입니다. RWAXI는 신탁회사, 은행, 증권회사 또는 증권시장의 중개업자가 아니며, 일반 대중으로부터 자금을 모집하지 않고, 투자자의 투자금을 수령하지 않으며, 개인 키나 디지털 자산을 보관하지 않습니다.",
   "RWAXI REAL ESTATE — COINVERSIÓN INMOBILIARIA TOKENIZADA EN COLOMBIA":
     "RWAXI REAL ESTATE — 콜롬비아 토큰화 부동산 공동투자",
   "RWAXI, ir a oportunidades": "RWAXI, 투자 기회로 이동",
   "Seguridad Jurídica": "법적 안정성",
   "Selecciona el texto para copiarlo": "텍스트를 선택하여 복사하십시오",
   "Sellos de confianza": "신뢰 인증",
+  Sí: "지원",
   "SIMULACIÓN DE ARQUITECTURA": "아키텍처 시뮬레이션",
+  "Sin oferta pública no autorizada ni asesoría financiera": "미인가 공모 및 금융 자문에 해당하지 않음",
   "SPV Sociedad por Acciones Simplificada (S.A.S.)": "간이주식회사(S.A.S.)형 특수목적법인(SPV)",
+  "Supera el proceso KYC y suscribe tus unidades": "KYC 심사를 통과하고 원하는 좌수를 청약하세요",
   "Tenant admin": "Tenant admin",
   "Ticket desde": "최소 투자금액",
   "Ticket Mínimo": "최소 투자금액",
   "TIR Estimada": "예상 IRR(내부수익률)",
   "TIR, distribuciones y valorización son escenarios estimados con base en el modelo financiero de cada vehículo; el desempeño real puede ser inferior y el capital invertido está sujeto a riesgo. Valores en COP calculados con TRM de referencia de COP {trm} / USD.":
     "IRR(내부수익률), 분배수익률 및 가치상승률은 각 투자기구의 재무 모델에 근거한 예상 시나리오입니다. 실제 성과는 이보다 낮을 수 있으며 투자 원금에 손실이 발생할 수 있습니다. COP 금액은 기준 TRM인 COP {trm} / USD를 적용하여 환산하였습니다.",
+  "Toda inversión inmobiliaria implica riesgos, incluida la pérdida parcial o total del capital y una liquidez limitada. Las tasas de TIR, distribución y valorización proyectadas son estimaciones de cada desarrollador y no garantizan rendimientos fijos ni futuros.":
+    "모든 부동산 투자에는 원금의 일부 또는 전부 손실, 제한된 유동성 등의 위험이 따릅니다. 예상 IRR(내부수익률), 분배수익률 및 가치상승률은 각 시행사의 추정치이며, 확정 수익이나 미래 수익을 보장하지 않습니다.",
   Todos: "전체",
+  "Trazabilidad on-chain en tiempo real": "실시간 on-chain 추적",
+  "Tus participaciones viven en tu propia wallet bajo estándares abiertos (ERC-20 con registro de cumplimiento), listas para transferencias autorizadas entre inversionistas en lista blanca sin semanas de papeleo.":
+    "투자 지분은 규제 준수형 표준(컴플라이언스 레지스트리를 갖춘 ERC-20)에 따라 본인의 지갑에 보관되며, 화이트리스트에 등록된 투자자 간에는 몇 주씩 걸리는 서류 작업 없이 승인된 이전이 가능합니다.",
+  "Tus tokens representan tu posición verificada en el proyecto. Cuando se declaran distribuciones de rentas o valorización, el cálculo de tu participación es exacto y auditable criptográficamente.":
+    "보유 토큰은 프로젝트 내에서 검증된 투자 지분을 나타냅니다. 임대수익이나 가치상승분의 분배가 결정되면 지분에 따른 배분이 정확하게 계산되며, 이를 암호학적으로 감사할 수 있습니다.",
   "Ubicación / Render": "위치 / 렌더링",
-  "Un canal de descubrimiento, un portal por desarrollador": "하나의 탐색 채널, 시행사별 전용 포털",
   "Valorización Anual Proy.": "예상 연 가치상승률",
   "Vehículo de Propósito Especial (SPV / Cuentas en Participación)": "특수목적기구(SPV / 익명조합)",
   "Vehículo Jurídico Independiente (Legal Wrapper)": "독립 투자기구(Legal Wrapper)",
@@ -149,8 +203,6 @@ const catalog: Catalog = {
   "Ver cifras en": "표시 통화",
   "Ver foto {n}": "사진 {n} 보기",
   "Vitrina pública": "공개 쇼케이스",
-  "www.rwaxi.com es una vitrina de descubrimiento e infraestructura tecnológica. RWAXI no capta recursos ni ofrece valores.":
-    "www.rwaxi.com은 투자 기회 탐색을 위한 쇼케이스이자 기술 인프라입니다. RWAXI는 자금을 모집하거나 증권을 공모하지 않습니다.",
   "Zona Común": "공용 공간",
 };
 

@@ -1,48 +1,75 @@
 import type { Catalog } from "../translate";
 
-// Japanese · vitrina (www.rwaxi.com). Keys are the Spanish source texts.
+// Japanese · vitrina (www.rwaxirealestate.com). Keys are the Spanish source texts.
 const catalog: Catalog = {
+  "¿Cómo te protege la blockchain aquí?": "ブロックチェーンが投資家を守る仕組みとは？",
+  "¿Eres desarrollador o estructurador inmobiliario y te gustaría tokenizar tu proyecto?":
+    "不動産開発事業者・アレンジャーの皆さま、プロジェクトのトークン化をご検討ですか？",
+  "¿Eres desarrollador? Tokeniza tu inmueble": "開発事業者の方へ：物件をトークン化",
   "{asset} · el desarrollador es responsable de la relación contractual y del cumplimiento.":
     "{asset} · 契約関係およびコンプライアンスの責任は開発事業者が負います。",
   "{committed} / {total} unidades": "{committed} / {total}口",
   "{n} unidades disponibles": "残り{n}口",
   "{pct} suscrito": "申込率 {pct}",
   "01 / Oportunidades estructuradas": "01 / 組成済みの投資案件",
-  "02 / Cómo funciona": "02 / 仕組み",
-  "03 / Frontera legal": "03 / 法的責任の範囲",
+  "02 / Cómo invertir": "02 / 投資の流れ",
+  "Abre tu propio portal institucional White Label, automatiza tu cumplimiento KYC/SAGRILAFT y conecta tu inmueble con inversionistas globales sin ceder el control fiduciario.":
+    "自社のWhite Label公式ポータルを開設して、KYC/SAGRILAFTのコンプライアンス対応を自動化。信託スキームの主導権を手放すことなく、物件を世界中の投資家とつなぎます。",
   "Abriendo portal oficial de {name}…": "{name}の公式ポータルを開いています…",
-  "Acceso Desarrolladores": "開発事業者アクセス",
+  "Accede al Data Room y valida el respaldo": "Data Roomにアクセスし、裏付けを検証する",
+  "Acceso global 100 % digital": "世界中から100%デジタルでアクセス",
   "Activo real": "実物資産",
   "ACTIVOS REALES · INVERSIONES DIGITALES": "実物資産 · デジタル投資",
   "Activos Tokenizados": "トークン化資産",
+  "Advertencia de riesgos y proyecciones": "リスクおよび将来予測に関する注意事項",
+  "Alcance Global con el Mismo Capital": "同じ資金で、投資の舞台を世界へ",
+  "Antes de comprometer capital, entras al Data Room privado. Allí encuentras de manera detallada toda la información jurídica, financiera y comercial que respalda al proyecto: estudios de títulos, encargo fiduciario, modelo financiero y contratos verificados criptográficamente.":
+    "出資を確約する前に、非公開のData Roomへアクセスします。権利関係の調査報告書、信託委託契約、財務モデル、暗号技術で検証された契約書など、プロジェクトを裏付ける法務・財務・事業面の情報をすべて詳しく確認できます。",
   "ATRIBUCIÓN DE LEAD": "リード・アトリビューション",
   "Atribución deshabilitada: falta REFERRAL_SECRET en el servidor.":
     "アトリビューションは無効です。サーバーにREFERRAL_SECRETが設定されていません。",
+  "Auditoría criptográfica del Data Room": "暗号技術によるData Roomの監査",
+  "Aviso legal y regulatorio": "法務・規制に関する告知",
   "Backoffice del desarrollador": "開発事業者バックオフィス",
-  "Cada proyecto se gestiona en el portal de su desarrollador: NDA, KYC/AML con SAGRILAFT + PTEE o SARLAFT según el régimen del oferente, Data Room y suscripción con el vehículo jurídico.":
-    "各プロジェクトは、開発事業者のポータルで管理されます。ポータルでは、NDAの締結、募集主体の適用制度に応じたSAGRILAFT + PTEEまたはSARLAFTによるKYC/AML、Data Roomの閲覧、法的ビークルへの申込みを行います。",
+  "Cada desarrollador o vehículo de propósito especial (SPV) es el único emisor y responsable de su inmueble, de la información de su Data Room, de su proceso de conocimiento del inversionista (KYC/SAGRILAFT o SARLAFT) y del recaudo a través de sus cuentas fiduciarias o bancarias. El inversionista contrata directamente con el emisor.":
+    "各開発事業者または特別目的事業体（SPV）は唯一の発行者であり、自らの不動産、Data Roomの情報、投資家の本人確認手続（KYC/SAGRILAFTまたはSARLAFT）、および自らの信託口座または銀行口座を通じた投資家資金の受領について、単独で責任を負います。投資家は、発行者と直接契約を締結します。",
+  "Cada documento del Data Room, cada unidad emitida y cada corte de distribución queda sellado en blockchain con prueba SHA-256 y árboles de Merkle verificables al instante.":
+    "Data Roomの各書類、発行された各デジタル・ユニット、各回の分配は、SHA-256による証明と即時に検証可能なMerkleツリーにより、ブロックチェーン上に封印されます。",
+  "Cálculo programable de rendimientos": "プログラマブルな収益計算",
   "Capital suscrito / objetivo": "申込額 / 募集目標額",
   "Captación pausada temporalmente": "募集一時停止中",
+  Característica: "特徴",
   "Catálogo en vivo no disponible: se muestran los datos ilustrativos del prototipo.":
     "ライブカタログを利用できないため、プロトタイプの例示データを表示しています。",
   Cerrar: "閉じる",
   "Coinversión inmobiliaria tokenizada, uno de los modelos de mayor crecimiento a nivel global. Cada proyecto cuenta con seguridad jurídica mediante un vehículo legal propio y activos tokenizados en blockchain, brindándote trazabilidad inmutable sobre tu inversión y tus rendimientos.":
     "トークン化による不動産共同投資は、世界で最も成長著しい投資モデルの一つです。各プロジェクトは専用の法的ビークルによって法的安定性が確保され、資産はブロックチェーン上でトークン化されています。これにより、ご自身の投資と収益を改ざん不能な記録として追跡できます。",
-  "Cómo funciona": "仕組み",
+  "Combinamos el rigor jurídico de la estructuración inmobiliaria tradicional con la agilidad y trazabilidad de la tecnología blockchain. Así es tu proceso de principio a fin:":
+    "従来の不動産スキーム組成が備える法的な厳格さに、ブロックチェーン技術のスピードとトレーサビリティを組み合わせています。最初から最後までの投資の流れは、以下のとおりです。",
+  "Cómo Invertir": "投資の流れ",
+  "Comparativo de modelos de inversión": "投資モデルの比較",
   Completada: "完了",
+  "Con el mismo capital con el que antes quedabas atado a un trámite lento, local y de papel, hoy eres partícipe de un negocio inmobiliario global. La tokenización toma la seguridad histórica del ladrillo y la supercarga en blockchain con bondades que la inversión inmobiliaria tradicional —así sea fraccionada en papel— simplemente no permite.":
+    "以前は時間がかかり、地域に限られ、紙の書類に頼る手続きに縛られていたのと同じ資金で、今ではグローバルな不動産事業に参加できます。トークン化は、実物不動産が長年培ってきた堅実さを土台に、ブロックチェーンで投資をさらに進化させ、従来の不動産投資では（たとえ紙ベースで小口化されていても）実現できなかったメリットをもたらします。",
+  "Conoce cómo estructurar tu inmueble en rwaxi.com": "rwaxi.comで物件のスキーム組成方法を知る",
   "Consola Super-Admin": "Super-Adminコンソール",
   "Copiado al portapapeles": "クリップボードにコピーしました",
+  "Cuando decides invertir, completas tu verificación de identidad (KYC/SAGRILAFT) para proteger a todos los co-inversionistas. Una vez aprobado por el Oficial de Cumplimiento del emisor, defines cuántas unidades deseas adquirir y firmas tu acuerdo de suscripción.":
+    "投資を決めたら、すべての共同投資家を守るために本人確認（KYC/SAGRILAFT）を完了します。発行者のコンプライアンス・オフィサーによる承認後、取得を希望する口数を指定し、申込契約書に署名します。",
+  "Custodia directa en tu wallet": "ご自身のウォレットで直接保管",
   "Data Room Auditado con Hash SHA-256": "SHA-256ハッシュによる監査済みData Room",
   "Debida Diligencia": "デューデリジェンス",
   "Derecho económico": "経済的権利",
   "Desarrollador y emisor responsable": "開発事業者・発行の責任主体",
-  "Descubre en RWAXI": "RWAXIで案件を見つける",
   "Dirección RWAXI": "RWAXI経営陣",
   "Distribución Anual Est.": "想定分配利回り（年率）",
   Dólares: "ドル",
   "Dólares estadounidenses": "米ドル",
+  "El nuevo estándar del patrimonio inmobiliario": "不動産資産の新しいスタンダード",
   "El portal de este desarrollador no está disponible desde la vitrina.":
     "この開発事業者のポータルは、ショーケースからはご利用いただけません。",
+  "Elige tu oportunidad y firma tu NDA digital": "投資案件を選び、電子NDAを締結する",
+  "Emisor autónomo y relación contractual directa": "独立した発行者と直接の契約関係",
   "Emisor:": "発行者：",
   "En curso": "進行中",
   "En estructuración": "組成中",
@@ -55,44 +82,54 @@ const catalog: Catalog = {
   "Escenario Estimado.": "想定シナリオです。",
   "Este desarrollador no está publicado en la vitrina.": "この開発事業者はショーケースに掲載されていません。",
   "Este desarrollador no existe en la red RWAXI.": "この開発事業者はRWAXIネットワークに存在しません。",
+  "Explora las ofertas activas de cada desarrollador e ingresa a su portal exclusivo. Con un clic firmas el Acuerdo de Confidencialidad (NDA) electrónico para desbloquear la información reservada del proyecto.":
+    "各開発事業者が募集中の案件を探し、その専用ポータルにアクセスします。ワンクリックで電子版の秘密保持契約（NDA）を締結すると、プロジェクトの非公開情報を閲覧できるようになります。",
   Fachada: "外観",
   "Filtrar por etapa": "段階で絞り込む",
+  "Finca Raíz Tradicional": "従来の現物不動産投資",
   "Foto anterior": "前の写真",
   "Foto siguiente": "次の写真",
   Fotografía: "写真",
   "Fotografías cargadas en orden: Fachada, Interior, Zona Común, Ubicación":
     "写真を次の順で読み込みました：外観、内観、共用部、立地",
   Fotos: "写真",
-  "Frontera legal": "法的責任の範囲",
-  "FRONTERA LEGAL DE RWAXI\n\nRWAXI es un canal de descubrimiento y un proveedor de infraestructura tecnológica (portales white label, Data Room, firma electrónica, expediente KYC y adaptador de tokenización). En la vitrina www.rwaxi.com y en cada portal:\n\n1. RWAXI no es emisor, oferente, estructurador financiero, administrador ni custodio de los activos, de los recursos ni de las unidades digitales de ningún proyecto.\n2. RWAXI no capta recursos del público, no recibe dinero de los inversionistas, no presta asesoría de inversión ni actúa como intermediario del mercado de valores.\n3. Cada proyecto es ofrecido exclusivamente por su desarrollador, identificado con razón social y NIT, a través de su propio vehículo jurídico independiente. La relación contractual, la debida diligencia (SAGRILAFT + PTEE o SARLAFT) y las decisiones sobre los inversionistas son responsabilidad del desarrollador.\n4. En la cadena de bloques, los contratos del registro de cumplimiento y del token pertenecen al desarrollador. RWAXI no tiene facultades para pausar, congelar ni transferir unidades digitales; solo ejecuta, como adaptador técnico, las instrucciones de emisión que el desarrollador aprueba.\n5. Las cifras de TIR, distribuciones y valorización son escenarios estimados elaborados por cada desarrollador. No constituyen promesa de rentabilidad y el capital invertido está sujeto a riesgo.":
-    "RWAXIの法的責任の範囲\n\nRWAXIは、案件発見チャネルであり、技術インフラ（White Labelポータル、Data Room、電子署名、KYC記録、トークン化アダプター）の提供者です。ショーケース（www.rwaxi.com）および各ポータルにおけるRWAXIの位置づけは、次のとおりです。\n\n1. RWAXIは、いかなるプロジェクトについても、資産、資金またはデジタル・ユニットの発行者、募集主体、金融スキームの組成者、管理者または保管者ではありません。\n2. RWAXIは、一般から資金を募らず、投資家から金銭を受領せず、投資助言を行わず、証券市場の仲介業者として行動することもありません。\n3. 各プロジェクトは、商号およびNIT（納税者番号）により特定される当該開発事業者のみが、自らの独立した法的ビークルを通じて募集します。契約関係、デューデリジェンス（SAGRILAFT + PTEEまたはSARLAFT）および投資家に関する判断は、開発事業者の責任において行われます。\n4. ブロックチェーン上のコンプライアンス登録簿およびトークンのスマートコントラクトは、開発事業者に帰属します。RWAXIは、デジタル・ユニットを一時停止、凍結または移転する権限を有しておらず、開発事業者が承認した発行指図を技術的アダプターとして実行するにとどまります。\n5. IRR（内部収益率）、分配および値上がり益に関する数値は、各開発事業者が作成した想定シナリオです。収益を約束するものではなく、投資元本は損失のリスクを伴います。",
+  "Fraccionamiento en Papel": "紙ベースの小口化投資",
   Idioma: "言語",
-  "Infraestructura Powered by RWAXI": "技術インフラ Powered by RWAXI",
   "Inspector On-Chain (OpenZeppelin v5)": "On-Chainインスペクター（OpenZeppelin v5）",
   Interior: "内観",
+  "Inversión Supercargada": "進化型投資",
+  "Inversión Supercargada en Blockchain": "ブロックチェーンによる進化型投資",
+  "Invierte en bienes raíces de grado institucional en 4 pasos claros": "明快な4ステップで、機関投資家クラスの不動産へ投資",
   "Ir al Portal Oficial del Desarrollador": "開発事業者の公式ポータルへ",
   "La captación de este proyecto está pausada temporalmente.":
     "このプロジェクトの募集は一時停止されています。",
-  "LeadReferral para la atribución, ConsentRecord con hash SHA-256, AccessGrant con Signed URLs y tokens OpenZeppelin con whitelist.":
-    "アトリビューション用のLeadReferral、SHA-256ハッシュ付きのConsentRecord、Signed URLsによるAccessGrant、ホワイトリスト機能を備えたOpenZeppelinトークンで構成されます。",
+  "La información de esta vitrina es referencial: no constituye oferta pública de valores ni recomendación o asesoría financiera, legal o tributaria. Los documentos vinculantes de cada proyecto están en el portal de su emisor: el Data Room se abre con la firma del NDA y la suscripción exige, además, la verificación KYC.":
+    "本ショーケースの情報は参考情報であり、有価証券の公募、または金融・法務・税務上の推奨もしくは助言を構成するものではありません。各プロジェクトの法的拘束力のある書類は当該発行者のポータルにあります。Data RoomはNDAの締結後に閲覧でき、申込みにはさらにKYC確認が必要です。",
   "LeadReferral Token generado: {token}": "LeadReferralトークンを生成しました：{token}",
   "Los referidos sólo se emiten desde la vitrina.": "リファラルトークンはショーケースからのみ発行されます。",
   "Marca del desarrollador": "開発事業者ブランド",
   "Marca RWAXI": "RWAXIブランド",
   "mintSubscription(): {n} tokens {symbol}": "mintSubscription(): {n} {symbol}トークン",
   Moneda: "通貨",
+  "Naturaleza tecnológica B2B y no custodia": "B2Bの技術提供者であり、資産を保管しないこと",
   "Negocios Inmobiliarios.": "不動産事業。",
+  No: "非対応",
+  "No es solo finca raíz fraccionada. Es una Inversión Supercargada.": "単なる不動産の小口化ではありません。進化型投資です。",
   "No hay proyectos publicados en esta etapa en este momento.":
     "現在、この段階で掲載中のプロジェクトはありません。",
   "No hay proyectos publicados en la vitrina en este momento.":
     "現在、ショーケースに掲載中のプロジェクトはありません。",
+  "No necesitas ser experto en criptomonedas. En esta plataforma, la blockchain funciona como un libro contable incorruptible: sella con prueba matemática que los documentos del Data Room no han sido alterados, certifica que solo inversionistas verificados participan en el proyecto y registra tu participación y tus derechos económicos sin depender de hojas de cálculo manuales.":
+    "暗号資産の専門知識は必要ありません。本プラットフォームにおいてブロックチェーンは、改ざんできない台帳として機能します。Data Roomの書類が改変されていないことを数学的な証明によって封印し、審査を通過した投資家だけがプロジェクトに参加していることを証明するとともに、お客さまの持分と経済的権利を、手作業の表計算に頼ることなく記録します。",
   "No se pudo generar el enlace al portal. Inténtalo de nuevo.":
     "ポータルへのリンクを生成できませんでした。もう一度お試しください。",
   "Oferente responsable: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Vehículo emisor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Régimen de cumplimiento: {{COMPLIANCE_REGIME}}. RWAXI actúa solo como proveedor de infraestructura tecnológica: no es parte de la oferta, no recibe recursos y no controla las unidades digitales emitidas.":
     "募集の責任主体：{{ORGANIZATION_LEGAL_NAME}}（NIT {{ORGANIZATION_TAX_ID}}）。発行ビークル：{{LEGAL_ENTITY_NAME}}（{{LEGAL_WRAPPER_TYPE}}）。適用コンプライアンス制度：{{COMPLIANCE_REGIME}}。RWAXIは技術インフラの提供者としてのみ関与しており、募集の当事者ではなく、資金を受領せず、発行されたデジタル・ユニットを管理することもありません。",
-  "Oferentes publicados": "掲載中の募集主体",
   Oportunidades: "投資案件",
   "Origen: {from} → {to}": "参照元：{from} → {to}",
+  "Paga al vehículo del proyecto y recibe tus tokens": "プロジェクトのビークルに払い込み、トークンを受け取る",
+  Parcial: "一部対応",
+  "Paso {n}": "ステップ {n}",
   "Paso {n} de 4 · {step}": "ステップ {n}/4 · {step}",
   "Patrimonio Autónomo / Encargo Fiduciario": "独立信託財産 / 信託委託契約",
   Pendiente: "未完了",
@@ -102,6 +139,7 @@ const catalog: Catalog = {
     "本プラットフォームは、デューデリジェンスおよび法令遵守（KYC/AML）の基準に基づいて保護されています。",
   "Por renta": "賃料収入から",
   "Por renta · desde mes {month}": "賃料収入から · {month}か月目以降",
+  "Portabilidad y Estándar Abierto No-Custodial": "ポータビリティとノンカストディアルなオープン標準",
   "Portal del desarrollador en revisión": "開発事業者ポータル審査中",
   "Portal inválido.": "無効なポータルです。",
   "Portal oficial del desarrollador": "開発事業者の公式ポータル",
@@ -109,34 +147,49 @@ const catalog: Catalog = {
   "Portal White Label": "White Labelポータル",
   "Pre-venta": "先行販売",
   Principal: "メイン",
+  "Propiedad Programable y Rendimientos Exactos": "プログラマブルな所有権と正確な収益",
   "Proyectos publicados por desarrolladores": "開発事業者が掲載するプロジェクト",
-  "Quién ofrece, quién responde y qué hace RWAXI": "誰が募集し、誰が責任を負い、RWAXIは何を担うのか",
+  "Realizas tu aporte directamente a las cuentas bancarias o fiduciarias autorizadas del proyecto. Al conciliarse tu pago, el contrato inteligente emite tus tokens directamente en tu billetera digital (wallet), acreditando tu participación y habilitando el cobro de tus rendimientos.":
+    "出資金は、プロジェクトが指定する銀行口座または信託口座へ直接払い込みます。入金が照合されると、スマートコントラクトがお客さまのデジタルウォレットへトークンを直接発行します。これにより持分が証明され、収益を受け取れるようになります。",
   Redes: "ネットワーク",
   "Registro Inmutable en Blockchain": "ブロックチェーン上の改ざん不能な記録",
   "Render ilustrativo": "イメージCG",
   "Rentas y Valorización.": "賃料収入と値上がり益。",
   "Reserva registrada: {n} unidades": "予約を登録しました：{n}口",
+  "Respaldo Inmutable y Auditoría en Tiempo Real": "改ざん不能な裏付けとリアルタイム監査",
   "Respaldo Jurídico Real.": "確かな法的裏付け。",
+  "Rompe las fronteras geográficas y accede desde cualquier lugar a negocios inmobiliarios institucionales con tickets accesibles, sin trámites notariales presenciales.":
+    "地理的な境界を越えて、世界中どこからでも、手の届きやすい投資額で機関投資家クラスの不動産事業に参加できます。公証役場での対面手続きも必要ありません。",
   "RWAXI actúa como canal de descubrimiento y proveedor de infraestructura tecnológica. Cada oferta, vehículo y proceso de cumplimiento es responsabilidad del desarrollador. Proyectos, cifras y entidades son ilustrativos.":
     "RWAXIは、案件発見チャネルおよび技術インフラの提供者として機能します。個々の募集、ビークルおよびコンプライアンス手続は、開発事業者の責任において行われます。掲載しているプロジェクト、数値および事業体は、いずれも例示です。",
+  "RWAXI es un proveedor de software como servicio (SaaS) para desarrolladores y un canal de descubrimiento. No es sociedad fiduciaria, establecimiento bancario, sociedad comisionista de bolsa ni intermediario del mercado de valores; no capta recursos del público, no recibe los aportes de los inversionistas y no custodia llaves privadas ni activos digitales.":
+    "RWAXIは、開発事業者向けにSaaS（サービスとしてのソフトウェア）を提供する事業者であり、案件発見チャネルです。RWAXIは信託会社、銀行、証券会社または証券市場の仲介業者ではありません。また、一般から資金を募らず、投資家からの出資金を受領せず、秘密鍵やデジタル資産を保管することもありません。",
   "RWAXI REAL ESTATE — COINVERSIÓN INMOBILIARIA TOKENIZADA EN COLOMBIA":
     "RWAXI REAL ESTATE — コロンビアにおけるトークン化不動産共同投資",
   "RWAXI, ir a oportunidades": "RWAXI、投資案件へ移動",
   "Seguridad Jurídica": "法的安定性",
   "Selecciona el texto para copiarlo": "テキストを選択してコピーしてください",
   "Sellos de confianza": "信頼の証",
+  Sí: "対応",
   "SIMULACIÓN DE ARQUITECTURA": "アーキテクチャ・シミュレーション",
+  "Sin oferta pública no autorizada ni asesoría financiera": "無認可の公募および金融助言に該当しないこと",
   "SPV Sociedad por Acciones Simplificada (S.A.S.)": "特別目的事業体（SPV）・簡易株式会社（S.A.S.）",
+  "Supera el proceso KYC y suscribe tus unidades": "KYC審査を通過し、口数を指定して申し込む",
   "Tenant admin": "Tenant admin",
   "Ticket desde": "最低投資額",
   "Ticket Mínimo": "最低投資額",
   "TIR Estimada": "想定IRR（内部収益率）",
   "TIR, distribuciones y valorización son escenarios estimados con base en el modelo financiero de cada vehículo; el desempeño real puede ser inferior y el capital invertido está sujeto a riesgo. Valores en COP calculados con TRM de referencia de COP {trm} / USD.":
     "IRR（内部収益率）、分配利回りおよび値上がり益は、各ビークルの財務モデルに基づく想定シナリオです。実際の運用成績はこれを下回る可能性があり、投資元本は損失のリスクを伴います。COP建ての金額は、参照為替レートTRM（COP {trm} / USD）により換算しています。",
+  "Toda inversión inmobiliaria implica riesgos, incluida la pérdida parcial o total del capital y una liquidez limitada. Las tasas de TIR, distribución y valorización proyectadas son estimaciones de cada desarrollador y no garantizan rendimientos fijos ni futuros.":
+    "あらゆる不動産投資にはリスクが伴い、元本の一部または全部を失う可能性や、流動性が限られることがあります。予測されるIRR（内部収益率）、分配利回りおよび値上がり率は各開発事業者による見積もりであり、固定的な収益や将来の収益を保証するものではありません。",
   Todos: "すべて",
+  "Trazabilidad on-chain en tiempo real": "リアルタイムのon-chainトレーサビリティ",
+  "Tus participaciones viven en tu propia wallet bajo estándares abiertos (ERC-20 con registro de cumplimiento), listas para transferencias autorizadas entre inversionistas en lista blanca sin semanas de papeleo.":
+    "持分は、規制に対応した標準（コンプライアンス登録簿付きのERC-20）に基づき、ご自身のウォレットで保有されます。ホワイトリストに登録された投資家同士であれば、何週間もの書類手続きを経ることなく、承認された移転が可能です。",
+  "Tus tokens representan tu posición verificada en el proyecto. Cuando se declaran distribuciones de rentas o valorización, el cálculo de tu participación es exacto y auditable criptográficamente.":
+    "トークンは、プロジェクトにおけるお客さまの検証済みの持分を表します。賃料収入や値上がり益の分配が決定されると、持分に応じた配分額が正確に計算され、暗号技術によって監査することもできます。",
   "Ubicación / Render": "立地 / イメージCG",
-  "Un canal de descubrimiento, un portal por desarrollador":
-    "ひとつの案件発見チャネル、開発事業者ごとのポータル",
   "Valorización Anual Proy.": "予測値上がり益（年率）",
   "Vehículo de Propósito Especial (SPV / Cuentas en Participación)": "特別目的事業体（SPV）・匿名組合型契約",
   "Vehículo Jurídico Independiente (Legal Wrapper)": "独立した法的ビークル（Legal Wrapper）",
@@ -146,8 +199,6 @@ const catalog: Catalog = {
   "Ver cifras en": "表示通貨",
   "Ver foto {n}": "{n}枚目の写真を表示",
   "Vitrina pública": "公開ショーケース",
-  "www.rwaxi.com es una vitrina de descubrimiento e infraestructura tecnológica. RWAXI no capta recursos ni ofrece valores.":
-    "www.rwaxi.comは、案件発見のためのショーケースおよび技術インフラです。RWAXIは、資金を募ることはなく、有価証券の募集も行いません。",
   "Zona Común": "共用部",
   "Activos reales · Inversiones digitales. Infraestructura de tokenización inmobiliaria White Label.":
     "実物資産 · デジタル投資。不動産トークン化のためのWhite Labelインフラ。",

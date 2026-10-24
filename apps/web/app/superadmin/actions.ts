@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Operational actions of the Super-Admin console (admin.rwaxi.com), with the platform role
+ * Operational actions of the Super-Admin console (admin.rwaxirealestate.com), with the platform role
  * (platformPrisma, BYPASSRLS) and only on the admin host (requirePlatformSession).
  *
  *   Module A · governance: portal status, publication in the vitrina and the pause of an offering's
@@ -638,7 +638,7 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
             },
           });
         }
-        return `${c.displayName} dado de alta · ${c.slug}.rwaxi.com en revisión · registro on-chain en cola · invitaciones de activación enviadas`;
+        return `${c.displayName} dado de alta · ${c.slug}.rwaxirealestate.com en revisión · registro on-chain en cola · invitaciones de activación enviadas`;
       },
       { maxWait: 10_000, timeout: 30_000 },
     );

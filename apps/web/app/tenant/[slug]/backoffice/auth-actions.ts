@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Staff login of the developer backoffice ({slug}.rwaxi.com/backoffice): password, then TOTP (staff-auth.ts).
+ * Staff login of the developer backoffice ({slug}.rwaxirealestate.com/backoffice): password, then TOTP (staff-auth.ts).
  * The tenant comes from the host; an account of another tenant is simply not found under its RLS.
  */
 import { LocalizedError } from "@/app/_i18n/marks";

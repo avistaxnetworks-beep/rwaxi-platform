@@ -1,4 +1,4 @@
-// Platform (admin.rwaxi.com) audit events: their actions and a one-line summary of the payload,
+// Platform (admin.rwaxirealestate.com) audit events: their actions and a one-line summary of the payload,
 // shown in the Super-Admin console (Spanish) and in the affected tenant's backoffice audit trail.
 import { msg } from "@/app/_i18n/marks";
 import { spanish, type Translate } from "@/app/_i18n/translate";
@@ -84,7 +84,7 @@ export function platformAuditSummary(action: PlatformAuditActionKey, raw: unknow
         total: String(p.totalUsd),
       });
     case "ORGANIZATION_ONBOARDED":
-      return tr("Alta B2B · {slug}.rwaxi.com · NIT {taxId} · {users} usuarios · oferta {code} · {documents} documentos", {
+      return tr("Alta B2B · {slug}.rwaxirealestate.com · NIT {taxId} · {users} usuarios · oferta {code} · {documents} documentos", {
         slug: String(p.slug),
         taxId: String(p.taxId),
         users: p.users?.length ?? 0,

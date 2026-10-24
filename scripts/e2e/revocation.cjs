@@ -6,8 +6,9 @@
 //     grants revoked, every unminted subscription CANCELLED with its units back to the offering, its unsent mint
 //     withdrawn and its accrued fee voided (a reconciled payment is flagged for refund), revokeInvestor() queued and
 //     signed from the queue, KYC_REVOKED + SUBSCRIPTION_CANCELLED audited (subjectHash recomputed here);
-//   · the portal afterwards: no new subscription (server-side too), no restricted Data Room document, the minted
-//     tokens still in view and never the reason;
+//   · the portal afterwards: no new subscription (server-side too), no Data Room document at all (they all opened
+//     with the NDA), the minted tokens still in view and never the reason; while the wallet is frozen the portal shows
+//     the notice instead of the subscribe button;
 //   · an approveInvestor() never sent is withdrawn instead of revoked, and a revocation is refused while a
 //     transaction of the investor is in flight on the network.
 const crypto = require("crypto");
@@ -144,6 +145,14 @@ const registryRows = (wallet, kind) =>
         /congelada \(isEligible = false\)/.test(frozenBlock),
       frozenBlock,
     );
+    await a.goto(url("avista"), { waitUntil: "domcontentloaded", timeout: 180000 });
+    await a.waitForSelector("#funnel-4", { timeout: 90000 });
+    await a.click("#funnel-4");
+    await a.waitForSelector('[data-subscribe-locked="frozen"]', { timeout: 60000 });
+    ok(
+      "portal con la wallet congelada: aviso en lugar del botón de suscribir (además del rechazo del servidor)",
+      !(await has(a, "Firmar contrato del vehículo y suscribir")) && (await has(a, "Tu wallet está congelada por una decisión de cumplimiento")),
+    );
 
     // ── 3 · …and unfreeze ──────────────────────────────────────────────────
     await openCase(b, investor.id);
@@ -168,13 +177,14 @@ const registryRows = (wallet, kind) =>
     const open = await db.dataRoomDocument.findFirstOrThrow({ where: { offeringId: offering.id, restricted: false, storageKey: { not: null } } });
     const before = {
       restricted: await vaultGet(a, `/api/vault/data-room/${restricted.id}`),
+      open: await vaultGet(a, `/api/vault/data-room/${open.id}`),
       units: (await db.offering.findUniqueOrThrow({ where: { id: offering.id } })).unitsSubscribed,
       fees: await db.feeLedgerEntry.findMany({ where: { subscriptionId: { in: [sub1.id, sub2.id] } } }),
       grants: await db.dataRoomAccessGrant.count({ where: { investorId: investor.id, revokedAt: null } }),
     };
     ok(
-      "antes de revocar: AccessGrant vigente (el documento restringido se descarga) y dos comisiones ACCRUED",
-      before.restricted.status === 200 && before.restricted.sha256 === restricted.sha256 && before.grants >= 1 &&
+      "antes de revocar: con su NDA descarga el documento reservado y el general, tiene su AccessGrant y dos comisiones ACCRUED",
+      before.restricted.status === 200 && before.restricted.sha256 === restricted.sha256 && before.open.status === 200 && before.grants >= 1 &&
         before.fees.length === 2 && before.fees.every((f) => f.status === "ACCRUED"),
     );
     await openCase(b, investor.id);
@@ -276,8 +286,8 @@ const registryRows = (wallet, kind) =>
 
     // ── 5 · The portal of the revoked investor ─────────────────────────────
     await a.goto(url("avista"), { waitUntil: "domcontentloaded", timeout: 180000 });
-    await a.waitForSelector("#funnel-2", { timeout: 90000 });
-    await a.click("#funnel-2");
+    await a.waitForSelector("#funnel-3", { timeout: 90000 });
+    await a.click("#funnel-3"); // step 3: the KYC
     await a.waitForSelector("[data-kyc-revoked]", { timeout: 60000 });
     const portalText = await a.evaluate(() => document.body.textContent); // as written: innerText applies CSS upper-casing
     const portalHtml = await a.content(); // includes the server's serialized props (RSC payload)
@@ -303,11 +313,25 @@ const registryRows = (wallet, kind) =>
       /Tu KYC debe estar aprobado/.test(refused) && (await db.subscription.count({ where: { investorId: investor.id } })) === 3,
     );
     const denied = await vaultGet(a, `/api/vault/data-room/${restricted.id}`);
-    const stillOpen = await vaultGet(a, `/api/vault/data-room/${open.id}`);
+    const deniedOpen = await vaultGet(a, `/api/vault/data-room/${open.id}`);
+    const roomDocs = await db.dataRoomDocument.findMany({ where: { offeringId: offering.id, storageKey: { not: null } } });
+    const all = [];
+    for (const d of roomDocs) all.push(await vaultGet(a, `/api/vault/data-room/${d.id}`));
     ok(
-      "Data Room: el documento restringido responde 403 (AccessGrant revocado); el general, cubierto sólo por el NDA, sigue disponible",
-      denied.status === 403 && /AccessGrant vigente/.test(denied.error ?? "") && stillOpen.status === 200,
+      `Data Room tras la revocación: 403 en todos los documentos (${roomDocs.length}), el reservado y el general, aunque el NDA siga firmado`,
+      denied.status === 403 &&
+        /Data Room de este proyecto ya no está disponible/.test(denied.error ?? "") &&
+        deniedOpen.status === 403 &&
+        all.every((r) => r.status === 403),
       `${denied.status} ${denied.error}`,
+    );
+    await a.click("#funnel-2"); // step 2: the Data Room
+    await a.waitForSelector('[data-investor-data-room][data-room-access="revoked"]', { timeout: 60000 });
+    const downloadable = await a.$$eval("[data-room-document] button", (bs) => bs.filter((b) => !b.disabled).length);
+    ok(
+      "portal: el Data Room se muestra cerrado (ningún documento descargable) y sin el CTA de invertir",
+      downloadable === 0 && !(await a.$("[data-invest-cta]")),
+      `${downloadable} habilitados`,
     );
 
     // ── 6 · revokeInvestor() signed from the queue ─────────────────────────

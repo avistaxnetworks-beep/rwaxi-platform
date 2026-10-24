@@ -514,7 +514,7 @@ export const platformActor = cache(async (): Promise<PlatformActor | null> => {
 /** Gate of every console read and action (platformPrisma, BYPASSRLS): admin host and a console session. */
 export async function requirePlatformAccess(): Promise<PlatformActor> {
   if ((await headers()).get("x-rwaxi-env") !== "admin") {
-    throw new TenantAccessError("Los datos consolidados sólo están disponibles en admin.rwaxi.com.");
+    throw new TenantAccessError("Los datos consolidados sólo están disponibles en admin.rwaxirealestate.com.");
   }
   const actor = await platformActor();
   if (!actor) throw new TenantAccessError("Inicia sesión en la consola RWAXI para continuar.");

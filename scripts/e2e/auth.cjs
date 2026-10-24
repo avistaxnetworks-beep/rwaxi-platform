@@ -802,7 +802,7 @@ async function freshPage(browser, label, hosts) {
     await b.waitForFunction(() => !document.querySelector(".boot") && !!document.querySelector("#funnel"), {
       timeout: 180000,
     });
-    await waitText(b, "AccessGrant vigente", 60000);
+    await waitText(b, "Inversionista Elegible", 60000);
     const inv1 = await cookieOf(b, "avista", "rwaxi_inv");
     const [, invId, invOrg, issued, sig] = (inv1?.value ?? "").split(".");
     const expectedSig = crypto

@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** {slug}.rwaxi.com/backoffice/activate#token=… — an invited staff member sets password and TOTP. */
+/** {slug}.rwaxirealestate.com/backoffice/activate#token=… — an invited staff member sets password and TOTP. */
 export default async function ActivatePage() {
   const tenant = await requireHostTenant();
   const org = await forTenant(tenant.id).organization.findUnique({

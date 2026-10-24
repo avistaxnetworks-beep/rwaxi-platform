@@ -6,36 +6,33 @@ import { Icon } from "@/app/_components/ui/icon";
 import { useI18n } from "@/app/_i18n/provider";
 import { shortHash } from "@/app/_lib/format";
 import { sha256Bytes } from "@/app/_lib/sha256";
-import type { PersistedDataRoomDocument } from "../_lib/journey-types";
+import type { PersistedDataRoomDocument, PersistedNda } from "../_lib/journey-types";
 
 type DocState = { kind: "busy" } | { kind: "verified" } | { kind: "error"; message: string };
 
 /**
- * Data Room of the portal from PostgreSQL and the DocumentVault. Every visitor sees the index; a document's file
- * goes out only to this portal's investor with the NDA (restricted ones: also a current AccessGrant) — the server
- * decides and records the download. The browser re-hashes the copy against the SHA-256 anchored as a Merkle leaf
- * before handing it over.
+ * Data Room of the portal from PostgreSQL and the DocumentVault (step 2 of the funnel). Every visitor sees the index;
+ * the NDA of the offering opens every file — KYC is what investing requires, not reading — and a compliance
+ * revocation closes them all. The server decides and records each download; the browser re-hashes the copy against
+ * the SHA-256 anchored as a Merkle leaf before handing it over.
  */
 export function InvestorDataRoom({
   documents,
   root,
   nda,
-  kycApproved,
-  grant,
-  regimeSys,
+  revoked,
   code,
 }: {
   documents: PersistedDataRoomDocument[];
   root: string | null;
-  nda: boolean;
-  kycApproved: boolean;
-  grant: { id: string; at: string; ttlH: number } | null;
-  regimeSys: string;
+  nda: PersistedNda | null;
+  revoked: boolean;
   code: string;
 }) {
   const { tr } = useI18n();
   const [state, setState] = useState<Record<string, DocState>>({});
   const folders = [...new Set(documents.map((d) => d.folder))];
+  const access = revoked ? "revoked" : nda ? "nda" : "locked";
 
   const download = async (doc: PersistedDataRoomDocument) => {
     setState((s) => ({ ...s, [doc.id]: { kind: "busy" } }));
@@ -70,14 +67,19 @@ export function InvestorDataRoom({
   };
 
   return (
-    <div className="flex flex-col gap-4" data-investor-data-room>
-      {grant ? (
+    <div className="flex flex-col gap-4" data-investor-data-room data-room-access={access}>
+      {access === "revoked" ? (
+        <p role="status" className="flex gap-2 items-start text-[13px] border border-[#F3C5BF] bg-[#FDF6F5] text-[#B42318] px-4 py-3">
+          <Icon name="Lock" size={16} className="shrink-0 mt-0.5" />
+          {tr("Tu verificación fue revocada: el acceso al Data Room de este proyecto quedó cerrado.")}
+        </p>
+      ) : nda ? (
         <div className="grid sm:grid-cols-4 gap-px bg-line border border-line text-[12px]">
           {[
-            ["AccessGrant", grant.id],
-            [tr("Alcance"), `Data Room · ${code}`],
-            [tr("Emitido (UTC)"), grant.at],
-            [tr("Vigencia"), tr("{hours} h", { hours: grant.ttlH })],
+            [tr("Acceso"), tr("NDA firmado")],
+            [tr("Alcance"), tr("100 % del Data Room · {code}", { code })],
+            [tr("Firmado (UTC)"), nda.at],
+            [tr("Integridad"), tr("SHA-256 verificado en tu navegador")],
           ].map(([label, value]) => (
             <div key={label} className="bg-aquaTint p-3 min-w-0">
               <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-aquaInk">{label}</p>
@@ -86,22 +88,10 @@ export function InvestorDataRoom({
           ))}
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-3">
-          {(
-            [
-              [tr("NDA firmado"), nda],
-              [tr("KYC/{sys} aprobado", { sys: regimeSys }), kycApproved],
-            ] as [string, boolean][]
-          ).map(([label, done]) => (
-            <p
-              key={label}
-              className={`flex items-center gap-2 text-[13px] px-4 py-3 border ${done ? "border-rxAqua bg-aquaTint text-aquaInk" : "border-line bg-cloud text-muted"}`}
-            >
-              <Icon name={done ? "CheckCircle2" : "Circle"} size={16} />
-              {label}
-            </p>
-          ))}
-        </div>
+        <p className="flex items-center gap-2 text-[13px] px-4 py-3 border border-line bg-cloud text-muted">
+          <Icon name="Lock" size={16} />
+          {tr("Firma el NDA (Paso 1) para desbloquear el 100 % del Data Room.")}
+        </p>
       )}
       <div className="grid md:grid-cols-2 gap-4">
         {folders.map((folder) => (
@@ -114,7 +104,7 @@ export function InvestorDataRoom({
               {documents
                 .filter((d) => d.folder === folder)
                 .map((d) => {
-                  const allowed = d.stored && nda && (!d.restricted || !!grant);
+                  const allowed = d.stored && access === "nda";
                   const s = state[d.id];
                   return (
                     <li
@@ -149,16 +139,16 @@ export function InvestorDataRoom({
                             </span>
                           )}
                         </span>
-                        <span className="font-mono text-[10px] text-muted">
+                        <span className="font-mono text-[10px] text-muted text-end">
                           {!d.stored
                             ? tr("Sin archivo")
-                            : d.restricted
-                              ? grant
-                                ? "AccessGrant"
-                                : tr("Restringido")
-                              : nda
-                                ? tr("Con NDA")
-                                : tr("Requiere NDA")}
+                            : access === "revoked"
+                              ? tr("Acceso retirado")
+                              : access === "locked"
+                                ? tr("Requiere NDA")
+                                : d.restricted
+                                  ? tr("Reservado · con NDA")
+                                  : tr("Con NDA")}
                         </span>
                       </button>
                     </li>

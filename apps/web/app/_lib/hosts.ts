@@ -2,11 +2,13 @@
  * Host → environment resolution for the 4 RWAXI environments.
  * Pure and Edge-safe: shared by middleware.ts (routing) and client navigation.
  *
- *   www.rwaxi.com | rwaxi.com          → vitrina     (/vitrina/*)
- *   admin.rwaxi.com                    → superadmin  (/superadmin/*)
- *   {slug}.rwaxi.com                   → portal      (/tenant/{slug}/*)
- *   {slug}.rwaxi.com/backoffice        → backoffice  (/tenant/{slug}/backoffice/*)
- *   verified custom domain             → portal of the tenant that owns it
+ *   www.rwaxirealestate.com | rwaxirealestate.com → vitrina     (/vitrina/*)
+ *   admin.rwaxirealestate.com                     → superadmin  (/superadmin/*)
+ *   {slug}.rwaxirealestate.com                    → portal      (/tenant/{slug}/*)
+ *   {slug}.rwaxirealestate.com/backoffice         → backoffice  (/tenant/{slug}/backoffice/*)
+ *   verified custom domain                        → portal of the tenant that owns it
+ *
+ * rwaxi.com is RWAXI's corporate B2B site, a separate website: this app never serves it.
  */
 
 export type EnvId = "vitrina" | "portal" | "backoffice" | "superadmin";
@@ -17,11 +19,21 @@ export type HostContext =
   | { kind: "tenant"; slug: string; via: "subdomain" | "custom-domain" }
   | { kind: "unknown"; host: string };
 
-/** Production root used in user-facing copy (legal texts, address bar mock-ups). */
-export const DISPLAY_ROOT_DOMAIN = "rwaxi.com";
+/** Production domain of the platform (vitrina, portals, backoffices and console). */
+export const PLATFORM_DOMAIN = "rwaxirealestate.com";
 
-/** Root the app is served from: "rwaxi.com" in production, "localhost:3000" in development. */
-export const ROOT_DOMAIN = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000").toLowerCase();
+/** Production root used in user-facing copy (legal texts, address bar mock-ups). */
+export const DISPLAY_ROOT_DOMAIN = PLATFORM_DOMAIN;
+
+/**
+ * Root the app is served from: NEXT_PUBLIC_PLATFORM_DOMAIN ("rwaxirealestate.com" in production), else the older
+ * NEXT_PUBLIC_ROOT_DOMAIN, else "localhost:3000" (development).
+ */
+export const ROOT_DOMAIN = (
+  process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ||
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN ||
+  "localhost:3000"
+).toLowerCase();
 
 export const RESERVED_SUBDOMAINS = new Set([
   "www",
@@ -94,7 +106,7 @@ export function internalPath(ctx: HostContext, pathname: string): string | null 
   }
 }
 
-/** Display host used by the prototype UI (e.g. "avista.rwaxi.com"). */
+/** Display host used by the prototype UI (e.g. "avista.rwaxirealestate.com"). */
 export const portalHost = (tenant: { slug: string }) => `${tenant.slug}.${DISPLAY_ROOT_DOMAIN}`;
 
 /** Absolute URL of an environment in the current deployment (dev: *.localhost). */

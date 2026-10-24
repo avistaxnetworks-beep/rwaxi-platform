@@ -1,4 +1,3 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 import { msg, vmsg } from "@/app/_i18n/marks";
 import { REGIMES } from "@/app/_lib/data/kyc";
 import { portalHost } from "@/app/_lib/hosts";
@@ -65,16 +64,6 @@ export const LEGAL_COMPLIANCE = {
 
 // RWAXI's own notices are translated; the developer's legal templates (LEGAL_NDA, LEGAL_COMPLIANCE) are
 // shown in their binding original language.
-export const LEGAL_FRONTIER = vmsg(`FRONTERA LEGAL DE RWAXI
-
-RWAXI es un canal de descubrimiento y un proveedor de infraestructura tecnológica (portales white label, Data Room, firma electrónica, expediente KYC y adaptador de tokenización). En la vitrina www.rwaxi.com y en cada portal:
-
-1. RWAXI no es emisor, oferente, estructurador financiero, administrador ni custodio de los activos, de los recursos ni de las unidades digitales de ningún proyecto.
-2. RWAXI no capta recursos del público, no recibe dinero de los inversionistas, no presta asesoría de inversión ni actúa como intermediario del mercado de valores.
-3. Cada proyecto es ofrecido exclusivamente por su desarrollador, identificado con razón social y NIT, a través de su propio vehículo jurídico independiente. La relación contractual, la debida diligencia (SAGRILAFT + PTEE o SARLAFT) y las decisiones sobre los inversionistas son responsabilidad del desarrollador.
-4. En la cadena de bloques, los contratos del registro de cumplimiento y del token pertenecen al desarrollador. RWAXI no tiene facultades para pausar, congelar ni transferir unidades digitales; solo ejecuta, como adaptador técnico, las instrucciones de emisión que el desarrollador aprueba.
-5. Las cifras de TIR, distribuciones y valorización son escenarios estimados elaborados por cada desarrollador. No constituyen promesa de rentabilidad y el capital invertido está sujeto a riesgo.`);
-
 export const LEGAL_FRONTIER_TENANT = vmsg(
   "Oferente responsable: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Vehículo emisor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Régimen de cumplimiento: {{COMPLIANCE_REGIME}}. RWAXI actúa solo como proveedor de infraestructura tecnológica: no es parte de la oferta, no recibe recursos y no controla las unidades digitales emitidas.",
 );
@@ -96,7 +85,26 @@ Recuperación judicial o administrativa (forcedTransfer). Acepto que, solo por o
 
 Transferencias. Entiendo que mis unidades solo pueden transferirse a wallets aprobadas en la whitelist del desarrollador; cualquier transferencia a una wallet no verificada será rechazada por el contrato.`);
 
-export function legalVars(e, a) {
+/** What the legal templates read of the developer (prototype tenant, or one onboarded in PostgreSQL). */
+interface LegalTenant {
+  slug: string;
+  legalName: string;
+  nit: string;
+  regime: "sagrilaft" | "sarlaft";
+  mint: { symbol: string; network: string };
+  merkle?: string;
+  domain?: string;
+  domainStatus?: string;
+}
+/** …and of the offering. */
+interface LegalProject {
+  vehicle: string;
+  wrapper: string;
+  asset: string;
+}
+
+/** The {{VARIABLES}} of the legal templates for a developer and its offering. */
+export function legalVars(e: LegalTenant, a: LegalProject): Record<string, string> {
   return {
     ORGANIZATION_LEGAL_NAME: e.legalName,
     ORGANIZATION_TAX_ID: e.nit,
@@ -111,4 +119,6 @@ export function legalVars(e, a) {
   };
 }
 
-export const fillLegal = (e, a) => e.replace(/\{\{([A-Z_]+)\}\}/g, (t, o) => (o in a ? String(a[o]) : t));
+/** A template with its {{VARIABLES}} filled in; unknown ones stay as they are. */
+export const fillLegal = (e: string, a: Record<string, unknown>) =>
+  e.replace(/\{\{([A-Z_]+)\}\}/g, (t, o: string) => (o in a ? String(a[o]) : t));

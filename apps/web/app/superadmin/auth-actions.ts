@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Staff login of the RWAXI console (admin.rwaxi.com): password, then TOTP, for organization-less SUPER_ADMIN
+ * Staff login of the RWAXI console (admin.rwaxirealestate.com): password, then TOTP, for organization-less SUPER_ADMIN
  * users (staff-auth.ts, PLATFORM scope). Only on the admin host; the console is in Spanish.
  */
 import { headers } from "next/headers";
@@ -12,7 +12,7 @@ import type { LoginActionResult, MfaActionResult } from "@/app/_components/auth/
 import { completeLogin, endSession, startLogin } from "@/app/_lib/server/staff-auth";
 
 const onAdminHost = async () => (await headers()).get("x-rwaxi-env") === "admin";
-const WRONG_HOST = { ok: false as const, error: "La consola sólo está disponible en admin.rwaxi.com." };
+const WRONG_HOST = { ok: false as const, error: "La consola sólo está disponible en admin.rwaxirealestate.com." };
 
 function failure(e: unknown): { ok: false; error: string } {
   if (e instanceof LocalizedError) return { ok: false, error: render(spanish, e.reason) };

@@ -1,8 +1,8 @@
 // Languages of the RWAXI environments. Isomorphic (Edge, Node and browser): no runtime dependencies.
 
-/** Vitrina (www.rwaxi.com): the languages of the global capital markets it addresses. Spanish is the source. */
+/** Vitrina (www.rwaxirealestate.com): the languages of the global capital markets it addresses. Spanish is the source. */
 export const VITRINA_LOCALES = ["es", "en", "pt", "fr", "de", "ru", "ar", "zh", "ja", "ko"] as const;
-/** White Label portal and developer backoffice ({slug}.rwaxi.com): Spanish, English and Brazilian Portuguese. */
+/** White Label portal and developer backoffice ({slug}.rwaxirealestate.com): Spanish, English and Brazilian Portuguese. */
 export const TENANT_LOCALES = ["es", "en", "pt"] as const;
 
 export type Locale = (typeof VITRINA_LOCALES)[number];

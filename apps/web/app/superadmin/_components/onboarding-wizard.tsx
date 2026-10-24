@@ -268,7 +268,7 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
           </p>
           <div className="flex flex-wrap gap-2">
             <a href={envHref("portal", created)} target="_blank" rel="noreferrer" className="tc-btn px-3.5 py-2 text-[12.5px] font-semibold inline-flex items-center gap-1.5">
-              {`Abrir ${created}.rwaxi.com`}
+              {`Abrir ${created}.rwaxirealestate.com`}
               <Icon name="ArrowUpRight" size={14} />
             </a>
             <a href={envHref("backoffice", created)} target="_blank" rel="noreferrer" className="border border-line px-3.5 py-2 text-[12.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5">
@@ -313,7 +313,7 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
                 }}
                 hint={
                   <span data-slug-state={slugState?.slug === c.slug ? (slugState.available ? "available" : "taken") : "checking"}>
-                    {`${c.slug || "…"}.rwaxi.com · `}
+                    {`${c.slug || "…"}.rwaxirealestate.com · `}
                     {slugState?.slug !== c.slug ? "verificando…" : slugState.available ? "disponible" : slugState.reason}
                   </span>
                 }
@@ -467,7 +467,7 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
                 {(
                   [
                     ["Desarrollador", `${c.legalName} · NIT ${c.taxId}`],
-                    ["Portal", `${c.slug}.rwaxi.com · REVIEW · fuera de la vitrina`],
+                    ["Portal", `${c.slug}.rwaxirealestate.com · REVIEW · fuera de la vitrina`],
                     ["Usuarios", `${form.team.admin.email} (admin) · ${form.team.officer.email} (cumplimiento)`],
                     ["Oferta", `${o.code} · ${o.assetName} · ${OFFERING_STAGES[o.stage]}`],
                     ["Captación", `${money(raise || 0, "USD", false)} · ${o.totalUnits} unidades ${o.tokenSymbol}`],

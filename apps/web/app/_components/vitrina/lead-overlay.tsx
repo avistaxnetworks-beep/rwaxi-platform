@@ -31,7 +31,7 @@ export function LeadOverlay({ lead: e, tenant: a, project: t }) {
           <p className="text-[#C9C1E3]">
             <span className="text-rxAqua">✓</span>{" "}
             {rich("Origen: {from} → {to}", {
-              from: <Num>www.rwaxi.com</Num>,
+              from: <Num>www.rwaxirealestate.com</Num>,
               to: <Num>{portalHost(a)}</Num>,
             })}
           </p>

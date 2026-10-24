@@ -12,10 +12,12 @@ Referencia visual y funcional aprobada: `rwaxi-prototype-reference.tsx.html` (no
 apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) — los 4 entornos
   middleware.ts          Edge Middleware: host → entorno (rewrite + headers x-rwaxi-env / x-rwaxi-tenant)
   app/_lib/hosts.ts      resolución de host pura y Edge-safe (la usan middleware y cliente)
-  app/vitrina/           www.rwaxi.com · _lib/catalog.ts: catálogo en vivo (listPublicOfferings → rwaxi_public_offerings)
-  app/superadmin/        admin.rwaxi.com · actions.ts (gobierno, facturación B2B, onboarding y registro on-chain)
+  app/vitrina/           www.rwaxirealestate.com · _lib/catalog.ts: catálogo en vivo (listPublicOfferings → rwaxi_public_offerings)
+                         _components: vitrina-screen, how-to-invest, supercharged-investment, developer-band,
+                         legal-disclosure · _lib/links.ts (RWAXI_B2B_URL y anclas de la cabecera)
+  app/superadmin/        admin.rwaxirealestate.com · actions.ts (gobierno, facturación B2B, onboarding y registro on-chain)
                          _lib/session.ts (sesión de plataforma) · _lib/onboarding.ts (validación del alta B2B)
-  app/tenant/[slug]/     {slug}.rwaxi.com (portal) y /backoffice
+  app/tenant/[slug]/     {slug}.rwaxirealestate.com (portal) y /backoffice
     actions.ts           onboarding persistido del inversionista: signNda(), submitKyc(), subscribe()
     _lib/journey.ts      journey del visitante leído de PostgreSQL (sesión por cookie firmada), con sus distribuciones
     _lib/tenant-view.ts  tenants dados de alta en la BD (no del prototipo): vista leída bajo RLS para el estado demo
@@ -60,10 +62,16 @@ contracts                Hardhat 2 · solc 0.8.24 · @openzeppelin/contracts 5.6
 
 | Entorno | Host | Ruta interna | Marca | Quién |
 |---|---|---|---|---|
-| Vitrina pública | `www.rwaxi.com` / `rwaxi.com` | `/vitrina` | RWAXI | público |
-| Portal White Label | `{slug}.rwaxi.com` o dominio verificado | `/tenant/[slug]` | desarrollador ("Powered by RWAXI") | inversionista |
-| Backoffice | `{slug}.rwaxi.com/backoffice` | `/tenant/[slug]/backoffice` | desarrollador | tenant admin, oficial de cumplimiento |
-| Consola Super-Admin | `admin.rwaxi.com` | `/superadmin` | RWAXI | Dirección RWAXI |
+| Vitrina pública | `www.rwaxirealestate.com` / `rwaxirealestate.com` | `/vitrina` | RWAXI | público |
+| Portal White Label | `{slug}.rwaxirealestate.com` o dominio verificado | `/tenant/[slug]` | desarrollador ("Powered by RWAXI") | inversionista |
+| Backoffice | `{slug}.rwaxirealestate.com/backoffice` | `/tenant/[slug]/backoffice` | desarrollador | tenant admin, oficial de cumplimiento |
+| Consola Super-Admin | `admin.rwaxirealestate.com` | `/superadmin` | RWAXI | Dirección RWAXI |
+
+Dominios: `rwaxirealestate.com` es el dominio exclusivo de la plataforma (`PLATFORM_DOMAIN` en `hosts.ts`; en
+producción `NEXT_PUBLIC_PLATFORM_DOMAIN`, que prima sobre el antiguo `NEXT_PUBLIC_ROOT_DOMAIN`; en local
+`localhost:3000`). `rwaxi.com` es el sitio corporativo B2B de RWAXI, otro sitio web: la app nunca lo sirve y la vitrina
+sólo enlaza a él (`RWAXI_B2B_URL`). Los correos del personal RWAXI siguen en `@rwaxi.com`; los transaccionales salen de
+`no-reply@notifications.rwaxirealestate.com`.
 
 Reglas:
 
@@ -109,8 +117,8 @@ Reglas:
 5. **Autenticación institucional** (`app/_lib/server/staff-auth.ts`, credenciales en `@rwaxi/database/credentials`).
    El personal entra con contraseña (scrypt) + TOTP RFC 6238 (6 dígitos, 30 s, ±1 paso, `totpLastStep` impide reusar
    un código; secreto cifrado AES-256-GCM con `AUTH_ENCRYPTION_KEY`, AAD = id del usuario; una cuenta sin MFA enrola
-   un secreto nuevo que confirma su primer código): `{slug}.rwaxi.com/backoffice/login` (ES/EN/PT) y
-   `admin.rwaxi.com/login` (ES). Cookie `rwaxi_session` (HttpOnly, del host) con un token opaco; `user_sessions`
+   un secreto nuevo que confirma su primer código): `{slug}.rwaxirealestate.com/backoffice/login` (ES/EN/PT) y
+   `admin.rwaxirealestate.com/login` (ES). Cookie `rwaxi_session` (HttpOnly, del host) con un token opaco; `user_sessions`
    guarda sólo su SHA-256, el alcance `TENANT` (organización del host, leída bajo RLS: el token de otro tenant "no
    existe") o `PLATFORM` (sin organización, sólo `SUPER_ADMIN`, sólo host `admin`), expiración y revocación. Tras la
    contraseña hay una sesión pendiente (5 min, 5 códigos); al pasar el MFA el token rota (8 h tenant / 4 h consola,
@@ -127,7 +135,7 @@ Reglas:
    `RwaxiDemo-2026!` y un secreto TOTP determinista (`SHA-256("rwaxi-demo-totp:" + email)[0..20]`,
    `seed-data/credentials.ts`); nunca en producción salvo `RWAXI_SEED_DEMO_CREDENTIALS=1`. **Activación**: los usuarios
    que crea el alta B2B nacen sin contraseña y reciben una invitación (`staff-invitations.ts`: token de un solo uso en
-   el fragmento `#token=` de `{slug}.rwaxi.com/backoffice/activate`, en `user_invitations` sólo su SHA-256, 72 h; el
+   el fragmento `#token=` de `{slug}.rwaxirealestate.com/backoffice/activate`, en `user_invitations` sólo su SHA-256, 72 h; el
    correo va a `mail_outbox`; `STAFF_INVITED`). La activación (`staff-activation.ts`, ES/EN/PT) aplica la política de
    `app/_lib/password-policy.ts` en pantalla y en servidor (12–128, mayúsculas y minúsculas, número, símbolo, sin el
    nombre, el correo, la empresa ni «rwaxi»), deja contraseña (scrypt) y secreto TOTP en la invitación y sólo con el
@@ -218,8 +226,11 @@ Reglas:
    (metadato, append-only, CHECK de que la clave es la de su tenant) registra cada archivo. Descargas, siempre
    re-hasheadas (si no coinciden: 409 y `VAULT_INTEGRITY_FAILED`) y auditadas: `GET /api/vault/kyc/{caso}/{front|back}`
    sólo para el Oficial y el Administrador del tenant (`KYC_DOCUMENT_VIEWED`); `GET /api/vault/data-room/{id}` para el
-   inversionista con NDA de esa oferta (los restringidos, además, AccessGrant vigente) o con `?as=backoffice` para el
-   personal (`DATA_ROOM_DOCUMENT_DOWNLOADED`); el portal vuelve a hashear la copia en el navegador. Con S3/R2 un
+   inversionista con NDA de esa oferta —el NDA abre el 100 % de su Data Room, también los documentos marcados
+   «reservados» (`restricted`, una clasificación informativa del desarrollador): el KYC es requisito para invertir, no
+   para leer—, salvo que esté revocado (último `KycCase` de la oferta `REVOKED`: 403 en todos), o con
+   `?as=backoffice` para el personal (`DATA_ROOM_DOCUMENT_DOWNLOADED`, con `access: "nda"` y el `kycStatus` del
+   inversionista); el portal vuelve a hashear la copia en el navegador. Con S3/R2 un
    archivo mayor que `DOCUMENT_VAULT_INLINE_MAX_BYTES` (4 MB: el cuerpo de una función de Vercel llega a 4,5 MB) sale
    por un 302 a un GET prefirmado de 60 s (nombre y tipo firmados) tras cotejar su `x-amz-meta-sha256` con el
    registro (`delivery: "presigned"` en la auditoría; los menores, `inline`, re-hasheados). Driver
@@ -358,7 +369,10 @@ en `apps/web/.env.local`; el alta B2B usa `RWAXI_FACTORY_ADDRESS` (vacía: la fa
 Correo: `MAIL_DRIVER`, `MAIL_FROM` y la clave del proveedor (`RESEND_API_KEY`, `POSTMARK_SERVER_TOKEN` o
 `MAIL_WEBHOOK_URL` + `MAIL_WEBHOOK_SECRET`); bóveda: `DOCUMENT_VAULT_*`, `S3_*`, `VAULT_UPLOADS_PER_*`;
 mantenimiento por HTTP: `CRON_SECRET` (≥ 32 caracteres; la suite `maintenance` lo lee de `apps/web/.env.local`) (ver
-`.env.example`). Requiere Node ≥ 22.9 (`--env-file-if-exists`).
+`.env.example`). Valores no secretos de producción (documentados en `.env.example`):
+`NEXT_PUBLIC_PLATFORM_DOMAIN=rwaxirealestate.com`, `S3_BUCKET=rwaxi-vault-prod`, `S3_REGION=auto` (R2) y
+`MAIL_FROM="RWAXI Real Estate <no-reply@notifications.rwaxirealestate.com>"`. Requiere Node ≥ 22.9
+(`--env-file-if-exists`).
 Windows: con `pnpm dev` corriendo, `prisma generate` (y por tanto `pnpm build`/`pnpm typecheck`) falla con `EPERM`
 porque el servidor tiene cargado el motor de Prisma. Detener el dev server antes.
 
@@ -380,7 +394,27 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   portafolio, Super-Admin (consolidado, alta de desarrolladores, módulo A Gobierno, B Atribución y C Tarifas, libro
   mayor y facturación), login del personal con MFA, activación de cuentas invitadas, recuperación de sesión del
   inversionista y bóveda documental (Data Room del backoffice y del portal, documentos KYC). Siguen en estado demo:
-  configuración White Label, emisión del token (minting) del backoffice y pestañas 1–3 del inspector.
+  configuración White Label, emisión del token (minting) del backoffice y pestañas 1–3 del inspector. Tipados ya:
+  los paneles del portal (`portal`, `funnel-stepper`, `portal-header`, `nda-panel`, `kyc-panel`, `subscription-panel`,
+  `data-room-panel`, `signed-doc-modal`, tipos en `_components/portal/portal-types.ts`), `backoffice/config-tab` y
+  `backoffice/data-mint-tab`,
+  `ui/primitives`, `ui/form`, `vitrina-nav` y `_lib/data/legal`.
+- **Embudo del inversionista** (portal): 1 NDA → 2 Data Room (el NDA abre todos sus documentos) → 3 KYC/AML (requisito
+  para invertir) → 4 suscripción, pago fiduciario y portafolio (`STEP` en `portal-types.ts`). El visitante aterriza en
+  el Data Room al firmar el NDA, en el KYC mientras está en curso y en la suscripción con el KYC aprobado (o con
+  tokens). El Data Room ofrece «Quiero invertir en este proyecto — Completar KYC y Suscribir» (Paso 3). El
+  `AccessGrant` se sigue emitiendo al aprobar el KYC (elegibilidad, revocado con el KYC) pero ya no gobierna el Data
+  Room; la suscripción se habilita con el KYC `APPROVED`. Con la wallet congelada (o congelándose: `walletFrozen()`,
+  `journey.frozen`) el portal cambia el botón de suscribir por el aviso y `subscribe()` lo rechaza.
+- **Vitrina comercial** (conversión del inversionista; `app/vitrina/_components`): cabecera con sólo tres anclas —
+  «Oportunidades» (`#oportunidades`), «Cómo Invertir» (`#como-funciona`, los 4 pasos del embudo y la nota sobre
+  blockchain) e «Inversión Supercargada» (`#beneficios-tokenizacion`, 4 beneficios y el comparativo finca raíz
+  tradicional · fraccionamiento en papel · blockchain: tabla en escritorio, filas apiladas en móvil)— y el enlace B2B
+  «¿Eres desarrollador? Tokeniza tu inmueble →», más una banda B2B antes del footer, ambos a `RWAXI_B2B_URL`
+  (`app/vitrina/_lib/links.ts`, `https://rwaxi.com`). El footer lleva el aviso legal y regulatorio (B2B SaaS no
+  custodio, emisor autónomo, sin oferta pública ni asesoría, riesgos y proyecciones) en lugar de la antigua sección
+  «Frontera legal». La suite `i18n` mide en los 10 idiomas, a 1360 y 390 px, textos desbordados, scroll horizontal y
+  solapamientos de la cabecera.
 - **Suscripciones**, en tres pasos, cada uno una transacción `withTenant` con transición condicional y `AuditEvent`:
   1. `subscribe()` (portal): KYC `APPROVED` + wallet; capital recalculado en servidor (`unitPriceUsd × units`, ticket
      mínimo, máx. 250.000 USD); unidades comprometidas con `UPDATE` condicional + `CHECK
@@ -414,7 +448,7 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
     registro del tenant + `INVESTOR_FREEZE_REQUESTED` (uno a la vez por wallet). Una wallet congelada —o con un
     congelamiento en cola— no suscribe, y su mint pendiente revertiría (`isEligible = false`).
   - **Sin *tipping-off***: el portal sólo dice «Verificación revocada» (sigue mostrando los tokens emitidos); nunca la
-    causal ni la nota. El revocado no puede reenviar KYC, suscribir ni descargar documentos restringidos (403). Las
+    causal ni la nota. El revocado no puede reenviar KYC, suscribir ni descargar ningún documento del Data Room (403). Las
     lecturas del portal usan `select` con sólo lo que se muestra: lo que un Server Component espera puede viajar al
     navegador (la información de depuración de React en desarrollo lo serializa).
 - **Gobierno de plataforma** (`app/superadmin/actions.ts`, motivo obligatorio para lo restrictivo, 10–300 caracteres):

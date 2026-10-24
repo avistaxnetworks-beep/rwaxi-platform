@@ -125,7 +125,7 @@ async function ndaOnly(browser) {
   await waitText(page, "Firmar NDA con un clic", 180000);
   await clickText(page, "Completar con datos de ejemplo");
   await clickText(page, "Firmar NDA con un clic");
-  await waitText(page, "Paso 2 · Verificación KYC", 60000);
+  await waitText(page, lib.NDA_LANDING, 60000);
   return page;
 }
 
@@ -283,7 +283,7 @@ async function ndaOnly(browser) {
     ]);
     const file = path.join(lib.ARTIFACTS, `vault-s3-${crypto.randomBytes(3).toString("hex")}.pdf`);
     fs.writeFileSync(file, big);
-    await admin.click(`#drv-restricted-${offering.code}`); // public with the NDA: no AccessGrant needed
+    await admin.click(`#drv-restricted-${offering.code}`); // not marked as reserved (every document opens with the NDA)
     const before = await db.dataRoomDocument.count({ where: { offeringId: offering.id } });
     await (await admin.$(`#drv-file-${offering.code}`)).uploadFile(file);
     for (

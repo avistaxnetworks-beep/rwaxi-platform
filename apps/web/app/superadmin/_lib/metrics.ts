@@ -41,7 +41,7 @@ const emptyVolume = (): SubscribedVolume => ({
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Cross-tenant figures for admin.rwaxi.com, read with the platform role (BYPASSRLS).
+ * Cross-tenant figures for admin.rwaxirealestate.com, read with the platform role (BYPASSRLS).
  * Never throws: failures become `ok: false`.
  */
 export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {

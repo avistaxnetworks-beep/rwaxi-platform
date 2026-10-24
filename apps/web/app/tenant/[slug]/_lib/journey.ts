@@ -9,6 +9,7 @@ import {
 } from "@rwaxi/database";
 import { render, requestTranslate } from "@/app/_i18n/server";
 import { REF_COOKIE, verifyReferral, type ReferralClaims } from "@/app/_lib/referral";
+import { REGISTRY_KIND_LIST, REGISTRY_TX_SELECT, walletFrozen } from "@/app/_lib/server/chain-invariants";
 import { readInvestorSession } from "@/app/_lib/server/investor-session";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { TenantAccessError, requireHostTenant } from "@/app/_lib/server/tenant-context";
@@ -164,6 +165,20 @@ async function investorDistributions(
   });
 }
 
+/**
+ * Is the investor's wallet frozen by the compliance officer, or is a freeze queued? Then it takes no new
+ * subscription (subscribe() refuses it too): the portal hides the button and says why.
+ */
+async function frozenWallet(db: ReturnType<typeof forTenant>, wallet: string): Promise<boolean> {
+  const org = await db.organization.findFirst({ select: { complianceRegistry: true } }); // RLS: this tenant
+  const txs = await db.chainTransaction.findMany({
+    where: { kind: { in: [...REGISTRY_KIND_LIST] }, args: { path: ["wallet"], equals: wallet.toLowerCase() } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: REGISTRY_TX_SELECT,
+  });
+  return walletFrozen({ registry: org?.complianceRegistry ?? null, txs }, wallet.toLowerCase());
+}
+
 /** A referral is shown (and later persisted) only if its HMAC verifies for this tenant. */
 async function verifiedReferral(
   slug: string,
@@ -225,6 +240,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
       distributions: [],
       offering: offering ? offeringState(offering) : null,
       dataRoom,
+      frozen: false,
     };
 
     const session = await readInvestorSession(tenant.id);
@@ -276,6 +292,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
     const status = kyc ? KYC_STATUS_VIEW[kyc.status] : undefined;
 
     const distributions = await investorDistributions(db, investor.id, offering.id);
+    const frozen = investor.walletAddress ? await frozenWallet(db, investor.walletAddress) : false;
 
     let whitelistTx = kyc?.whitelistTxHash ?? null;
     let whitelistQueued = false;
@@ -333,6 +350,7 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
         distributions,
         offering: offeringState(offering),
         dataRoom,
+        frozen,
       },
     };
   } catch (e) {

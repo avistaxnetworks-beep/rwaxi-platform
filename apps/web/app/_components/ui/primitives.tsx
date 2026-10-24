@@ -1,11 +1,10 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Icon } from "@/app/_components/ui/icon";
 import { useI18n } from "@/app/_i18n/provider";
 import { copyText } from "@/app/_lib/format";
 
-export function LayerTag({ n: e, children: a }) {
+export function LayerTag({ n: e, children: a }: { n: ReactNode; children: ReactNode }) {
   return (
     <span className="font-mono text-[10.5px] tracking-[0.14em] uppercase text-muted">
       C{e}
@@ -15,7 +14,7 @@ export function LayerTag({ n: e, children: a }) {
   );
 }
 
-export function SectionHead({ n: e, title: a, children: t }) {
+export function SectionHead({ n: e, title: a, children: t }: { n: ReactNode; title: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
       <div className="min-w-0">
@@ -29,15 +28,9 @@ export function SectionHead({ n: e, title: a, children: t }) {
   );
 }
 
-export function Progress({ value: e }) {
+export function Progress({ value: e }: { value: number }) {
   return (
-    <div
-      className="h-[5px] bg-cloud w-full"
-      role="progressbar"
-      aria-valuenow={Math.round(e * 100)}
-      aria-valuemin="0"
-      aria-valuemax="100"
-    >
+    <div className="h-[5px] bg-cloud w-full" role="progressbar" aria-valuenow={Math.round(e * 100)} aria-valuemin={0} aria-valuemax={100}>
       <div
         className="h-full bg-rxPurple"
         style={{
@@ -48,16 +41,24 @@ export function Progress({ value: e }) {
   );
 }
 
-export function CopyChip({ text: e, display: a, toast: t, className: o = "" }) {
+export function CopyChip({
+  text: e,
+  display: a,
+  toast: t,
+  className: o = "",
+}: {
+  text: string;
+  display?: ReactNode;
+  toast: (message: string) => void;
+  className?: string;
+}) {
   const { tr } = useI18n();
   const [n, l] = useState(false);
   return (
     <button
       onClick={() =>
-        copyText(e, (r) => {
-          l(true),
-            t(r ? tr("Copiado al portapapeles") : tr("Selecciona el texto para copiarlo")),
-            setTimeout(() => l(false), 1500);
+        copyText(e, (r: boolean) => {
+          l(true), t(r ? tr("Copiado al portapapeles") : tr("Selecciona el texto para copiarlo")), setTimeout(() => l(false), 1500);
         })
       }
       className={`inline-flex items-center gap-1.5 font-mono text-aquaInk hover:text-rxBlue focus-ring min-w-0 ${o}`}
@@ -79,7 +80,19 @@ export function TrustNote() {
   );
 }
 
-export function Switch({ id: e, checked: a, onChange: t, label: o, disabled: n }) {
+export function Switch({
+  id: e,
+  checked: a,
+  onChange: t,
+  label: o,
+  disabled: n,
+}: {
+  id?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label?: string;
+  disabled?: boolean;
+}) {
   return (
     <button
       id={e}
@@ -90,18 +103,16 @@ export function Switch({ id: e, checked: a, onChange: t, label: o, disabled: n }
       onClick={() => t(!a)}
       className={`relative w-11 h-6 rounded-full transition-colors focus-ring disabled:opacity-40 ${a ? "bg-rxPurple" : "bg-[#C9C4D6]"}`}
     >
-      <span
-        className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${a ? "left-[22px]" : "left-0.5"}`}
-      />
+      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${a ? "left-[22px]" : "left-0.5"}`} />
     </button>
   );
 }
 
-export function Mono({ children: e, className: a = "" }) {
+export function Mono({ children: e, className: a = "" }: { children: ReactNode; className?: string }) {
   return <span className={`font-mono ${a}`}>{e}</span>;
 }
 
-export function KV({ k: e, v: a, accent: t, full: o }) {
+export function KV({ k: e, v: a, accent: t, full: o }: { k: ReactNode; v: ReactNode; accent?: boolean; full?: boolean }) {
   return (
     <div
       className={`grid ${o ? "grid-cols-1 gap-0.5" : "grid-cols-[170px_minmax(0,1fr)] gap-3"} px-4 py-2 border-b border-white/10 last:border-b-0`}
@@ -112,7 +123,7 @@ export function KV({ k: e, v: a, accent: t, full: o }) {
   );
 }
 
-export function Pill({ ok: e, children: a, warn: t }) {
+export function Pill({ ok: e, children: a, warn: t }: { ok?: boolean; children: ReactNode; warn?: boolean }) {
   return (
     <span
       className={`font-mono text-[10.5px] px-2 py-0.5 ${t ? "bg-[#3a2a0c] text-[#D9A24A]" : e ? "bg-[#0c2a3a] text-rxAqua" : "bg-[#3a1018] text-[#FF8A80]"}`}

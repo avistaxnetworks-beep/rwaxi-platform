@@ -49,8 +49,11 @@ export interface ChainState {
 
 const lower = (v: unknown) => (typeof v === "string" ? v.toLowerCase() : null);
 const argsOf = (raw: unknown) => (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+/** What the registry fold reads of an outbox row: the portal passes only these columns. */
+export type RegistryTx = Pick<ChainTransaction, "kind" | "status" | "args" | "contractAddress" | "executedAt" | "createdAt">;
+export const REGISTRY_TX_SELECT = { kind: true, status: true, args: true, contractAddress: true, executedAt: true, createdAt: true } as const;
 /** Order in which confirmed rows took effect (seeded history has no executedAt). */
-const effectiveAt = (t: ChainTransaction) => (t.executedAt ?? t.createdAt).getTime();
+const effectiveAt = (t: RegistryTx) => (t.executedAt ?? t.createdAt).getTime();
 
 /** Everything the invariants need, read in the caller's tenant-bound transaction. */
 export async function loadChainState(db: Prisma.TransactionClient): Promise<ChainState> {
@@ -71,7 +74,10 @@ export async function loadChainState(db: Prisma.TransactionClient): Promise<Chai
 }
 
 /** RwaxiComplianceRegistry._investors[wallet] after replaying the confirmed registry calls in order. */
-export function registryEntry(state: ChainState, wallet: string): { approved: boolean; frozen: boolean } {
+export function registryEntry(
+  state: { registry: string | null; txs: RegistryTx[] },
+  wallet: string,
+): { approved: boolean; frozen: boolean } {
   const entry = { approved: false, frozen: false };
   const confirmed = state.txs
     .filter((t) => t.status === "CONFIRMED" && REGISTRY_KINDS.has(t.kind) && walletOf(t.args) === wallet)
@@ -83,6 +89,17 @@ export function registryEntry(state: ChainState, wallet: string): { approved: bo
     if (t.kind === "INVESTOR_FREEZE_UPDATED") entry.frozen = argsOf(t.args).frozen === true;
   }
   return entry;
+}
+
+/**
+ * Is the wallet frozen in the registry, or is a setFrozen(wallet, true) still queued? Either way it takes no new
+ * subscription (its tokens could not be minted: isEligible = false).
+ */
+export function walletFrozen(state: { registry: string | null; txs: RegistryTx[] }, wallet: string): boolean {
+  const freezing = state.txs.some(
+    (t) => t.kind === "INVESTOR_FREEZE_UPDATED" && t.status === "PENDING" && walletOf(t.args) === wallet && argsOf(t.args).frozen === true,
+  );
+  return freezing || registryEntry(state, wallet).frozen;
 }
 
 /** A transaction as the node reports it (eth_getTransactionByHash); `chainId` is absent on legacy transactions. */

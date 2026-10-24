@@ -16,7 +16,7 @@ export function ConsoleLogin() {
                 RWA<span className="logo-x">X</span>I
               </span>
               <span className="mt-1 text-[9px] font-semibold tracking-[0.24em] text-goldInk">
-                CONSOLA SUPER-ADMIN · admin.rwaxi.com
+                CONSOLA SUPER-ADMIN · admin.rwaxirealestate.com
               </span>
             </p>
           }

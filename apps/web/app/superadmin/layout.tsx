@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** admin.rwaxi.com — RWAXI direction console (tenant governance, attribution, fees). */
+/** admin.rwaxirealestate.com — RWAXI direction console (tenant governance, attribution, fees). */
 export default function SuperAdminLayout({ children }: { children: ReactNode }) {
   return (
     <ClientOnly>

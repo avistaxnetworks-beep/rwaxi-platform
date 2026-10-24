@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** {slug}.rwaxi.com/backoffice/login — staff sign-in of the developer (password + TOTP). */
+/** {slug}.rwaxirealestate.com/backoffice/login — staff sign-in of the developer (password + TOTP). */
 export default async function BackofficeLoginPage() {
   const tenant = await requireHostTenant();
   if (await currentStaff("TENANT", tenant.id)) redirect("/backoffice");

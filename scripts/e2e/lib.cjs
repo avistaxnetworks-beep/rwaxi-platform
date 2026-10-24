@@ -312,6 +312,15 @@ const tryAction = (page, actionId, args, timeoutMs = 20000) =>
   );
 
 // ── investor journey (portal + backoffice), shared by the payment suites ──
+/** Where the portal lands right after the NDA: step 2, the Data Room (every document opens with the NDA). */
+const NDA_LANDING = "Paso 2 · Data Room inmobiliario";
+/** From the Data Room (step 2) to the KYC wizard (step 3), through the investor's call to action. */
+async function toKycWizard(page) {
+  await waitText(page, NDA_LANDING);
+  await page.waitForSelector("[data-invest-cta] button", { timeout: 60000 });
+  await page.click("[data-invest-cta] button");
+  await waitText(page, "Paso 3 · Verificación KYC");
+}
 /** Fresh browser context: signs the NDA and submits the 4 KYC steps on the tenant's portal. */
 async function onboardInvestor(browser, db, slug = "avista") {
   const ctx = await browser.createBrowserContext();
@@ -322,7 +331,7 @@ async function onboardInvestor(browser, db, slug = "avista") {
   await clickText(page, "Completar con datos de ejemplo");
   const email = await page.$eval("#nda-email", (i) => i.value);
   await clickText(page, "Firmar NDA con un clic");
-  await waitText(page, "Paso 2 · Verificación KYC");
+  await toKycWizard(page);
   for (let step = 0; step < 4; step++) {
     await waitText(page, `Paso 0${step + 1}`);
     await clickText(page, "Completar con datos de ejemplo");
@@ -593,6 +602,8 @@ module.exports = {
   openBackofficeTab,
   replayAction,
   tryAction,
+  NDA_LANDING,
+  toKycWizard,
   onboardInvestor,
   approveInvestor,
   openComplianceCase,

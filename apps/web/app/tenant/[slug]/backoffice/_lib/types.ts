@@ -56,7 +56,7 @@ export interface AuditEntry {
     | "PAYMENT_CONFIRMED"
     | "CHAIN_TX_CONFIRMED"
     | "SUBSCRIPTION_MINTED"
-    // decisions of the RWAXI platform (admin.rwaxi.com) on this organization
+    // decisions of the RWAXI platform (admin.rwaxirealestate.com) on this organization
     | "PORTAL_STATUS_CHANGED"
     | "ORGANIZATION_PUBLICATION_CHANGED"
     | "OFFERING_CAPTURE_PAUSED"

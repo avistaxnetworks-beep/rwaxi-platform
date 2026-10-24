@@ -209,7 +209,7 @@ export function ChainQueueTab({
           {res.error}
           <span className="block mt-1">
             {tr("La cola persistida se consulta desde el portal o el backoffice de un tenant ({host}).", {
-              host: "{slug}.rwaxi.com",
+              host: "{slug}.rwaxirealestate.com",
             })}
           </span>
         </p>

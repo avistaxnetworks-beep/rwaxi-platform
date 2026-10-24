@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** www.rwaxi.com — public showcase under the RWAXI brand, in the visitor's language (rwaxi_vitrina_lang). */
+/** www.rwaxirealestate.com — public showcase under the RWAXI brand, in the visitor's language (rwaxi_vitrina_lang). */
 export default async function VitrinaLayout({ children }: { children: ReactNode }) {
   const { locale, catalog } = await requestI18n("vitrina");
   const tr = makeTranslate(locale, catalog);

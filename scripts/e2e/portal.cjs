@@ -1,6 +1,8 @@
-// E2E · investor onboarding persisted in Neon (vitrina → portal → NDA → KYC), its arrival in the
-// backoffice inbox, the On-Chain Inspector queue and attacks on the investor session.
+// E2E · investor onboarding persisted in Neon (vitrina → portal → NDA → Data Room → KYC), its arrival in the
+// backoffice inbox, the On-Chain Inspector queue and attacks on the investor session. The funnel's order: 1 NDA,
+// 2 Data Room (every document opens with the NDA), 3 KYC (what investing requires), 4 subscription.
 const { launch, ownerDb, ok, fail, shot, url, viem, abi, canon, sha256, text, has, waitText, clickText, openBackofficeTab } = require("./lib.cjs");
+const { NDA_LANDING, toKycWizard, vaultGet } = require("./lib.cjs");
 
 const registryAbi = abi("RwaxiComplianceRegistry");
 const db = ownerDb();
@@ -61,18 +63,46 @@ const apiQueue = (page, scope = "pending") =>
     await clickText(a, "Completar con datos de ejemplo");
     const email = await a.$eval("#nda-email", (i) => i.value);
     await clickText(a, "Firmar NDA con un clic");
-    await waitText(a, "Paso 2 · Verificación KYC");
+    await waitText(a, NDA_LANDING);
     const session = (await a.cookies(url("avista"))).find((c) => c.name === "rwaxi_inv");
     const inv = await db.investor.findFirst({ where: { email, organization: { slug: "avista" } }, include: { ndas: true, leads: true } });
     ok("NDA → Investor + NdaAcceptance en BD", !!inv && inv.ndas.length === 1 && /^0x[0-9a-f]{64}$/.test(inv.ndas[0].documentHash), email);
     ok("Lead atribuido a RWAXI con el token de la vitrina", inv?.leads[0]?.source === "REFERRAL" && inv.leads[0].referralToken === refToken);
     ok("cookie de sesión del inversionista HttpOnly y firmada", !!session?.httpOnly && session.value.split(".").length === 5);
 
-    await a.reload({ waitUntil: "domcontentloaded" });
-    await waitText(a, "Paso 2 · Verificación KYC");
-    ok("tras recargar: NDA firmado y paso KYC (desde BD)", await has(a, "Completar con datos de ejemplo"));
+    // Step 2: the whole Data Room opens with the NDA, before any KYC.
+    await a.waitForSelector('[data-investor-data-room][data-room-access="nda"]', { timeout: 60000 });
+    const steps = await a.$$eval('[id^="funnel-"]', (bs) => bs.map((b) => ({ id: b.id, state: b.dataset.stepState, text: b.textContent })));
+    ok(
+      "embudo en orden 1 NDA · 2 Data Room · 3 KYC · 4 Suscripción; tras el NDA aterriza en el Data Room (Disponible) y la suscripción espera al KYC",
+      steps.map((x) => x.id).join(",") === "funnel-1,funnel-2,funnel-3,funnel-4" &&
+        /NDA/.test(steps[0].text) &&
+        /Data Room/.test(steps[1].text) &&
+        /KYC/.test(steps[2].text) &&
+        /Suscripción/.test(steps[3].text) &&
+        steps.map((x) => x.state).join(",") === "done,open,open,locked" &&
+        (await a.$eval("[data-funnel-step]", (n) => n.dataset.funnelStep)) === "2",
+      steps.map((x) => `${x.id}:${x.state}`).join(" "),
+    );
+    const roomDocs = await db.dataRoomDocument.findMany({ where: { organization: { slug: "avista" }, storageKey: { not: null } } });
+    const roomGets = [];
+    for (const d of roomDocs) roomGets.push(await vaultGet(a, `/api/vault/data-room/${d.id}`));
+    ok(
+      `con solo el NDA descarga el 100 % del Data Room (${roomDocs.length} documentos, reservados incluidos), cada uno con su SHA-256`,
+      roomDocs.length > 0 &&
+        roomDocs.some((d) => d.restricted) &&
+        roomGets.every((r, i) => r.status === 200 && r.sha256 === roomDocs[i].sha256),
+      roomGets.filter((r) => r.status !== 200).map((r) => `${r.status} ${r.error}`).join(" | "),
+    );
+    ok("el Data Room ofrece pasar a invertir: «Quiero invertir en este proyecto — Completar KYC y Suscribir»", await has(a, "Quiero invertir en este proyecto — Completar KYC y Suscribir"));
 
-    // KYC wizard
+    await a.reload({ waitUntil: "domcontentloaded" });
+    await waitText(a, NDA_LANDING);
+    ok("tras recargar: NDA firmado y Data Room abierto (desde BD)", !!(await a.$('[data-room-access="nda"]')));
+
+    // KYC wizard, from the Data Room's call to action
+    await toKycWizard(a);
+    ok("el CTA del Data Room lleva al Paso 3 (asistente KYC)", await has(a, "Completar con datos de ejemplo"));
     for (let step = 0; step < 4; step++) {
       await waitText(a, `Paso 0${step + 1}`);
       await clickText(a, "Completar con datos de ejemplo");
@@ -166,11 +196,14 @@ const apiQueue = (page, scope = "pending") =>
       qB.ok && qB.tenant.slug === "avista" && qB.counts.pending === 1 && qB.items[0].expectedEvent?.topic0 === expectTopic,
     );
 
-    // Portal reflects approval + Data Room grant
+    // Portal reflects approval: lands on step 4 with the subscription enabled
     await a.goto(url("avista"), { waitUntil: "domcontentloaded" });
-    await waitText(a, "AccessGrant vigente");
+    await waitText(a, "Paso 4 · Suscripción de tokens y portafolio");
     const portalText = await text(a);
-    ok("portal: Aprobado/elegible y Data Room desbloqueado (grant de BD)", portalText.includes("inversionista elegible") && portalText.includes("accessgrant vigente"));
+    ok(
+      "portal: KYC aprobado → aterriza en el Paso 4 con la suscripción habilitada (desde BD)",
+      portalText.includes("inversionista elegible") && portalText.includes("firmar contrato del vehículo y suscribir"),
+    );
 
     // ── Isolation of the inspector API ──────────────────────────────────────
     await b.goto(url("elpoblado"), { waitUntil: "domcontentloaded" });
@@ -213,7 +246,7 @@ const apiQueue = (page, scope = "pending") =>
     await clickText(dpg, "Completar con datos de ejemplo");
     const emailD = await dpg.$eval("#nda-email", (i) => i.value);
     await clickText(dpg, "Firmar NDA con un clic");
-    await waitText(dpg, "Paso 2 · Verificación KYC");
+    await waitText(dpg, NDA_LANDING);
     const leadD = await db.lead.findFirst({ where: { investor: { email: emailD, organization: { slug: "avista" } } } });
     ok("token de referido reutilizado → Lead DIRECT (sin doble atribución)", leadD?.source === "DIRECT" && leadD.referralToken !== refToken);
 

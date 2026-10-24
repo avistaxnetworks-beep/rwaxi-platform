@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ChainTransaction } from "@rwaxi/database";
 import { interpolate } from "@/app/_i18n/translate";
-import { MINTER_ROLE_ID, blockerFor, registryEntry, walletTxMismatch, type ChainState, type SentTransaction } from "./chain-invariants";
+import { MINTER_ROLE_ID, blockerFor, registryEntry, walletFrozen, walletTxMismatch, type ChainState, type SentTransaction } from "./chain-invariants";
 
 const REGISTRY = `0x${"1".repeat(40)}`;
 const TOKEN = `0x${"2".repeat(40)}`;
@@ -108,6 +108,21 @@ test("registry history is replayed in order: revoke, freeze, re-approval", () =>
   const reapproved = [...frozen.slice(0, 2), approve(confirmed), m];
   assert.deepEqual(registryEntry(state(reapproved), WALLET), { approved: true, frozen: false });
   assert.equal(blockerFor(m, state(reapproved)), null);
+});
+
+test("a wallet frozen in the registry — or with a freeze still queued — takes no new subscription", () => {
+  const freeze = (frozen: boolean, extra: Partial<ChainTransaction> = {}) =>
+    row("INVESTOR_FREEZE_UPDATED", { wallet: WALLET, frozen }, extra);
+  const s = (txs: ChainTransaction[]) => ({ registry: REGISTRY, txs });
+  assert.equal(walletFrozen(s([approve(confirmed)]), WALLET), false);
+  assert.equal(walletFrozen(s([approve(confirmed), freeze(true, confirmed)]), WALLET), true);
+  // a freeze that is only queued already counts; an unfreeze that is only queued does not
+  assert.equal(walletFrozen(s([approve(confirmed), freeze(true)]), WALLET), true);
+  assert.equal(walletFrozen(s([approve(confirmed), freeze(true, confirmed), freeze(false)]), WALLET), true);
+  assert.equal(walletFrozen(s([approve(confirmed), freeze(true, confirmed), freeze(false, confirmed)]), WALLET), false);
+  // another wallet's freeze, or one on another registry, is not this wallet's
+  assert.equal(walletFrozen(s([approve(confirmed), row("INVESTOR_FREEZE_UPDATED", { wallet: OTHER, frozen: true }, confirmed)]), WALLET), false);
+  assert.equal(walletFrozen({ registry: REGISTRY, txs: [approve(confirmed), freeze(true, { ...confirmed, contractAddress: TOKEN })] }, WALLET), false);
 });
 
 test("the mint mirrors the token's reverts: already processed, supply cap, pause", () => {

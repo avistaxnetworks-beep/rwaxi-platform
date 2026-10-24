@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 }
 
 /**
- * {slug}.rwaxi.com (or the tenant's verified domain) — White Label portal and, under
+ * {slug}.rwaxirealestate.com (or the tenant's verified domain) — White Label portal and, under
  * /backoffice, the developer's backoffice. Both share one DemoProvider so the investor
  * journey and the compliance review stay in sync during client navigation.
  * The prototype's demo developers render from its seed; any other tenant (onboarded from the

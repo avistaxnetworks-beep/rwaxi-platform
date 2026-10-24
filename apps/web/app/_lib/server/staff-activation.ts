@@ -18,7 +18,7 @@ import { audit, openVerifiedSession, setSessionCookie } from "./staff-auth";
 import { TenantAccessError, requestMeta } from "./tenant-context";
 
 /**
- * Activation of a staff account from its invitation link ({slug}.rwaxi.com/backoffice/activate#token=…), under
+ * Activation of a staff account from its invitation link ({slug}.rwaxirealestate.com/backoffice/activate#token=…), under
  * the host tenant's RLS (a token of another tenant is not found):
  *   1. choosePassword(): the policy (password-policy.ts) re-applied here; the scrypt hash and a new TOTP secret
  *      are parked on the invitation — the account still has neither;

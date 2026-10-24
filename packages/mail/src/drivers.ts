@@ -197,7 +197,7 @@ export class UnconfiguredDriver implements MailDriver {
  * The driver the environment configures:
  *   MAIL_DRIVER            resend | postmark | webhook | dev (default: the provider whose key is set; else dev
  *                          outside production — in production, none: mail stays undelivered)
- *   MAIL_FROM              sender, required by every provider (e.g. "RWAXI <no-reply@rwaxi.com>")
+ *   MAIL_FROM              sender, required by every provider (e.g. "RWAXI Real Estate <no-reply@notifications.rwaxirealestate.com>")
  *   RESEND_API_KEY         [RESEND_API_URL]              Resend
  *   POSTMARK_SERVER_TOKEN  [POSTMARK_API_URL, POSTMARK_STREAM]   Postmark
  *   MAIL_WEBHOOK_URL       MAIL_WEBHOOK_SECRET           a signed relay (e.g. to SMTP)

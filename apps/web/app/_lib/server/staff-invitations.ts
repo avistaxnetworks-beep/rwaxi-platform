@@ -18,7 +18,7 @@ const ROLE_NAME: Record<InvitedRole, string> = {
   COMPLIANCE_OFFICER: "Oficial de Cumplimiento",
 };
 
-/** https://{slug}.rwaxi.com (http://{slug}.localhost:3000 in development), seen from the request issuing the link. */
+/** https://{slug}.rwaxirealestate.com (http://{slug}.localhost:3000 in development), seen from the request issuing the link. */
 export async function tenantOrigin(slug: string): Promise<string> {
   const forwarded = (await headers()).get("x-forwarded-proto")?.split(",")[0]?.trim();
   const proto = forwarded || (process.env.NODE_ENV === "production" ? "https" : "http");

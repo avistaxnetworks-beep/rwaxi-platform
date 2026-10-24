@@ -2,10 +2,16 @@ import type { Catalog } from "../translate";
 
 // Português (Brasil) · vitrina, White Label portal, backoffice and On-Chain Inspector. Keys are the Spanish source texts.
 const catalog: Catalog = {
+  "¿Cómo te protege la blockchain aquí?": "Como a blockchain protege você aqui?",
   "¿Cuál es la actividad económica principal del origen de sus fondos?":
     "Qual é a principal atividade econômica de origem dos seus recursos?",
+  "¿Eres desarrollador o estructurador inmobiliario y te gustaría tokenizar tu proyecto?":
+    "Você é incorporador ou estruturador imobiliário e gostaria de tokenizar seu empreendimento?",
+  "¿Eres desarrollador? Tokeniza tu inmueble": "É incorporador? Tokenize seu imóvel",
   "¿Primera vez? Activa tu cuenta con el enlace personal que RWAXI te envió por correo.":
     "Primeira vez? Ative sua conta com o link pessoal que a RWAXI enviou por e-mail.",
+  "¿Te convence el respaldo del proyecto? Completa tu verificación KYC para poder invertir: el Data Room sigue abierto mientras tanto.":
+    "O lastro do projeto convenceu você? Conclua sua verificação KYC para poder investir: enquanto isso, o Data Room continua aberto.",
   "¿Ya firmaste el NDA en otro navegador o dispositivo? Recupera tu sesión con un código enviado a tu correo.":
     "Já assinou o NDA em outro navegador ou dispositivo? Recupere sua sessão com um código enviado ao seu e-mail.",
   ".mp4 / .mov · 1080p o 4K · máx. 3:00": ".mp4 / .mov · 1080p ou 4K · máx. 3:00",
@@ -39,8 +45,6 @@ const catalog: Catalog = {
   "{current} de {total}": "{current} de {total}",
   "{file} copiado": "{file} copiado",
   "{fn}() confirmada · {mode} · tx {hash}": "{fn}() confirmada · {mode} · tx {hash}",
-  "{hours} h": "{hours} h",
-  "{hours} h · Signed URLs de 15 min": "{hours} h · Signed URLs de 15 min",
   "{label}: entre {min} y {max} (hasta 2 decimales).": "{label}: entre {min} e {max} (até 2 casas decimais).",
   "{n} de 4 imágenes son fotografías cargadas.": {
     one: "{n} das 4 imagens é uma fotografia carregada.",
@@ -113,22 +117,27 @@ const catalog: Catalog = {
   "✓ La prueba reconstruye la raíz": "✓ A prova reconstrói a raiz",
   "✗ La prueba no corresponde a la raíz": "✗ A prova não corresponde à raiz",
   "01 / Oportunidades estructuradas": "01 / Oportunidades estruturadas",
-  "02 / Cómo funciona": "02 / Como funciona",
-  "03 / Frontera legal": "03 / Fronteira legal",
+  "02 / Cómo invertir": "02 / Como investir",
   "1 · Bloqueo en mercado secundario": "1 · Bloqueio no mercado secundário",
+  "100 % de los documentos con tu NDA": "100% dos documentos liberados com seu NDA",
+  "100 % del Data Room · {code}": "100% do Data Room · {code}",
   "2 · Recuperación regulatoria / orden judicial": "2 · Recuperação regulatória / ordem judicial",
+  "Abre tu propio portal institucional White Label, automatiza tu cumplimiento KYC/SAGRILAFT y conecta tu inmueble con inversionistas globales sin ceder el control fiduciario.":
+    "Abra seu próprio portal institucional White Label, automatize seu compliance KYC/SAGRILAFT e conecte seu imóvel a investidores do mundo todo sem abrir mão do controle fiduciário.",
   "Abriendo portal oficial de {name}…": "Abrindo o portal oficial de {name}…",
   Abrir: "Abrir",
   "Abrir Bandeja de Cumplimiento": "Abrir caixa de entrada de compliance",
   "Abrir en la app de autenticación": "Abrir no app autenticador",
   "Abrir portal con esta configuración": "Abrir portal com esta configuração",
+  "Accede al Data Room y valida el respaldo": "Acesse o Data Room e confira o lastro do projeto",
   Acceso: "Acesso",
   "Acceso · Backoffice · {name}": "Acesso · Backoffice · {name}",
   "Acceso al backoffice": "Acesso ao backoffice",
   "Acceso con contraseña y código de verificación de dos pasos (TOTP).":
     "Acesso com senha e código de verificação em duas etapas (TOTP).",
-  "Acceso Desarrolladores": "Acesso Incorporadoras",
-  "AccessGrant vigente": "AccessGrant vigente",
+  "Acceso global 100 % digital": "Acesso global 100% digital",
+  "Acceso retirado": "Acesso retirado",
+  "Acceso retirado por cumplimiento": "Acesso retirado por compliance",
   Acciones: "Ações",
   "Acepta mayor variación y proyectos en estructuración o pre-venta.":
     "Aceita maior variação e projetos em estruturação ou pré-venda.",
@@ -154,6 +163,7 @@ const catalog: Catalog = {
   "Activos Tokenizados": "Ativos Tokenizados",
   "Adjunta el archivo.": "Anexe o arquivo.",
   Administrador: "Administrador",
+  "Advertencia de riesgos y proyecciones": "Aviso de riscos e projeções",
   "Agrega esta clave a tu app de autenticación (Google Authenticator, Microsoft Authenticator, 1Password…) y escribe el código de 6 dígitos que genere.":
     "Adicione esta chave ao seu app autenticador (Google Authenticator, Microsoft Authenticator, 1Password…) e digite o código de 6 dígitos que ele gerar.",
   "aislado · {name}": "isolado · {name}",
@@ -162,8 +172,9 @@ const catalog: Catalog = {
   "Al menos un número": "Pelo menos um número",
   "Al menos un símbolo (por ejemplo ! ? # - _)": "Pelo menos um símbolo (por exemplo ! ? # - _)",
   Alcance: "Escopo",
-  "Alta B2B · {slug}.rwaxi.com · NIT {taxId} · {users} usuarios · oferta {code} · {documents} documentos":
-    "Cadastro B2B · {slug}.rwaxi.com · NIT {taxId} · {users} usuários · oferta {code} · {documents} documento(s)",
+  "Alcance Global con el Mismo Capital": "Alcance Global com o Mesmo Capital",
+  "Alta B2B · {slug}.rwaxirealestate.com · NIT {taxId} · {users} usuarios · oferta {code} · {documents} documentos":
+    "Cadastro B2B · {slug}.rwaxirealestate.com · NIT {taxId} · {users} usuários · oferta {code} · {documents} documento(s)",
   "Alta en la red RWAXI": "Cadastro na rede RWAXI",
   Analista: "Analista",
   "Analizando correspondencia con el documento": "Analisando a correspondência com o documento",
@@ -176,6 +187,8 @@ const catalog: Catalog = {
     other: "Ancorar dataRoomMerkleRoot inicial e vincular o registro ({n} wallets na whitelist)",
   },
   "Anclar Merkle Root": "Ancorar Merkle Root",
+  "Antes de comprometer capital, entras al Data Room privado. Allí encuentras de manera detallada toda la información jurídica, financiera y comercial que respalda al proyecto: estudios de títulos, encargo fiduciario, modelo financiero y contratos verificados criptográficamente.":
+    "Antes de comprometer capital, você entra no Data Room privado. Lá encontra, em detalhe, todas as informações jurídicas, financeiras e comerciais que respaldam o projeto: estudos de títulos, encargo fiduciário, modelo financeiro e contratos verificados criptograficamente.",
   "Año {n}": "Ano {n}",
   "approveInvestor(nueva wallet del titular) ejecutado": "approveInvestor(nova wallet do titular) executado",
   "approveInvestor(nueva wallet, 170, dossier)": "approveInvestor(nova wallet, 170, dossier)",
@@ -201,6 +214,7 @@ const catalog: Catalog = {
   "Atribución deshabilitada: falta REFERRAL_SECRET en el servidor.":
     "Atribuição desabilitada: falta REFERRAL_SECRET no servidor.",
   "AuditEvent · sin edición ni borrado": "AuditEvent · sem edição nem exclusão",
+  "Auditoría criptográfica del Data Room": "Auditoria criptográfica do Data Room",
   "Aún no hay decisiones registradas para este tenant.":
     "Ainda não há decisões registradas para este tenant.",
   "Aún no hay distribuciones declaradas para este tenant.":
@@ -214,6 +228,7 @@ const catalog: Catalog = {
   "Autorizo a {entity}, como Responsable del Tratamiento, y a RWAXI, como Encargado Tecnológico de Infraestructura que actúa por cuenta del Responsable, el tratamiento de mis datos conforme a la Ley 1581 de 2012.":
     "Autorizo {entity}, como Responsável pelo Tratamento, e a RWAXI, como Operador Tecnológico de Infraestrutura que atua por conta do Responsável, a realizar o tratamento dos meus dados nos termos da Lei 1581 de 2012.",
   "Avalúo comercial de referencia": "Laudo de avaliação de referência",
+  "Aviso legal y regulatorio": "Aviso legal e regulatório",
   "BACKOFFICE · TENANT ADMIN": "BACKOFFICE · TENANT ADMIN",
   "Backoffice del desarrollador": "Backoffice da incorporadora",
   "Bandeja de cumplimiento": "Caixa de entrada de compliance",
@@ -229,9 +244,12 @@ const catalog: Catalog = {
     "Busca equilíbrio entre renda periódica e valorização.",
   "C.C.": "C.C.",
   "C.E.": "C.E.",
-  "Cada proyecto se gestiona en el portal de su desarrollador: NDA, KYC/AML con SAGRILAFT + PTEE o SARLAFT según el régimen del oferente, Data Room y suscripción con el vehículo jurídico.":
-    "Cada projeto é gerido no portal da sua incorporadora: NDA, KYC/AML com SAGRILAFT + PTEE ou SARLAFT conforme o regime do ofertante, Data Room e subscrição com o veículo jurídico.",
+  "Cada desarrollador o vehículo de propósito especial (SPV) es el único emisor y responsable de su inmueble, de la información de su Data Room, de su proceso de conocimiento del inversionista (KYC/SAGRILAFT o SARLAFT) y del recaudo a través de sus cuentas fiduciarias o bancarias. El inversionista contrata directamente con el emisor.":
+    "Cada incorporadora ou veículo de propósito específico (SPV) é o único emissor e o único responsável por seu imóvel, pelas informações do seu Data Room, pelo seu processo de conhecimento do investidor (KYC/SAGRILAFT ou SARLAFT) e pelo recebimento dos recursos dos investidores por meio de suas contas fiduciárias ou bancárias. O investidor contrata diretamente com o emissor.",
+  "Cada documento del Data Room, cada unidad emitida y cada corte de distribución queda sellado en blockchain con prueba SHA-256 y árboles de Merkle verificables al instante.":
+    "Cada documento do Data Room, cada unidade emitida e cada corte de distribuição fica selado em blockchain com prova SHA-256 e árvores de Merkle verificáveis instantaneamente.",
   "Calculando SHA-256…": "Calculando SHA-256…",
+  "Cálculo programable de rendimientos": "Cálculo programável de rendimentos",
   "Calldata copiado": "Calldata copiado",
   "Cambiar correo": "Alterar e-mail",
   Canadá: "Canadá",
@@ -245,6 +263,7 @@ const catalog: Catalog = {
   "Captación de {code} pausada (plataforma, off-chain)": "Captação de {code} pausada (plataforma, off-chain)",
   "Captación de {code} reanudada": "Captação de {code} retomada",
   "Captación pausada temporalmente": "Captação pausada temporariamente",
+  Característica: "Característica",
   "Carga un archivo .mp4 o .mov en el Backoffice para usar el video HTML5":
     "Carregue um arquivo .mp4 ou .mov no Backoffice para usar o vídeo HTML5",
   "Cargado · {size} KB": "Carregado · {size} KB",
@@ -302,18 +321,24 @@ const catalog: Catalog = {
   },
   Colombia: "Colômbia",
   "Color de marca": "Cor da marca",
-  "Cómo funciona": "Como funciona",
+  "Combinamos el rigor jurídico de la estructuración inmobiliaria tradicional con la agilidad y trazabilidad de la tecnología blockchain. Así es tu proceso de principio a fin:":
+    "Combinamos o rigor jurídico da estruturação imobiliária tradicional com a agilidade e a rastreabilidade da tecnologia blockchain. Veja como é a sua jornada, do início ao fim:",
+  "Cómo Invertir": "Como Investir",
   "Comparamos tu rostro con la foto del documento y confirmamos que eres una persona real frente a la cámara.":
     "Comparamos seu rosto com a foto do documento e confirmamos que você é uma pessoa real diante da câmera.",
+  "Comparativo de modelos de inversión": "Comparativo de modelos de investimento",
   "Completa la prueba de vida.": "Conclua a prova de vida.",
   Completada: "Concluída",
   Completado: "Concluído",
   "Completar con datos de ejemplo": "Preencher com dados de exemplo",
+  "Completar verificación KYC (Paso 3)": "Concluir verificação KYC (Etapa 3)",
   "Compliance Simulator": "Simulador de Compliance",
   "COMPLIANCE_OFFICER_ROLE · Oficial de Cumplimiento del tenant":
     "COMPLIANCE_OFFICER_ROLE · Oficial de Compliance do tenant",
   Comprobante: "Comprovante",
   "comprobante {reference}": "comprovante {reference}",
+  "Con el mismo capital con el que antes quedabas atado a un trámite lento, local y de papel, hoy eres partícipe de un negocio inmobiliario global. La tokenización toma la seguridad histórica del ladrillo y la supercarga en blockchain con bondades que la inversión inmobiliaria tradicional —así sea fraccionada en papel— simplemente no permite.":
+    "Com o mesmo capital que antes deixava você preso a um processo lento, local e em papel, hoje você participa de um negócio imobiliário global. A tokenização turbina em blockchain a segurança histórica do tijolo, com vantagens que o investimento imobiliário tradicional — mesmo fracionado em papel — simplesmente não oferece.",
   "con el pago ya conciliado": "com o pagamento já conciliado",
   "Con NDA": "Com NDA",
   "Conectando tu wallet…": "Conectando sua wallet…",
@@ -331,6 +356,7 @@ const catalog: Catalog = {
   "Congelamiento de la wallet de {name} en cola (setFrozen)": "Congelamento da wallet de {name} na fila (setFrozen)",
   "Congelamiento de wallet solicitado": "Congelamento de wallet solicitado",
   "Congelar wallet (setFrozen)": "Congelar wallet (setFrozen)",
+  "Conoce cómo estructurar tu inmueble en rwaxi.com": "Saiba como estruturar seu imóvel em rwaxi.com",
   "Conozco y acepto el PTEE de {entity}, adoptado conforme al Capítulo XIII de la Circular Básica Jurídica de la Superintendencia de Sociedades, y me comprometo a reportar cualquier situación de soborno o corrupción relacionada con este negocio.":
     "Conheço e aceito o PTEE de {entity}, adotado nos termos do Capítulo XIII da Circular Básica Jurídica da Superintendência de Sociedades (Supersociedades), e comprometo-me a reportar qualquer situação de suborno ou corrupção relacionada a este negócio.",
   "ConsentRecord registrado": "ConsentRecord registrado",
@@ -341,6 +367,7 @@ const catalog: Catalog = {
   "Consulta en listas restrictivas": "Consulta em listas restritivas",
   "Consultando ChainTransaction…": "Consultando ChainTransaction…",
   Continuar: "Continuar",
+  "Continuar a la suscripción de unidades (Paso 4)": "Continuar para a subscrição de unidades (Etapa 4)",
   "Contract State Explorer": "Explorador de Estado dos Contratos",
   Contraparte: "Contraparte",
   contraseña: "senha",
@@ -357,19 +384,22 @@ const catalog: Catalog = {
   "Correo corporativo": "E-mail corporativo",
   "Correo electrónico": "E-mail",
   "Correo o contraseña incorrectos.": "E-mail ou senha incorretos.",
-  "Crea un registro CNAME de {domain} hacia tenants.rwaxi.com. El portal siempre responde también en {host}.":
-    "Crie um registro CNAME de {domain} apontando para tenants.rwaxi.com. O portal também responde sempre em {host}.",
+  "Crea un registro CNAME de {domain} hacia tenants.rwaxirealestate.com. El portal siempre responde también en {host}.":
+    "Crie um registro CNAME de {domain} apontando para tenants.rwaxirealestate.com. O portal também responde sempre em {host}.",
+  "Cuando decides invertir, completas tu verificación de identidad (KYC/SAGRILAFT) para proteger a todos los co-inversionistas. Una vez aprobado por el Oficial de Cumplimiento del emisor, defines cuántas unidades deseas adquirir y firmas tu acuerdo de suscripción.":
+    "Quando decide investir, você conclui sua verificação de identidade (KYC/SAGRILAFT) para proteger todos os coinvestidores. Após a aprovação do Oficial de Compliance do emissor, você define quantas unidades deseja adquirir e assina seu contrato de subscrição.",
   "Cuenta activada (contraseña + TOTP)": "Conta ativada (senha + TOTP)",
   "cuenta bloqueada": "conta bloqueada",
   "Cuenta bloqueada por intentos fallidos": "Conta bloqueada por tentativas malsucedidas",
   "Cuenta bloqueada temporalmente por intentos fallidos. Inténtalo de nuevo en {minutes} min.":
     "Conta bloqueada temporariamente por tentativas malsucedidas. Tente novamente em {minutes} min.",
   "Cumplimiento y Leads": "Compliance e Leads",
+  "Custodia directa en tu wallet": "Custódia direta na sua wallet",
   "Data Room": "Data Room",
   "Data Room · {n} documentos": { one: "Data Room · {n} documento", other: "Data Room · {n} documentos" },
   "Data Room {code}": "Data Room {code}",
   "Data Room Auditado con Hash SHA-256": "Data Room Auditado com Hash SHA-256",
-  "Data Room desbloqueado": "Data Room desbloqueado",
+  "Data Room inmobiliario": "Data Room imobiliário",
   "Data Room off-chain: 0x{hash} · pendiente de anclar":
     "Data Room off-chain: 0x{hash} · pendente de ancoragem",
   "Data Room y Minting": "Data Room e Minting",
@@ -380,7 +410,7 @@ const catalog: Catalog = {
   "Debes aceptar el contrato, los riesgos y las 4 capas estructurales.":
     "Você deve aceitar o contrato, os riscos e as 4 camadas estruturais.",
   "Debida Diligencia": "Due Diligence",
-  "Debida diligencia · Paso 2 ({regime})": "Due diligence · Etapa 2 ({regime})",
+  "Debida diligencia · Paso 3 ({regime})": "Due diligence · Etapa 3 ({regime})",
   "Decisión inválida.": "Decisão inválida.",
   "Declaración de No-PEP": "Declaração de Não-PEP",
   "Declaración PEP": "Declaração PEP",
@@ -395,8 +425,8 @@ const catalog: Catalog = {
   "Declaro que no soy Persona Expuesta Políticamente (PEP), ni familiar o asociado cercano de una PEP, en los términos del Decreto 830 de 2021. Me obligo a informar cualquier cambio en esta condición.":
     "Declaro que não sou Pessoa Exposta Politicamente (PEP), nem familiar ou estreito colaborador de uma PEP, nos termos do Decreto 830 de 2021. Obrigo-me a informar qualquer alteração nesta condição.",
   "DEFAULT_ADMIN_ROLE · emisor, a su propia wallet": "DEFAULT_ADMIN_ROLE · emissor, para sua própria wallet",
-  "Define las etiquetas y declaraciones del Paso 2 del portal. Autoridad: {authority}.":
-    "Define os rótulos e as declarações da Etapa 2 do portal. Autoridade: {authority}.",
+  "Define las etiquetas y declaraciones del Paso 3 del portal. Autoridad: {authority}.":
+    "Define os rótulos e as declarações da Etapa 3 do portal. Autoridade: {authority}.",
   "Define primero tu contraseña.": "Defina primeiro sua senha.",
   "Define tu contraseña y tu verificación en dos pasos para entrar al backoffice de {name}.":
     "Defina sua senha e sua verificação em duas etapas para entrar no backoffice de {name}.",
@@ -416,7 +446,6 @@ const catalog: Catalog = {
   "Descongelar wallet (setFrozen)": "Descongelar wallet (setFrozen)",
   "Describe brevemente la actividad.": "Descreva brevemente a atividade.",
   "Describe la actividad": "Descreva a atividade",
-  "Descubre en RWAXI": "Descubra na RWAXI",
   "Desde el mes {month}": "A partir do mês {month}",
   "Desde la cola sólo se otorga MINTER_ROLE.": "Pela fila só se concede MINTER_ROLE.",
   "Destino de carga inválido.": "Destino de envio inválido.",
@@ -459,6 +488,8 @@ const catalog: Catalog = {
   "Documento KYC consultado": "Documento KYC consultado",
   "Documento no encontrado en este tenant.": "Documento não encontrado neste tenant.",
   "Documento no encontrado.": "Documento não encontrado.",
+  "Documento reservado (jurídico, fiduciario o financiero)":
+    "Documento reservado (jurídico, fiduciário ou financeiro)",
   "Documento verificado y guardado · nueva raíz del Data Room en cola (updateDataRoomMerkleRoot)":
     "Documento verificado e armazenado · nova raiz do Data Room na fila (updateDataRoomMerkleRoot)",
   "Documento verificado y guardado en la bóveda · raíz del Data Room actualizada":
@@ -525,8 +556,9 @@ const catalog: Catalog = {
   "El Merkle Root del Data Room difiere del anclado on-chain.":
     "O Merkle Root do Data Room difere do ancorado on-chain.",
   "El Merkle Root se ancla al desplegar el token.": "O Merkle Root é ancorado na implantação do token.",
-  "El Oficial de Cumplimiento de {name} revocó tu verificación: no se reciben nuevas suscripciones y el acceso reservado del Data Room quedó cerrado. Para más información, comunícate directamente con el desarrollador.":
-    "O Oficial de Compliance de {name} revogou sua verificação: não são aceitas novas subscrições e o acesso reservado do Data Room foi encerrado. Para mais informações, entre em contato diretamente com o desenvolvedor.",
+  "El nuevo estándar del patrimonio inmobiliario": "O novo padrão do patrimônio imobiliário",
+  "El Oficial de Cumplimiento de {name} revocó tu verificación: no se reciben nuevas suscripciones y el acceso al Data Room quedó cerrado. Para más información, comunícate directamente con el desarrollador.":
+    "O Oficial de Compliance de {name} revogou sua verificação: não são aceitas novas subscrições e o acesso ao Data Room foi encerrado. Para mais informações, entre em contato diretamente com a incorporadora.",
   "El pasaporte tiene entre 6 y 12 caracteres alfanuméricos.":
     "O passaporte tem entre 6 e 12 caracteres alfanuméricos.",
   "El portal de este desarrollador no está disponible desde la vitrina.":
@@ -559,17 +591,18 @@ const catalog: Catalog = {
   "El token se crea con {fn} al emitir desde el Backoffice → Data Room y Minting.":
     "O token é criado com {fn} ao emitir pelo Backoffice → Data Room e Minting.",
   "El video dura {duration}: supera el máximo de 3:00": "O vídeo dura {duration}: excede o máximo de 3:00",
+  "Elige tu oportunidad y firma tu NDA digital": "Escolha sua oportunidade e assine seu NDA digital",
   embargo: "penhora",
   "Embudo legal y de cumplimiento": "Funil jurídico e de compliance",
   "Emisión de tokens": "Emissão de tokens",
   "Emisión de unidades digitales con contrato OpenZeppelin permissioned, whitelist de inversionistas elegibles y sellado del Data Room con Merkle Root SHA-256.":
     "Emissão de unidades digitais com contrato OpenZeppelin permissionado, whitelist de investidores elegíveis e selagem do Data Room com Merkle Root SHA-256.",
   Emisor: "Emissor",
+  "Emisor autónomo y relación contractual directa": "Emissor autônomo e relação contratual direta",
   "Emisor:": "Emissor:",
   emitida: "emitida",
   "Emitidas en wallet": "Emitidas na wallet",
   Emitido: "Emitido",
-  "Emitido (UTC)": "Emitido (UTC)",
   "Emitir (Mint) tokens con el adaptador RWAXI": "Emitir (Mint) tokens com o adaptador RWAXI",
   emitirá: "emitirá",
   "Empleado / asalariado": "Empregado / assalariado",
@@ -651,8 +684,6 @@ const catalog: Catalog = {
     "Este e-mail já tem um processo de investimento neste portal. Para continuar neste navegador, use «Recuperar minha sessão»: enviaremos um código para esse e-mail.",
   "Este desarrollador no está publicado en la vitrina.": "Esta incorporadora não está publicada na vitrine.",
   "Este desarrollador no existe en la red RWAXI.": "Esta incorporadora não existe na rede RWAXI.",
-  "Este documento exige un AccessGrant vigente (NDA + KYC aprobado).":
-    "Este documento exige um AccessGrant vigente (NDA + KYC aprovado).",
   "Este documento no tiene archivo en la bóveda.": "Este documento não tem arquivo no cofre.",
   "Este enlace de activación no es válido, ya se usó o venció. Pide uno nuevo a RWAXI.":
     "Este link de ativação é inválido, já foi usado ou venceu. Peça um novo à RWAXI.",
@@ -665,6 +696,8 @@ const catalog: Catalog = {
   "Expediente inválido.": "Dossiê inválido.",
   "Expediente no encontrado en este tenant.": "Dossiê não encontrado neste tenant.",
   "Expira en {time}": "Expira em {time}",
+  "Explora las ofertas activas de cada desarrollador e ingresa a su portal exclusivo. Con un clic firmas el Acuerdo de Confidencialidad (NDA) electrónico para desbloquear la información reservada del proyecto.":
+    "Explore as ofertas ativas de cada incorporadora e acesse o portal exclusivo dela. Com um clique, você assina eletronicamente o Acordo de Confidencialidade (NDA) para desbloquear as informações reservadas do projeto.",
   "externa no verificada": "externa não verificada",
   Fachada: "Fachada",
   "Factura {number} · {entries} asiento(s) · {total} USD": {
@@ -687,10 +720,13 @@ const catalog: Catalog = {
   "Ficha técnica del inmueble": "Ficha técnica do imóvel",
   "Filtrar por etapa": "Filtrar por etapa",
   Financiero: "Financeiro",
+  "Finca Raíz Tradicional": "Imóvel Tradicional",
   "Firma de mint del emisor · opcional": "Assinatura de mint pelo emissor · opcional",
   "Firma de NDA digital": "Assinatura digital do NDA",
   "Firma del contrato del vehículo": "Assinatura do contrato do veículo",
   "Firma del contrato y registro en PostgreSQL": "Assinatura do contrato e registro no PostgreSQL",
+  "Firma el NDA (Paso 1) para desbloquear el 100 % del Data Room.":
+    "Assine o NDA (Etapa 1) para desbloquear 100% do Data Room.",
   "Firma el NDA del proyecto para acceder a los documentos del Data Room.":
     "Assine o NDA do projeto para acessar os documentos do Data Room.",
   "Firma electrónica del contrato de suscripción": "Assinatura eletrônica do contrato de subscrição",
@@ -699,6 +735,7 @@ const catalog: Catalog = {
   "firma requerida: {role} → {contract} @ {address}": "signatário exigido: {role} → {contract} @ {address}",
   "firma:": "signatário:",
   Firmado: "Assinado",
+  "Firmado (UTC)": "Assinado (UTC)",
   Firmante: "Signatário",
   "firmada en el navegador por {wallet}": "assinada no navegador por {wallet}",
   "Firmar con mi wallet": "Assinar com minha wallet",
@@ -721,13 +758,11 @@ const catalog: Catalog = {
     "Fotografias carregadas em ordem: Fachada, Interior, Área Comum, Localização",
   "Fotografías y Renders del Activo": "Fotografias e renders do ativo",
   Fotos: "Fotos",
+  "Fraccionamiento en Papel": "Propriedade Fracionada em Papel",
   Frente: "Frente",
   "frente del documento": "frente do documento",
   "from (extraviada / embargada)": "from (extraviada / penhorada)",
   "from (titular)": "from (titular)",
-  "Frontera legal": "Fronteira legal",
-  "FRONTERA LEGAL DE RWAXI\n\nRWAXI es un canal de descubrimiento y un proveedor de infraestructura tecnológica (portales white label, Data Room, firma electrónica, expediente KYC y adaptador de tokenización). En la vitrina www.rwaxi.com y en cada portal:\n\n1. RWAXI no es emisor, oferente, estructurador financiero, administrador ni custodio de los activos, de los recursos ni de las unidades digitales de ningún proyecto.\n2. RWAXI no capta recursos del público, no recibe dinero de los inversionistas, no presta asesoría de inversión ni actúa como intermediario del mercado de valores.\n3. Cada proyecto es ofrecido exclusivamente por su desarrollador, identificado con razón social y NIT, a través de su propio vehículo jurídico independiente. La relación contractual, la debida diligencia (SAGRILAFT + PTEE o SARLAFT) y las decisiones sobre los inversionistas son responsabilidad del desarrollador.\n4. En la cadena de bloques, los contratos del registro de cumplimiento y del token pertenecen al desarrollador. RWAXI no tiene facultades para pausar, congelar ni transferir unidades digitales; solo ejecuta, como adaptador técnico, las instrucciones de emisión que el desarrollador aprueba.\n5. Las cifras de TIR, distribuciones y valorización son escenarios estimados elaborados por cada desarrollador. No constituyen promesa de rentabilidad y el capital invertido está sujeto a riesgo.":
-    "FRONTEIRA LEGAL DA RWAXI\n\nA RWAXI é um canal de descoberta e uma provedora de infraestrutura tecnológica (portais white label, Data Room, assinatura eletrônica, dossiê KYC e adaptador de tokenização). Na vitrine www.rwaxi.com e em cada portal:\n\n1. A RWAXI não é emissora, ofertante, estruturadora financeira, administradora nem custodiante dos ativos, dos recursos nem das unidades digitais de nenhum projeto.\n2. A RWAXI não capta recursos do público, não recebe dinheiro dos investidores, não presta assessoria de investimento nem atua como intermediária do mercado de valores mobiliários.\n3. Cada projeto é ofertado exclusivamente por sua incorporadora, identificada por razão social e NIT, por meio de seu próprio veículo jurídico independente. A relação contratual, a due diligence (SAGRILAFT + PTEE ou SARLAFT) e as decisões sobre os investidores são de responsabilidade da incorporadora.\n4. Na blockchain, os contratos do registro de compliance e do token pertencem à incorporadora. A RWAXI não tem poderes para pausar, congelar nem transferir unidades digitais; apenas executa, como adaptador técnico, as instruções de emissão que a incorporadora aprova.\n5. Os números de TIR, distribuições e valorização são cenários estimados elaborados por cada incorporadora. Não constituem promessa de rentabilidade, e o capital investido está sujeito a risco.",
   "Gerente de Proyecto": "Gerente de Projeto",
   "Gira la cabeza a la izquierda": "Vire a cabeça para a esquerda",
   "Gobierno Corporativo": "Governança Corporativa",
@@ -757,7 +792,6 @@ const catalog: Catalog = {
   "Hola, {name}:": "Olá, {name},",
   Horizonte: "Horizonte",
   "Identidad y ubicación": "Identidade e localização",
-  "Identidad, biometría y origen de fondos": "Identidade, biometria e origem dos recursos",
   Idioma: "Idioma",
   "Imagen de portada (thumbnail)": "Imagem de capa (thumbnail)",
   "Imágenes de referencia generadas para este prototipo. Carga las fotografías del Data Room para reemplazarlas.":
@@ -770,7 +804,6 @@ const catalog: Catalog = {
   "Infraestructura digital": "Infraestrutura digital",
   "infraestructura maestra RWAXI": "infraestrutura mestra RWAXI",
   "Infraestructura Powered by": "Infraestrutura Powered by",
-  "Infraestructura Powered by RWAXI": "Infraestrutura Powered by RWAXI",
   "Ingresos anuales": "Renda anual",
   "Ingresos anuales estimados": "Renda anual estimada",
   "Inicia sesión en el backoffice para consultar la cola on-chain.":
@@ -782,11 +815,14 @@ const catalog: Catalog = {
   "Inicio de sesión (contraseña + TOTP)": "Login (senha + TOTP)",
   "Inspector On-Chain": "Inspetor On-Chain",
   "Inspector On-Chain (OpenZeppelin v5)": "Inspetor On-Chain (OpenZeppelin v5)",
+  Integridad: "Integridade",
   "Integridad de la bóveda comprometida": "Integridade do cofre comprometida",
   "Integridad verificada en tu navegador (SHA-256 coincide)":
     "Integridade verificada no seu navegador (SHA-256 coincide)",
   "Intento de acceso fallido": "Tentativa de acesso malsucedida",
   Interior: "Interior",
+  "Inversión Supercargada": "Investimento Turbinado",
+  "Inversión Supercargada en Blockchain": "Investimento Turbinado em Blockchain",
   Inversionista: "Investidor",
   "inversionista con NDA": "investidor com NDA",
   "Inversionista demo": "Investidor demo",
@@ -796,6 +832,8 @@ const catalog: Catalog = {
   "Inversionista no residente: se solicitará registro de inversión extranjera.":
     "Investidor não residente: será solicitado o registro de investimento estrangeiro.",
   "Inversionista revocado": "Investidor revogado",
+  "Invierte en bienes raíces de grado institucional en 4 pasos claros":
+    "Invista em imóveis de padrão institucional em 4 etapas claras",
   "Invitación de activación enviada": "Convite de ativação enviado",
   "Invitación de activación enviada a {email} ({role}) · vence {expires}":
     "Convite de ativação enviado para {email} ({role}) · vence {expires}",
@@ -817,7 +855,6 @@ const catalog: Catalog = {
   "KYC pendientes": "KYC pendentes",
   "KYC rechazado": "KYC rejeitado",
   "KYC revocado": "KYC revogado",
-  "KYC/{sys} aprobado": "KYC/{sys} aprovado",
   "KYC/AML + {regime}": "KYC/AML + {regime}",
   "La autorización de carga no es válida o venció: vuelve a cargar el archivo.":
     "A autorização de envio é inválida ou venceu: envie o arquivo novamente.",
@@ -858,6 +895,8 @@ const catalog: Catalog = {
     "A foto do documento de identidade não está legível: o número e a data de expedição não coincidem com os dados registrados.",
   "La hora de la firma no es válida; recarga la página e inténtalo de nuevo.":
     "O horário da assinatura não é válido; recarregue a página e tente novamente.",
+  "La información de esta vitrina es referencial: no constituye oferta pública de valores ni recomendación o asesoría financiera, legal o tributaria. Los documentos vinculantes de cada proyecto están en el portal de su emisor: el Data Room se abre con la firma del NDA y la suscripción exige, además, la verificación KYC.":
+    "As informações desta vitrine têm caráter referencial: não constituem oferta pública de valores mobiliários nem recomendação ou assessoria financeira, jurídica ou tributária. Os documentos vinculantes de cada projeto estão no portal do respectivo emissor: o Data Room é liberado com a assinatura do NDA, e a subscrição exige também a verificação KYC.",
   "La oferta no tiene tokens emitidos (MINTED) en wallets de inversionistas.":
     "A oferta não tem tokens emitidos (MINTED) em wallets de investidores.",
   "La pantalla completa no está disponible en esta vista":
@@ -875,8 +914,8 @@ const catalog: Catalog = {
     "A subscrição está {status}: a emissão só ocorre após a confirmação do pagamento.",
   "La suscripción no tiene el hash del contrato firmado.":
     "A subscrição não tem o hash do contrato assinado.",
-  "La suscripción se habilita cuando el desarrollador emite tu AccessGrant (NDA + KYC/{sys} aprobado).":
-    "A subscrição é habilitada quando a incorporadora emite seu AccessGrant (NDA + KYC/{sys} aprovado).",
+  "La suscripción se habilita cuando el Oficial de Cumplimiento aprueba tu verificación KYC/{sys} (Paso 3).":
+    "A subscrição é habilitada quando o Oficial de Compliance aprova sua verificação KYC/{sys} (Etapa 3).",
   "La suscripción ya no está MINT_PENDING.": "A subscrição não está mais MINT_PENDING.",
   "La transacción {hash} no corresponde a la operación en cola (contrato o calldata distintos).":
     "A transação {hash} não corresponde à operação na fila (contrato ou calldata diferentes).",
@@ -905,8 +944,6 @@ const catalog: Catalog = {
   "Las contraseñas no coinciden.": "As senhas não coincidem.",
   "Las unidades reservadas se entregan en tu wallet cuando el desarrollador emite los tokens.":
     "As unidades reservadas são entregues na sua wallet quando a incorporadora emite os tokens.",
-  "LeadReferral para la atribución, ConsentRecord con hash SHA-256, AccessGrant con Signed URLs y tokens OpenZeppelin con whitelist.":
-    "LeadReferral para a atribuição, ConsentRecord com hash SHA-256, AccessGrant com Signed URLs e tokens OpenZeppelin com whitelist.",
   "LeadReferral Token generado: {token}": "LeadReferral Token gerado: {token}",
   "Leads totales": "Total de leads",
   Legal: "Jurídico",
@@ -923,8 +960,8 @@ const catalog: Catalog = {
   "Listas restrictivas": "Listas restritivas",
   "Live Calldata & Event Log": "Log de Calldata e Eventos ao Vivo",
   Logo: "Logo",
-  "Los datos consolidados sólo están disponibles en admin.rwaxi.com.":
-    "Os dados consolidados só estão disponíveis em admin.rwaxi.com.",
+  "Los datos consolidados sólo están disponibles en admin.rwaxirealestate.com.":
+    "Os dados consolidados só estão disponíveis em admin.rwaxirealestate.com.",
   "Los documentos KYC sólo los abren el Oficial de Cumplimiento y el Administrador del tenant.":
     "Os documentos KYC só podem ser abertos pelo Oficial de Compliance e pelo Administrador do tenant.",
   "Los referidos sólo se emiten desde la vitrina.": "As indicações só são emitidas pela vitrine.",
@@ -986,6 +1023,7 @@ const catalog: Catalog = {
     one: "Nada executável: {blocked} transação bloqueada",
     other: "Nada executável: {blocked} transações bloqueadas",
   },
+  "Naturaleza tecnológica B2B y no custodia": "Natureza tecnológica B2B e sem custódia",
   "NDA · Paso 1 (Ley 527 de 1999)": "NDA · Etapa 1 (Lei 527 de 1999)",
   "NDA firmado": "NDA assinado",
   "NDA firmado · ConsentRecord registrado": "NDA assinado · ConsentRecord registrado",
@@ -999,6 +1037,8 @@ const catalog: Catalog = {
   No: "Não",
   "no desplegado": "não implantado",
   "No es PEP": "Não é PEP",
+  "No es solo finca raíz fraccionada. Es una Inversión Supercargada.":
+    "Não é só imóvel fracionado. É um Investimento Turbinado.",
   "No existe la distribución de ese distributionId.": "Não existe distribuição com esse distributionId.",
   "No existe la suscripción de ese subscriptionId.": "Não existe subscrição com esse subscriptionId.",
   "No hay proyectos publicados en esta etapa en este momento.":
@@ -1008,6 +1048,8 @@ const catalog: Catalog = {
   "No hay transacciones pendientes para este tenant.": "Não há transações pendentes para este tenant.",
   "No hay unidades suficientes: quedan {n}.": "Não há unidades suficientes: restam {n}.",
   "No iniciado": "Não iniciado",
+  "No necesitas ser experto en criptomonedas. En esta plataforma, la blockchain funciona como un libro contable incorruptible: sella con prueba matemática que los documentos del Data Room no han sido alterados, certifica que solo inversionistas verificados participan en el proyecto y registra tu participación y tus derechos económicos sin depender de hojas de cálculo manuales.":
+    "Você não precisa ser especialista em criptomoedas. Nesta plataforma, a blockchain funciona como um livro-razão inviolável: comprova matematicamente que os documentos do Data Room não foram alterados, certifica que apenas investidores verificados participam do projeto e registra sua participação e seus direitos econômicos sem depender de planilhas manuais.",
   "No se detectó una wallet EIP-1193 en este navegador (MetaMask, Rabby, Frame…).":
     "Nenhuma wallet EIP-1193 foi detectada neste navegador (MetaMask, Rabby, Frame…).",
   "No se encontró el archivo subido: vuelve a cargarlo.": "O arquivo enviado não foi encontrado: envie-o novamente.",
@@ -1075,7 +1117,6 @@ const catalog: Catalog = {
   "Ocultar prueba": "Ocultar prova",
   "Oferente responsable: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Vehículo emisor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Régimen de cumplimiento: {{COMPLIANCE_REGIME}}. RWAXI actúa solo como proveedor de infraestructura tecnológica: no es parte de la oferta, no recibe recursos y no controla las unidades digitales emitidas.":
     "Ofertante responsável: {{ORGANIZATION_LEGAL_NAME}} · NIT {{ORGANIZATION_TAX_ID}}. Veículo emissor: {{LEGAL_ENTITY_NAME}} ({{LEGAL_WRAPPER_TYPE}}). Regime de compliance: {{COMPLIANCE_REGIME}}. A RWAXI atua apenas como provedora de infraestrutura tecnológica: não é parte da oferta, não recebe recursos e não controla as unidades digitais emitidas.",
-  "Oferentes publicados": "Ofertantes publicados",
   Oferta: "Oferta",
   "Oferta inválida.": "Oferta inválida.",
   "Oferta no encontrada en este tenant.": "Oferta não encontrada neste tenant.",
@@ -1098,7 +1139,7 @@ const catalog: Catalog = {
     "Conceder MINTER_ROLE ao emissor é assinado pela própria wallet dele em modo RPC: não se aplica em simulação.",
   "Otra actividad": "Outra atividade",
   "Otra causal del sistema de cumplimiento del desarrollador.":
-    "Outra causa prevista no sistema de compliance do desenvolvedor.",
+    "Outra causa prevista no sistema de compliance da incorporadora.",
   "Otra ejecución confirmó esta transacción primero.": "Outra execução confirmou esta transação primeiro.",
   "Otra ejecución RPC tomó esta transacción.": "Outra execução RPC assumiu esta transação.",
   "Otra ejecución tomó ese nonce o tx hash primero; vuelve a intentarlo.":
@@ -1110,6 +1151,7 @@ const catalog: Catalog = {
   "Otro usuario ya concilió este pago; recarga la bandeja.":
     "Outro usuário já conciliou este pagamento; recarregue a caixa de entrada.",
   "p. ej. {example}": "ex.: {example}",
+  "Paga al vehículo del proyecto y recibe tus tokens": "Pague ao veículo do projeto e receba seus tokens",
   "Pago a RWAXI registrado": "Pagamento à RWAXI registrado",
   "Pago conciliado ({reference}) · {units} unidades de {name}: mintSubscription() en cola":
     "Pagamento conciliado ({reference}) · {units} unidade(s) de {name}: mintSubscription() na fila",
@@ -1127,17 +1169,19 @@ const catalog: Catalog = {
   "País de residencia no admitido.": "País de residência não admitido.",
   Panamá: "Panamá",
   "Pantalla completa": "Tela cheia",
+  Parcial: "Parcial",
   "Parpadea dos veces": "Pisque duas vezes",
   Participación: "Participação",
   Pasaporte: "Passaporte",
   "Pasaporte · página de datos": "Passaporte · página de dados",
+  "Paso {n}": "Etapa {n}",
   "PASO {n}": "ETAPA {n}",
   "Paso {n} / 04": "Etapa {n} / 04",
   "PASO {n} / 4": "ETAPA {n} / 4",
   "Paso {n} de 4 · {step}": "Etapa {n} de 4 · {step}",
   "Paso 1 · Acuerdo de Confidencialidad (NDA)": "Etapa 1 · Acordo de Confidencialidade (NDA)",
-  "Paso 2 · Verificación KYC/AML + {regime}": "Etapa 2 · Verificação KYC/AML + {regime}",
-  "Paso 3 · Data Room (AccessGrant)": "Etapa 3 · Data Room (AccessGrant)",
+  "Paso 2 · Data Room inmobiliario": "Etapa 2 · Data Room imobiliário",
+  "Paso 3 · Verificación KYC/AML + {regime}": "Etapa 3 · Verificação KYC/AML + {regime}",
   "Paso 4 · Suscripción de tokens y portafolio": "Etapa 4 · Subscrição de tokens e carteira",
   "Patrimonio Autónomo / Encargo Fiduciario": "Patrimônio Autônomo / Encargo Fiduciário",
   "pausado por el emisor": "pausado pelo emissor",
@@ -1190,6 +1234,7 @@ const catalog: Catalog = {
   "Por renta": "Renda de aluguel",
   "Por renta · desde mes {month}": "Renda de aluguel · a partir do mês {month}",
   "por revocación del KYC": "por revogação do KYC",
+  "Portabilidad y Estándar Abierto No-Custodial": "Portabilidade e Padrão Aberto Não Custodial",
   "Portada del video: {title}": "Capa do vídeo: {title}",
   "Portada personalizada": "Capa personalizada",
   Portal: "Portal",
@@ -1246,6 +1291,7 @@ const catalog: Catalog = {
   "Programa de Transparencia y Ética Empresarial (PTEE)":
     "Programa de Transparência e Ética Empresarial (PTEE)",
   "Progreso del video": "Progresso do vídeo",
+  "Propiedad Programable y Rendimientos Exactos": "Propriedade Programável e Rendimentos Exatos",
   "Proveedor detectado: {provider}": "Provedor detectado: {provider}",
   Proyecto: "Projeto",
   "Proyectos publicados por desarrolladores": "Projetos publicados por incorporadoras",
@@ -1254,8 +1300,9 @@ const catalog: Catalog = {
   "Prueba de vida": "Prova de vida",
   "PTEE aceptado": "PTEE aceito",
   "Publicado en la vitrina RWAXI": "Publicada na vitrine RWAXI",
-  Público: "Público",
-  "Quién ofrece, quién responde y qué hace RWAXI": "Quem oferta, quem responde e o que faz a RWAXI",
+  "Quiero invertir en este proyecto — Completar KYC y Suscribir":
+    "Quero investir neste projeto — Concluir KYC e Subscrever",
+  "Quiero invertir en este proyecto — Suscribir unidades": "Quero investir neste projeto — Subscrever unidades",
   Quitar: "Remover",
   "Quitar {name}": "Remover {name}",
   "Raíces ancladas": "Raízes ancoradas",
@@ -1264,6 +1311,8 @@ const catalog: Catalog = {
   "Raíz en cola": "Raiz na fila",
   "Rango de ingresos no admitido.": "Faixa de renda não admitida.",
   "Razón social del desarrollador (oferente)": "Razão social da incorporadora (ofertante)",
+  "Realizas tu aporte directamente a las cuentas bancarias o fiduciarias autorizadas del proyecto. Al conciliarse tu pago, el contrato inteligente emite tus tokens directamente en tu billetera digital (wallet), acreditando tu participación y habilitando el cobro de tus rendimientos.":
+    "Você faz seu aporte diretamente nas contas bancárias ou fiduciárias autorizadas do projeto. Assim que seu pagamento é conciliado, o contrato inteligente emite seus tokens direto na sua carteira digital (wallet), registrando sua participação e habilitando o recebimento dos seus rendimentos.",
   "Reanudar token · unpause()": "Reativar token · unpause()",
   rechazado: "rejeitado",
   Rechazado: "Rejeitado",
@@ -1313,9 +1362,10 @@ const catalog: Catalog = {
   "Reproducir video": "Reproduzir vídeo",
   "Requerido para ver detalles reservados": "Necessário para ver os detalhes reservados",
   "Requerimiento de una autoridad competente.": "Requisição de uma autoridade competente.",
-  "Requiere AccessGrant (NDA + KYC)": "Requer AccessGrant (NDA + KYC)",
   "Requiere corrección": "Requer correção",
   "Requiere NDA": "Requer NDA",
+  "Requisito para invertir: identidad, biometría y origen de fondos":
+    "Requisito para investir: identidade, biometria e origem dos recursos",
   "reserva (token no emitido)": "reserva (token não emitido)",
   "Reserva de unidades en el registro del vehículo": "Reserva de unidades no registro do veículo",
   "Reserva hasta la emisión de tokens": "Reserva até a emissão dos tokens",
@@ -1329,18 +1379,19 @@ const catalog: Catalog = {
     "Reserva registrada · unidades: {units} (o token ainda não foi emitido)",
   "reservada (pre-venta, sin token)": "reservada (pré-venda, sem token)",
   Reservado: "Reservado",
+  "Reservado · con NDA": "Reservado · com NDA",
   "Reservas pre-venta": "Reservas de pré-venda",
   Residencia: "Residência",
   "Residente en Colombia: aplica régimen cambiario local.":
     "Residente na Colômbia: aplica-se o regime cambial local.",
   Respaldo: "Lastro",
+  "Respaldo Inmutable y Auditoría en Tiempo Real": "Lastro Imutável e Auditoria em Tempo Real",
   "Respaldo Jurídico Real.": "Respaldo Jurídico Real.",
   "Responsable del tratamiento y la debida diligencia: {name} · NIT {nit} · Oficial de Cumplimiento del desarrollador.":
     "Responsável pelo tratamento e pela due diligence: {name} · NIT {nit} · Oficial de Compliance da incorporadora.",
   "Restaurar plantilla oficial": "Restaurar modelo oficial",
   "Restricciones activas: solo wallets en la whitelist de este tenant · tope maxSupplyCap · pausable por el desarrollador · capitalización total {total}.":
     "Restrições ativas: somente wallets na whitelist deste tenant · teto maxSupplyCap · pausável pela incorporadora · capitalização total {total}.",
-  Restringido: "Restrito",
   Resumen: "Resumo",
   "Resumen de estructura del vehículo": "Resumo da estrutura do veículo",
   "Retirado de la vitrina RWAXI": "Retirada da vitrine RWAXI",
@@ -1376,10 +1427,12 @@ const catalog: Catalog = {
   "Revisar formulario": "Revisar formulário",
   "Revocación del KYC por cumplimiento: unidades liberadas": "Revogação do KYC por compliance: unidades liberadas",
   "Revocada por cumplimiento": "Revogada por compliance",
-  "revocado": "revogado",
-  "Revocado": "Revogado",
+  revocado: "revogado",
+  Revocado: "Revogado",
   "Revocar inversionista": "Revogar investidor",
   "revokeInvestor en cola": "revokeInvestor na fila",
+  "Rompe las fronteras geográficas y accede desde cualquier lugar a negocios inmobiliarios institucionales con tickets accesibles, sin trámites notariales presenciales.":
+    "Rompa as fronteiras geográficas e acesse, de qualquer lugar, negócios imobiliários institucionais com aportes acessíveis, sem trâmites presenciais em cartório.",
   "Ronda de suscripción para inversionistas elegibles, registro on-chain de la titularidad y distribuciones periódicas en USDC o transferencia bancaria.":
     "Rodada de subscrição para investidores elegíveis, registro on-chain da titularidade e distribuições periódicas em USDC ou transferência bancária.",
   "RPC · nodo configurado": "RPC · nó configurado",
@@ -1390,6 +1443,8 @@ const catalog: Catalog = {
   "RWAXI · CARGANDO TU PROCESO": "RWAXI · CARREGANDO SEU PROCESSO",
   "RWAXI actúa como canal de descubrimiento y proveedor de infraestructura tecnológica. Cada oferta, vehículo y proceso de cumplimiento es responsabilidad del desarrollador. Proyectos, cifras y entidades son ilustrativos.":
     "A RWAXI atua como canal de descoberta e provedora de infraestrutura tecnológica. Cada oferta, veículo e processo de compliance é de responsabilidade da incorporadora. Projetos, números e entidades são ilustrativos.",
+  "RWAXI es un proveedor de software como servicio (SaaS) para desarrolladores y un canal de descubrimiento. No es sociedad fiduciaria, establecimiento bancario, sociedad comisionista de bolsa ni intermediario del mercado de valores; no capta recursos del público, no recibe los aportes de los inversionistas y no custodia llaves privadas ni activos digitales.":
+    "A RWAXI é uma provedora de software como serviço (SaaS) para incorporadoras e um canal de descoberta. Não é sociedade fiduciária, instituição bancária, sociedade corretora de valores nem intermediária do mercado de valores mobiliários; não capta recursos do público, não recebe os aportes dos investidores e não custodia chaves privadas nem ativos digitais.",
   "RWAXI REAL ESTATE — COINVERSIÓN INMOBILIARIA TOKENIZADA EN COLOMBIA":
     "RWAXI REAL ESTATE — COINVESTIMENTO IMOBILIÁRIO TOKENIZADO NA COLÔMBIA",
   "RWAXI_OPERATOR_ROLE · operador RWAXI": "RWAXI_OPERATOR_ROLE · operador RWAXI",
@@ -1406,7 +1461,8 @@ const catalog: Catalog = {
     one: "Será cancelada {n} subscrição não emitida ({units} unidades voltam à oferta; {paid} com pagamento conciliado a reembolsar), o acesso dele ao Data Room será encerrado e ele será retirado da whitelist com revokeInvestor(). O investidor não verá o motivo.",
     other: "Serão canceladas {n} subscrições não emitidas ({units} unidades voltam à oferta; {paid} com pagamento conciliado a reembolsar), o acesso dele ao Data Room será encerrado e ele será retirado da whitelist com revokeInvestor(). O investidor não verá o motivo.",
   },
-  "Se habilita con NDA + KYC aprobado": "Habilitado com NDA + KYC aprovado",
+  "Se desbloquea al firmar el NDA": "Desbloqueado ao assinar o NDA",
+  "Se habilita con tu KYC aprobado": "Habilitado com seu KYC aprovado",
   "Se repartirán {amount} entre {holders} tenedor(es) en proporción a sus tokens (centavos exactos, método del mayor residuo). Cada asignación será una hoja del árbol de Merkle (SHA-256) y la raíz se anclará con anchorDistributionRoot().":
     {
       one: "Serão distribuídos {amount} a {holders} titular, na proporção de seus tokens (centavos exatos, método dos maiores restos). Cada alocação será uma folha da árvore de Merkle (SHA-256) e a raiz será ancorada com anchorDistributionRoot().",
@@ -1443,6 +1499,7 @@ const catalog: Catalog = {
   "SHA-256 expediente": "SHA-256 do dossiê",
   "SHA-256 factura": "SHA-256 da fatura",
   "SHA-256 pago": "SHA-256 do pagamento",
+  "SHA-256 verificado en tu navegador": "SHA-256 verificado no seu navegador",
   Sí: "Sim",
   "SHA-256 solicitud": "SHA-256 da solicitação",
   "Si ese correo tiene un proceso en este portal, te enviamos un código de 6 dígitos. Vence en 10 minutos.":
@@ -1478,6 +1535,8 @@ const catalog: Catalog = {
   "Sin configurar": "Não configurado",
   "Sin emitir": "Não emitido",
   "sin iniciar": "não iniciado",
+  "Sin oferta pública no autorizada ni asesoría financiera":
+    "Sem oferta pública não autorizada nem assessoria financeira",
   "Sin tokens MINTED en wallets de inversionistas.": "Sem tokens MINTED em wallets de investidores.",
   "Sin transacciones para este tenant.": "Nenhuma transação para este tenant.",
   "Sin tu nombre, tu correo, el nombre de la empresa ni «rwaxi»":
@@ -1512,6 +1571,7 @@ const catalog: Catalog = {
   "Subir y verificar documento": "Enviar e verificar documento",
   "super._update(): saldo actualizado": "super._update(): saldo atualizado",
   "Supera 3:00. Recórtalo antes de publicar.": "Excede 3:00. Encurte-o antes de publicar.",
+  "Supera el proceso KYC y suscribe tus unidades": "Seja aprovado no KYC e subscreva suas unidades",
   "Superintendencia de Sociedades": "Superintendência de Sociedades (Supersociedades)",
   "Superintendencia Financiera": "Superintendência Financeira da Colômbia",
   "Suscribir este monto": "Subscrever este valor",
@@ -1562,6 +1622,8 @@ const catalog: Catalog = {
   },
   "Título del video": "Título do vídeo",
   "to (nueva wallet del titular)": "to (nova wallet do titular)",
+  "Toda inversión inmobiliaria implica riesgos, incluida la pérdida parcial o total del capital y una liquidez limitada. Las tasas de TIR, distribución y valorización proyectadas son estimaciones de cada desarrollador y no garantizan rendimientos fijos ni futuros.":
+    "Todo investimento imobiliário envolve riscos, incluindo a perda parcial ou total do capital e a liquidez limitada. As taxas projetadas de TIR, distribuição e valorização são estimativas de cada incorporadora e não garantem rendimentos fixos nem futuros.",
   Todas: "Todas",
   Todos: "Todos",
   "Todos los tenants": "Todos os tenants",
@@ -1577,6 +1639,7 @@ const catalog: Catalog = {
   "Transacción on-chain confirmada": "Transação on-chain confirmada",
   "Transferencia de tokens a tu wallet": "Transferência de tokens para sua wallet",
   "Tratamiento de Datos Personales": "Tratamento de Dados Pessoais",
+  "Trazabilidad on-chain en tiempo real": "Rastreabilidade on-chain em tempo real",
   "Tu acceso venció. Vuelve a escribir tu contraseña.": "Seu acesso expirou. Digite sua senha novamente.",
   "Tu código de verificación es {code}. Vence en 10 minutos y sirve una sola vez.":
     "Seu código de verificação é {code}. Ele vence em 10 minutos e só pode ser usado uma vez.",
@@ -1601,9 +1664,15 @@ const catalog: Catalog = {
   "Tu usuario no tiene una wallet registrada en este tenant: no hay una cuenta autorizada para firmar.":
     "Seu usuário não tem uma wallet registrada neste tenant: não há conta autorizada para assinar.",
   "Tu verificación fue revocada por el Oficial de Cumplimiento: comunícate con el desarrollador.":
-    "Sua verificação foi revogada pelo Oficial de Compliance: entre em contato com o desenvolvedor.",
+    "Sua verificação foi revogada pelo Oficial de Compliance: entre em contato com a incorporadora.",
+  "Tu verificación fue revocada: el acceso al Data Room de este proyecto quedó cerrado.":
+    "Sua verificação foi revogada: o acesso ao Data Room deste projeto foi encerrado.",
+  "Tu verificación fue revocada: el Data Room de este proyecto ya no está disponible.":
+    "Sua verificação foi revogada: o Data Room deste projeto não está mais disponível.",
   "Tu verificación fue revocada: no se reciben nuevas suscripciones.":
     "Sua verificação foi revogada: não são aceitas novas subscrições.",
+  "Tu verificación ya está aprobada: elige cuántas unidades quieres y firma tu acuerdo de suscripción.":
+    "Sua verificação já foi aprovada: escolha quantas unidades deseja e assine seu contrato de subscrição.",
   "Tu wallet {wallet} no tiene MINTER_ROLE en el token: el mint lo envía el operador RWAXI («Firmar y ejecutar»), salvo que el emisor otorgue MINTER_ROLE a su propia wallet.":
     "Sua wallet {wallet} não tem MINTER_ROLE no token: o mint é enviado pelo operador RWAXI (“Assinar e executar”), a menos que o emissor conceda MINTER_ROLE à sua própria wallet.",
   "Tu wallet está congelada por una decisión de cumplimiento: no se reciben nuevas suscripciones.":
@@ -1630,6 +1699,10 @@ const catalog: Catalog = {
     "Sua wallet está com a conta {account} selecionada; esta operação é assinada por {expected}. Troque-a na sua wallet e tente novamente.",
   "Tus datos se encuentran en revisión por el Oficial de Cumplimiento de {name} (Auditoría estimada: 15 minutos).":
     "Seus dados estão em análise pelo Oficial de Compliance de {name} (auditoria estimada: 15 minutos).",
+  "Tus participaciones viven en tu propia wallet bajo estándares abiertos (ERC-20 con registro de cumplimiento), listas para transferencias autorizadas entre inversionistas en lista blanca sin semanas de papeleo.":
+    "Suas participações ficam na sua própria wallet, sob padrões abertos (ERC-20 com registro de compliance), prontas para transferências autorizadas entre investidores na whitelist, sem semanas de papelada.",
+  "Tus tokens representan tu posición verificada en el proyecto. Cuando se declaran distribuciones de rentas o valorización, el cálculo de tu participación es exacto y auditable criptográficamente.":
+    "Seus tokens representam sua posição verificada no projeto. Quando são declaradas distribuições de renda ou de valorização, o cálculo da sua participação é exato e auditável criptograficamente.",
   "Tx de emisión": "Tx de emissão",
   "tx hash del emisor (0x…)": "tx hash do emissor (0x…)",
   "tx hash del Oficial (0x…)": "tx hash do Oficial (0x…)",
@@ -1645,8 +1718,6 @@ const catalog: Catalog = {
   "Últimas confirmadas": "Últimas confirmadas",
   "Último congelamiento:": "Último congelamento:",
   "Último descongelamiento:": "Último descongelamento:",
-  "Un canal de descubrimiento, un portal por desarrollador":
-    "Um canal de descoberta, um portal por incorporadora",
   "Una suscripción del inversionista cambió mientras se revocaba; vuelve a intentarlo.":
     "Uma subscrição do investidor mudou durante a revogação; tente novamente.",
   "Una transacción en cola del inversionista cambió mientras se revocaba; vuelve a intentarlo.":
@@ -1712,7 +1783,6 @@ const catalog: Catalog = {
   "Video Pitch del Proyecto (Máx. 3:00 min - Alta Definición)":
     "Pitch em Vídeo do Projeto (Máx. 3:00 min - Alta Definição)",
   "Video y fotografías del proyecto": "Vídeo e fotografias do projeto",
-  Vigencia: "Vigência",
   "Vimeo Pro, Cloudflare Stream o YouTube no listado.":
     "Vimeo Pro, Cloudflare Stream ou YouTube não listado.",
   Visitante: "Visitante",
@@ -1720,8 +1790,8 @@ const catalog: Catalog = {
   "Vista interactiva": "Visualização interativa",
   "Vista interactiva de ejemplo": "Visualização interativa de exemplo",
   "Vista previa": "Pré-visualização",
-  "Vista previa de demostración. En producción el archivo se sirve solo a través de la Signed URL y cada acceso queda registrado en el AccessGrant.":
-    "Pré-visualização de demonstração. Em produção, o arquivo é disponibilizado apenas por meio da Signed URL e cada acesso fica registrado no AccessGrant.",
+  "Vista previa de demostración. En producción el archivo se sirve solo a través de la Signed URL y cada acceso queda registrado en la bitácora de auditoría del desarrollador.":
+    "Pré-visualização de demonstração. Em produção, o arquivo é disponibilizado apenas por meio da Signed URL e cada acesso fica registrado na trilha de auditoria da incorporadora.",
   "Vista previa en vivo": "Pré-visualização ao vivo",
   "Vista previa: {label}": "Pré-visualização: {label}",
   "Vitrina pública": "Vitrine pública",
@@ -1741,14 +1811,12 @@ const catalog: Catalog = {
   "Whitelist on-chain en cola: ChainTransaction PENDING, a la espera de la firma del Oficial de Cumplimiento en RwaxiComplianceRegistry.approveInvestor().":
     "Whitelist on-chain na fila: ChainTransaction PENDING, aguardando a assinatura do Oficial de Compliance em RwaxiComplianceRegistry.approveInvestor().",
   "whitelist retirada antes de enviarse": "whitelist retirada antes de ser enviada",
-  "www.rwaxi.com es una vitrina de descubrimiento e infraestructura tecnológica. RWAXI no capta recursos ni ofrece valores.":
-    "www.rwaxi.com é uma vitrine de descoberta e infraestrutura tecnológica. A RWAXI não capta recursos nem oferta valores mobiliários.",
   "Ya existe una distribución de ese periodo para esta oferta.":
     "Já existe uma distribuição desse período para esta oferta.",
   "Ya hay un setFrozen() en cola para esta wallet: fírmalo o espera su confirmación.":
     "Já há um setFrozen() na fila para esta wallet: assine-o ou aguarde sua confirmação.",
-  "Ya puedes ver los detalles reservados del proyecto. El siguiente paso es tu verificación KYC/AML con el Oficial de Cumplimiento del desarrollador.":
-    "Você já pode ver os detalhes reservados do projeto. A próxima etapa é sua verificação KYC/AML com o Oficial de Compliance da incorporadora.",
+  "Ya tienes acceso al 100 % del Data Room del proyecto (Paso 2). Cuando decidas invertir, completa tu verificación KYC/AML con el Oficial de Cumplimiento del desarrollador (Paso 3).":
+    "Você já tem acesso a 100% do Data Room do projeto (Etapa 2). Quando decidir investir, conclua sua verificação KYC/AML com o Oficial de Compliance da incorporadora (Etapa 3).",
   "YouTube (no listado)": "YouTube (não listado)",
   "Zona Común": "Área Comum",
   "Cada raíz de distribución la ancla el emisor (DISTRIBUTION_ROLE) una sola vez y nunca vacía (DistributionAlreadyAnchored, EmptyDistributionRoot).":
