@@ -393,6 +393,11 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   cortos originales y lleva `// @ts-nocheck`. Al tocar un módulo, tiparlo y quitar el pragma; no reescribir en bloque.
   El estado de demo vive en `app/_components/shell/demo-provider.tsx` (antes `App`) y se renderiza sólo en cliente
   (`ClientOnly`) hasta migrar cada pantalla a datos de `@rwaxi/database` vía server actions.
+  **En un build de producción** (`IS_PRODUCTION_BUILD`, `app/_lib/runtime.ts`: `NODE_ENV` que Next fija al compilar,
+  ninguna variable de entorno lo cambia) no existe el andamiaje de simulación: ni la barra «Simulación de
+  arquitectura» (`EnvironmentFrame`), ni los proyectos ilustrativos del prototipo como respaldo del catálogo o del hero,
+  ni el aviso «Catálogo en vivo no disponible» (el servidor ni siquiera lo envía): si la base no responde, la vitrina
+  queda sin proyectos y el fallo va al log del servidor. Fuera de producción todo sigue igual (las suites E2E lo usan).
   Migrado a BD: catálogo de la vitrina, portal del inversionista (Lead, NDA, KYC, AccessGrant, suscripción y
   portafolio), pestañas "Cumplimiento y Leads" y "Suscripciones y Pagos" del backoffice, Inspector pestaña 4 (cola
   `ChainTransaction` y su ejecución), pestaña "Distribuciones y Rendimientos" del backoffice y su reflejo en el

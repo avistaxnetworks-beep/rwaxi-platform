@@ -1,17 +1,38 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
 import { useMemo } from "react";
+import type { Currency } from "@/app/_components/portal/portal-types";
 import { CurrencyToggle } from "@/app/_components/ui/currency-toggle";
 import { Icon } from "@/app/_components/ui/icon";
 import { Num } from "@/app/_i18n/num";
 import { useI18n } from "@/app/_i18n/provider";
 import { PROJECTS } from "@/app/_lib/data/projects";
 import { alt, money } from "@/app/_lib/format";
+import { IS_PRODUCTION_BUILD } from "@/app/_lib/runtime";
 
-export function Hero({ view: e, go: a, currency: t, setCurrency: o, projects: P }) {
+/** What the hero's figures read from each project: target raise and minimum ticket (USD), committed share (0–1). */
+interface HeroProject {
+  raise: number;
+  subscribed: number;
+  ticket: number;
+}
+
+export function Hero({
+  view: e,
+  currency: t,
+  setCurrency: o,
+  projects: P,
+}: {
+  view: string;
+  go: () => void;
+  currency: Currency;
+  setCurrency: (currency: Currency) => void;
+  projects?: HeroProject[];
+}) {
   const { tr } = useI18n();
-  // Live catalogue when provided (raise × committed share = capital committed).
-  const L = P && P.length ? P : PROJECTS;
+  // Live catalogue when provided (raise × committed share = capital committed). Outside production an empty or
+  // missing list falls back to the prototype's projects; a production build never shows illustrative figures.
+  const L: HeroProject[] = IS_PRODUCTION_BUILD ? (P ?? []) : P && P.length ? P : PROJECTS;
+  const minTicket = L.length ? Math.min(...L.map((i) => i.ticket)) : null;
   const n = useMemo(() => {
       const i = L.reduce((c, d) => c + d.raise, 0),
         s = L.reduce((c, d) => c + d.raise * d.subscribed, 0);
@@ -119,10 +140,16 @@ export function Hero({ view: e, go: a, currency: t, setCurrency: o, projects: P 
                   {tr("Ticket desde")}
                 </dt>
                 <dd className="font-mono text-[15px] text-end">
-                  <Num>{money(Math.min(...L.map((i) => i.ticket)), t)}</Num>
-                  <span className="block text-[11px] text-[#A79FC0]">
-                    <Num>{alt(Math.min(...L.map((i) => i.ticket)), t)}</Num>
-                  </span>
+                  {minTicket === null ? (
+                    "—"
+                  ) : (
+                    <>
+                      <Num>{money(minTicket, t, false)}</Num>
+                      <span className="block text-[11px] text-[#A79FC0]">
+                        <Num>{alt(minTicket, t, false)}</Num>
+                      </span>
+                    </>
+                  )}
                 </dd>
               </div>
               <div className="bg-rxDeep p-3 col-span-2">

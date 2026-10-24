@@ -9,6 +9,7 @@ import { SignedDocModal } from "@/app/_components/portal/signed-doc-modal";
 import { Icon } from "@/app/_components/ui/icon";
 import { TenantLanguages, useI18n } from "@/app/_i18n/provider";
 import { byId } from "@/app/_lib/data/projects";
+import { IS_PRODUCTION_BUILD } from "@/app/_lib/runtime";
 import { useDemo, type EnvId } from "./demo-provider";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the subscription draft comes from the untyped prototype */
@@ -21,6 +22,8 @@ export interface SubscriptionHandler {
 /**
  * Chrome shared by the 4 environments: architecture bar, on-chain inspector, modals and toast.
  * Its root carries the language of the environment (lang, and dir="rtl" for Arabic in the vitrina).
+ * The architecture bar (the prototype's switch between environments) never renders in a production build; the
+ * backoffice and the console keep their own button to the inspector.
  */
 export function EnvironmentFrame({
   env,
@@ -38,16 +41,18 @@ export function EnvironmentFrame({
 
   return (
     <div className="min-h-full flex flex-col" lang={lang} dir={dir} data-env={env}>
-      <ArchBar
-        env={env}
-        setEnv={(next: EnvId) => d.navigate(next)}
-        tenantId={d.tenantId}
-        setTenantId={(id: string) =>
-          env === "portal" || env === "backoffice" ? d.navigate(env, id) : d.setTenantId(id)
-        }
-        tenants={d.tenants}
-        openInspector={d.openInspector}
-      />
+      {!IS_PRODUCTION_BUILD && (
+        <ArchBar
+          env={env}
+          setEnv={(next: EnvId) => d.navigate(next)}
+          tenantId={d.tenantId}
+          setTenantId={(id: string) =>
+            env === "portal" || env === "backoffice" ? d.navigate(env, id) : d.setTenantId(id)
+          }
+          tenants={d.tenants}
+          openInspector={d.openInspector}
+        />
+      )}
       {children}
       <TenantLanguages active={d.inspector.open}>
         <OnChainInspector

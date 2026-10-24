@@ -9,6 +9,7 @@ import { Catalog } from "@/app/_components/vitrina/catalog";
 import { Icon } from "@/app/_components/ui/icon";
 import { useI18n } from "@/app/_i18n/provider";
 import { PROJECTS } from "@/app/_lib/data/projects";
+import { IS_PRODUCTION_BUILD } from "@/app/_lib/runtime";
 import { issueReferral } from "../actions";
 import type { PublicCatalogResult } from "../_lib/catalog";
 import { projectIdOf, toVitrinaDeveloper, toVitrinaProject } from "@/app/_lib/offering-view";
@@ -23,10 +24,11 @@ export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {
   const { locale, tr } = useI18n();
 
   // Live catalogue: projects and developers come from rwaxi_public_offerings(), with each offering's
-  // commercial copy in the visitor's language; the prototype data is only a fallback when the
-  // database cannot be reached.
+  // commercial copy in the visitor's language. When the database cannot be reached, the prototype data is a
+  // fallback (with a notice) outside production only: a production build shows no project rather than
+  // illustrative ones, and no notice.
   const { projects, developers } = useMemo(() => {
-    if (!catalog.ok) return { projects: PROJECTS as any[], developers: d.tenants };
+    if (!catalog.ok) return { projects: IS_PRODUCTION_BUILD ? [] : (PROJECTS as any[]), developers: d.tenants };
     const live: Record<string, any> = {};
     for (const o of catalog.offerings) live[projectIdOf(o)] = toVitrinaDeveloper(o, d.tenants[projectIdOf(o)]);
     return { projects: catalog.offerings.map((o) => toVitrinaProject(o, locale)), developers: { ...d.tenants, ...live } };
@@ -50,7 +52,7 @@ export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {
   return (
     <EnvironmentFrame env="vitrina">
       <VitrinaNav />
-      {!catalog.ok && (
+      {!catalog.ok && !IS_PRODUCTION_BUILD && (
         <div role="alert" className="bg-goldTint text-goldInk border-b border-line">
           <p className="gutter max-w-[1240px] mx-auto py-3 text-[12.5px] flex gap-2 items-center">
             <Icon name="AlertTriangle" size={15} />
@@ -64,7 +66,7 @@ export function VitrinaScreen({ catalog }: { catalog: PublicCatalogResult }) {
           id="oportunidades"
           className="scroll-mt-20"
           data-vitrina-section="oportunidades"
-          data-live-catalog={catalog.ok ? "neon" : "prototipo"}
+          data-live-catalog={catalog.ok ? "neon" : IS_PRODUCTION_BUILD ? "no-disponible" : "prototipo"}
         >
           <Catalog
             photosFor={d.photosFor}
