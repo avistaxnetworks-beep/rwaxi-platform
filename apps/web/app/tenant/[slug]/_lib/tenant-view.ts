@@ -24,7 +24,27 @@ export async function loadDbTenantView(slug: string): Promise<DbTenantView | nul
   if (!resolved || resolved.slug !== slug) return null;
   const db = forTenant(resolved.id);
   const [org, offering] = await Promise.all([
-    db.organization.findUnique({ where: { id: resolved.id } }),
+    // Only what the portal shows: what a server component awaits can reach the browser (React's development debug
+    // info serializes it), and RWAXI's commercial terms with the developer are never the investor's to see.
+    db.organization.findUnique({
+      where: { id: resolved.id },
+      select: {
+        slug: true,
+        displayName: true,
+        legalName: true,
+        brandColor: true,
+        portalStatus: true,
+        published: true,
+        taxId: true,
+        customDomain: true,
+        domainStatus: true,
+        complianceRegime: true,
+        complianceContactEmail: true,
+        complianceTemplate: true,
+        ndaTemplate: true,
+        onboardedAt: true,
+      },
+    }),
     db.offering.findFirst({
       ...PORTAL_OFFERING,
       include: { token: true, documents: { orderBy: [{ folder: "asc" }, { uploadedAt: "asc" }, { name: "asc" }] } },

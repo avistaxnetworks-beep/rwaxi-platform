@@ -1,3 +1,4 @@
+import { keccak256, toHex } from "viem";
 import type { ChainTransaction, Prisma } from "@rwaxi/database";
 import { reason, type Reason } from "@/app/_i18n/marks";
 import { interpolate } from "@/app/_i18n/translate";
@@ -14,12 +15,23 @@ import { calldataOf, walletOf } from "./chain-queue";
  *   RwaxiPropertyToken       mintSubscription → SubscriptionAlreadyProcessed, SupplyCapExceeded,
  *                            EnforcedPause and, in _update, the receiver's isEligible();
  *                            anchorDistributionRoot → EmptyDistributionRoot, DistributionAlreadyAnchored;
- *                            updateDataRoomMerkleRoot → in creation order per token.
+ *                            updateDataRoomMerkleRoot → in creation order per token;
+ *                            grantRole → only MINTER_ROLE, once per wallet (the issuer's own: checked where it is
+ *                            queued and where its wallet signs it).
  *   RwaxiTenantFactory       deployTenantRegistry → TenantAlreadyRegistered (platform console only).
  */
-export const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
+/** Calls of the tenant's RwaxiComplianceRegistry (the compliance officer signs them). */
+export const REGISTRY_KIND_LIST = ["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"] as const;
+export const REGISTRY_KINDS = new Set<string>(REGISTRY_KIND_LIST);
 /** Calls the tenant signs with its own keys (compliance officer, issuer): RWAXI never holds those roles. */
-export const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED"]);
+export const TENANT_SIGNED_KINDS = new Set([
+  ...REGISTRY_KINDS,
+  "DISTRIBUTION_ROOT_ANCHORED",
+  "DATA_ROOM_ROOT_ANCHORED",
+  "MINTER_ROLE_GRANTED",
+]);
+/** keccak256("MINTER_ROLE"): RwaxiPropertyToken.MINTER_ROLE */
+export const MINTER_ROLE_ID = keccak256(toHex("MINTER_ROLE"));
 /** Who asks to execute: the tenant's backoffice, or RWAXI's platform console (RWAXI_OPERATOR_ROLE calls). */
 export type ExecutionOrigin = "tenant" | "platform";
 
@@ -170,6 +182,20 @@ export function blockerReason(tx: ChainTransaction, state: ChainState, origin: E
           t.createdAt < tx.createdAt,
       );
       if (earlier) return reason("Prelación: hay un updateDataRoomMerkleRoot() anterior pendiente para este token.");
+      return null;
+    }
+
+    case "MINTER_ROLE_GRANTED": {
+      if (lower(args.role) !== MINTER_ROLE_ID) return reason("Desde la cola sólo se otorga MINTER_ROLE.");
+      const account = lower(args.account);
+      const token = state.tokens.find((k) => lower(k.contractAddress) === lower(tx.contractAddress));
+      if (!token || token.status === "NOT_DEPLOYED" || token.status === "DEPLOYING") return reason("El token destino no está desplegado.");
+      const sameGrant = (t: ChainTransaction) =>
+        t.kind === "MINTER_ROLE_GRANTED" && lower(t.contractAddress) === lower(tx.contractAddress) && lower(argsOf(t.args).account) === account;
+      if (state.txs.some((t) => t.id !== tx.id && t.status === "PENDING" && sameGrant(t) && t.createdAt < tx.createdAt)) {
+        return reason("Prelación: ya hay un grantRole(MINTER_ROLE) pendiente para esa wallet.");
+      }
+      if (state.txs.some((t) => t.status === "CONFIRMED" && sameGrant(t))) return reason("Esa wallet ya tiene MINTER_ROLE en el token.");
       return null;
     }
 

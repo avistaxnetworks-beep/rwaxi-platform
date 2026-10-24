@@ -2,7 +2,7 @@
 // Field names follow the prototype's `journey` so the existing panels render them unchanged.
 import type { OfferingTranslations } from "@rwaxi/database";
 
-export type KycStatusView = "pendiente" | "aprobado" | "rechazado";
+export type KycStatusView = "pendiente" | "aprobado" | "rechazado" | "revocado";
 
 export interface PersistedLead {
   token: string;

@@ -21,14 +21,17 @@ import {
   executeChainTx,
   prepareWalletCall,
   processQueue,
+  queueIssuerMinterGrant,
   type Execution,
 } from "@/app/_lib/server/chain-executor";
+import { REGISTRY_KINDS } from "@/app/_lib/server/chain-invariants";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
 import { ROLE_LABEL, requireBackofficeSession, type BackofficeRole, type BackofficeSession } from "./_lib/session";
 import type { ActionResult, QueueRunResult, WalletConfirmResult, WalletPrepareResult } from "./_lib/types";
 
 const CUID = /^[a-z0-9]{20,40}$/i;
-const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
+/** Offering ids: cuid, or the readable ids of the demo seed (off_avista). */
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const roleFor = (kind: string): BackofficeRole => (REGISTRY_KINDS.has(kind) ? "COMPLIANCE_OFFICER" : "TENANT_ADMIN");
 
 function failure(e: unknown, tr: Translate): { ok: false; error: string } {
@@ -186,6 +189,36 @@ export async function confirmWalletTransaction(chainTxId: string, txHash: string
       };
     }
     return { ok: true, pending: false, txHash: outcome.execution.txHash, message: done(outcome.execution, tr) };
+  } catch (e) {
+    return failure(e, tr);
+  }
+}
+
+/**
+ * Optional, RPC mode: the issuer's administrator queues grantRole(MINTER_ROLE) on an offering's token for its own
+ * registered wallet, then signs it in the queue with that same wallet (DEFAULT_ADMIN_ROLE of the token). From then
+ * on it may sign that token's mints itself (EIP-1193); RWAXI's operator keeps only the MINTER_ROLE it already had.
+ */
+export async function requestIssuerMinterRole(offeringId: string): Promise<ActionResult> {
+  const tr = await requestTranslate("tenant");
+  try {
+    if (typeof offeringId !== "string" || !ID.test(offeringId)) throw new ExecutionError("Oferta inválida.");
+    const session = await requireBackofficeSession("TENANT_ADMIN");
+    const queued = await queueIssuerMinterGrant(
+      session.tenant.id,
+      offeringId,
+      await walletOfSigner(session),
+      session.reviewer,
+      await requestMeta(),
+    );
+    refresh();
+    return {
+      ok: true,
+      message: tr("grantRole(MINTER_ROLE) en cola para tu wallet {wallet} en el token de {code}: fírmalo con esa wallet en la cola on-chain.", {
+        wallet: `${queued.account.slice(0, 8)}…${queued.account.slice(-6)}`,
+        code: queued.offeringCode,
+      }),
+    };
   } catch (e) {
     return failure(e, tr);
   }

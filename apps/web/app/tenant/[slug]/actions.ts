@@ -23,8 +23,9 @@ import { REF_COOKIE, verifyReferral } from "@/app/_lib/referral";
 import { readInvestorSession, startInvestorSession } from "@/app/_lib/server/investor-session";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
+import { REGISTRY_KIND_LIST, registryEntry } from "@/app/_lib/server/chain-invariants";
 import { verifyReceipt } from "@/app/_lib/server/vault";
-import { OFFERING_STATE_SELECT, PORTAL_OFFERING, isoSeconds, offeringState, toHolding, toHoldings } from "./_lib/journey";
+import { HOLDING_SELECT, OFFERING_STATE_SELECT, PORTAL_OFFERING, isoSeconds, offeringState, toHolding, toHoldings } from "./_lib/journey";
 import type {
   KycDocument,
   KycResult,
@@ -310,6 +311,10 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
         });
         if (latest?.status === "PENDING") throw new OnboardingError("Tu expediente ya está en revisión.");
         if (latest?.status === "APPROVED") throw new OnboardingError("Tu perfil ya fue aprobado.");
+        // A revocation is the compliance officer's decision: the investor cannot reopen it from the portal.
+        if (latest?.status === "REVOKED") {
+          throw new OnboardingError("Tu verificación fue revocada por el Oficial de Cumplimiento: comunícate con el desarrollador.");
+        }
 
         const regimeKey = org.complianceRegime === "SARLAFT" ? "sarlaft" : "sagrilaft";
         const data = sanitizeKyc(input, regimeKey, tr);
@@ -471,7 +476,7 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         if (!investor) throw new OnboardingError("Tu sesión ya no es válida; firma de nuevo el NDA.");
         const org = await tx.organization.findUniqueOrThrow({
           where: { id: tenant.id },
-          select: { taxId: true },
+          select: { taxId: true, complianceRegistry: true },
         });
         const offering = await tx.offering.findFirst({ ...PORTAL_OFFERING, select: OFFERING_STATE_SELECT });
         if (!offering) throw new OnboardingError("Este portal no tiene una oferta publicada.");
@@ -485,6 +490,22 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         }
         const wallet = investor.walletAddress;
         if (!wallet || !ADDRESS.test(wallet)) throw new OnboardingError("No tienes una wallet registrada.");
+        // A wallet the compliance officer froze — or is freezing — takes no new subscription: its tokens could
+        // not be minted (isEligible = false).
+        const registryTxs = await tx.chainTransaction.findMany({
+          where: { kind: { in: [...REGISTRY_KIND_LIST] }, args: { path: ["wallet"], equals: wallet } },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        });
+        const entry = registryEntry(
+          { registry: org.complianceRegistry, txs: registryTxs, subscriptions: [], tokens: [], distributions: [] },
+          wallet.toLowerCase(),
+        );
+        const freezing = registryTxs.some(
+          (t) => t.kind === "INVESTOR_FREEZE_UPDATED" && t.status === "PENDING" && (t.args as { frozen?: unknown }).frozen === true,
+        );
+        if (entry.frozen || freezing) {
+          throw new OnboardingError("Tu wallet está congelada por una decisión de cumplimiento: no se reciben nuevas suscripciones.");
+        }
         const state = offeringState(offering);
         if (state.tokenPaused) throw new OnboardingError("El emisor pausó el token: no se pueden emitir nuevas unidades.");
         if (state.capturePaused) throw new OnboardingError(CAPTURE_PAUSED);
@@ -571,6 +592,7 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         const all = await tx.subscription.findMany({
           where: { investorId: investor.id, offeringId: offering.id },
           orderBy: { createdAt: "asc" },
+          select: HOLDING_SELECT,
         });
         const fresh = await tx.offering.findUniqueOrThrow({ where: { id: offering.id }, select: OFFERING_STATE_SELECT });
         return {

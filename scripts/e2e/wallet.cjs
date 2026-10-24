@@ -1,10 +1,12 @@
 // E2E · non-custodial signing in the browser (EIP-1193), CHAIN_EXECUTION=rpc against a local Hardhat node (run it
 // through run-rpc.cjs). The backoffice page gets an injected provider (window.ethereum) bridged to Node, where a
 // viem account of the Hardhat mnemonic signs and sends to the node — the private key never reaches the page or the
-// server. The compliance officer signs approveInvestor / revokeInvestor and the issuer's administrator the mint
-// (once it grants its own wallet MINTER_ROLE), updateDataRoomMerkleRoot and anchorDistributionRoot. The provider can
-// misbehave (wrong chain or account, rejected signature, other calldata, other contract, another signer, a revert):
-// the browser refuses before sending, or the server refuses to confirm and the queue is left as it was.
+// server. The compliance officer signs approveInvestor, setFrozen (queued from the compliance inbox) and the
+// revokeInvestor of a revocation decided there; the issuer's administrator grants its own wallet MINTER_ROLE from the
+// subscriptions desk (signed by that wallet with DEFAULT_ADMIN_ROLE: RWAXI gains no role) and then signs its mint,
+// updateDataRoomMerkleRoot and anchorDistributionRoot. The provider can misbehave (wrong chain or account, rejected
+// signature, other calldata, other contract, another signer, a revert): the browser refuses before sending, or the
+// server refuses to confirm and the queue is left as it was.
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
@@ -23,8 +25,10 @@ const {
   pdfBytes,
   fileSha256,
   merkleRoot,
+  canon,
+  sha256,
 } = lib;
-const { clickIn, fill, openBackofficeTab } = lib;
+const { clickIn, clickText, fill, openBackofficeTab, openComplianceCase, replayAction, waitToast } = lib;
 const { RPC_URL } = require("./rpc-fixtures.cjs");
 
 const SETUP = JSON.parse(process.env.E2E_RPC_SETUP || "null");
@@ -173,6 +177,7 @@ const untouched = async (id) => {
   );
 };
 const role = (name) => viem.keccak256(viem.toHex(name));
+const ZERO32 = `0x${"0".repeat(64)}`;
 const calldata = (contractAbi, functionName, args) =>
   viem.encodeFunctionData({ abi: contractAbi, functionName, args });
 
@@ -230,6 +235,11 @@ async function confirmedByWallet(label, id, wallet, signer, expectedData) {
     const w = await (await browser.createBrowserContext()).newPage();
     w.on("pageerror", (e) => console.log("PAGEERROR(W)", e.message));
     const wallet = await injectWallet(w);
+    const actions = {};
+    w.on("request", (req) => {
+      const id = req.headers()["next-action"];
+      if (req.method() === "POST" && id) actions[req.postData() ?? ""] = id;
+    });
     await lib.approveInvestor(w, "avista", investor.id);
     const approveTx = await db.chainTransaction.findFirstOrThrow({
       where: { organizationId: org.id, kind: "INVESTOR_WHITELISTED", status: "PENDING" },
@@ -396,15 +406,100 @@ async function confirmedByWallet(label, id, wallet, signer, expectedData) {
         (await untouched(mintTx.id)),
       noMinter,
     );
-    const issuer = viem.createWalletClient({ account: ACCOUNTS.admin, chain: hardhat, transport });
-    await chain.waitForTransactionReceipt({
-      hash: await issuer.writeContract({
-        address: SETUP.token,
-        abi: tokenAbi,
-        functionName: "grantRole",
-        args: [role("MINTER_ROLE"), ACCOUNTS.admin.address],
-      }),
+    // ── The issuer grants its own wallet MINTER_ROLE from the desk; that same wallet signs it ──
+    const offeringRow = await db.offering.findFirstOrThrow({ where: { organizationId: org.id } });
+    const tokenRole = (name, who) =>
+      chain.readContract({ address: SETUP.token, abi: tokenAbi, functionName: "hasRole", args: [name === "DEFAULT_ADMIN_ROLE" ? ZERO32 : role(name), who] });
+    const minterPanel = (state) => `[data-issuer-token="${offeringRow.code}"][data-minter-state="${state}"]`;
+    await openBackofficeTab(w, "avista", "Suscripciones y Pagos");
+    await w.waitForSelector(minterPanel("grantable"), { timeout: 90000 });
+    ok(
+      "panel «Firma de mint del emisor» (lectura on-chain): la wallet del Administrador tiene DEFAULT_ADMIN_ROLE y aún no MINTER_ROLE",
+      (await tokenRole("DEFAULT_ADMIN_ROLE", ACCOUNTS.admin.address)) && !(await tokenRole("MINTER_ROLE", ACCOUNTS.admin.address)),
+    );
+    await clickIn(w, `[data-issuer-token="${offeringRow.code}"]`, "Habilitar MINTER_ROLE para mi wallet");
+    await w.waitForFunction(
+      (pending) => document.querySelector(pending) || document.querySelector('[data-subscriptions-desk] > [role="alert"]'),
+      { timeout: 90000 },
+      minterPanel("pending"),
+    );
+    const grantRefused = await w.$eval('[data-subscriptions-desk] > [role="alert"]', (n) => n.textContent).catch(() => null);
+    if (grantRefused) throw new Error(`«Habilitar MINTER_ROLE» rechazado: ${grantRefused}`);
+    const grantTx = await db.chainTransaction.findFirstOrThrow({
+      where: { organizationId: org.id, kind: "MINTER_ROLE_GRANTED", status: "PENDING" },
     });
+    const grantAudit = await db.auditEvent.findFirst({ where: { action: "MINTER_ROLE_REQUESTED", entityId: grantTx.id } });
+    ok(
+      "grantRole(MINTER_ROLE, wallet registrada del Administrador) PENDING en el token, con MINTER_ROLE_REQUESTED auditado (subjectHash recalculado)",
+      grantTx.method === "grantRole(bytes32,address)" &&
+        grantTx.args.role === role("MINTER_ROLE") &&
+        grantTx.args.account === lower(ACCOUNTS.admin.address) &&
+        lower(grantTx.contractAddress) === lower(SETUP.token) &&
+        grantAudit?.payload.account === lower(ACCOUNTS.admin.address) &&
+        grantAudit.payload.signerRole === "DEFAULT_ADMIN_ROLE" &&
+        grantAudit.subjectHash ===
+          sha256(canon({ action: "MINTER_ROLE_REQUESTED", organizationId: org.id, entityId: grantTx.id, ...grantAudit.payload })),
+    );
+    const [grantBody, grantId] = Object.entries(actions).find(([body]) => body === JSON.stringify([offeringRow.id])) ?? [];
+    const twice = grantId ? await replayAction(w, grantId, JSON.parse(grantBody)) : "";
+    ok(
+      "pedirlo otra vez (acción reenviada) → rechazado: ya hay un grantRole pendiente para esa wallet",
+      /ya hay un grantRole\(MINTER_ROLE\) pendiente/.test(twice) &&
+        (await db.chainTransaction.count({ where: { organizationId: org.id, kind: "MINTER_ROLE_GRANTED" } })) === 1,
+    );
+    // A grant queued for any other account — here RWAXI's operator — is never offered for signature.
+    const forged = await db.chainTransaction.create({
+      data: {
+        organizationId: org.id,
+        offeringId: offeringRow.id,
+        network: "HARDHAT",
+        kind: "MINTER_ROLE_GRANTED",
+        contractAddress: SETUP.token,
+        method: "grantRole(bytes32,address)",
+        args: { role: role("MINTER_ROLE"), account: lower(SETUP.operator) },
+        status: "PENDING",
+      },
+    });
+    await openBackofficeTab(w, "avista", "Suscripciones y Pagos");
+    await walletClick(w, forged.id);
+    const forgedError = await walletError(w, forged.id);
+    ok(
+      "una fila grantRole(MINTER_ROLE) a favor del operador RWAXI → el servidor no pide la firma (sólo la wallet del Administrador que firma)",
+      /sólo se otorga a la wallet registrada del Administrador/.test(forgedError) &&
+        wallet.sent.length === sentBefore &&
+        (await untouched(forged.id)),
+      forgedError,
+    );
+    await db.chainTransaction.update({ where: { id: forged.id }, data: { status: "CANCELLED", error: "e2e: forged grant withdrawn" } });
+    await walletClick(w, grantTx.id);
+    await w.waitForFunction((id) => !document.querySelector(`[data-queue-item="${id}"]`), { timeout: 90000 }, grantTx.id);
+    await confirmedByWallet(
+      "grantRole(MINTER_ROLE) CONFIRMED con la tx de la wallet del Administrador (DEFAULT_ADMIN_ROLE del token)",
+      grantTx.id,
+      wallet,
+      ACCOUNTS.admin,
+      calldata(tokenAbi, "grantRole", [role("MINTER_ROLE"), ACCOUNTS.admin.address]),
+    );
+    const operatorRoles = await Promise.all(
+      ["DEFAULT_ADMIN_ROLE", "ISSUER_ADMIN_ROLE", "DATA_ROOM_ROLE", "DISTRIBUTION_ROLE", "LEGAL_ENFORCEMENT_ROLE", "COMPLIANCE_OFFICER_ROLE"].map((r) =>
+        tokenRole(r, SETUP.operator),
+      ),
+    );
+    ok(
+      "on-chain: el Administrador tiene MINTER_ROLE; RWAXI conserva sólo su MINTER_ROLE (ningún rol del emisor) y su operador no envió nada",
+      (await tokenRole("MINTER_ROLE", ACCOUNTS.admin.address)) &&
+        (await tokenRole("MINTER_ROLE", SETUP.operator)) &&
+        operatorRoles.every((held) => held === false) &&
+        (await chain.getTransactionCount({ address: SETUP.operator })) === operatorNonce,
+    );
+    await openBackofficeTab(w, "avista", "Suscripciones y Pagos");
+    await w.waitForSelector(minterPanel("minter"), { timeout: 90000 });
+    const again = grantId ? await replayAction(w, grantId, JSON.parse(grantBody)) : "";
+    ok(
+      "el panel ya muestra MINTER_ROLE en la wallet; una nueva concesión se rechaza leyendo el token",
+      /ya tiene MINTER_ROLE en el token/.test(again),
+    );
+    await w.waitForSelector(`[data-wallet-sign="${mintTx.id}"]`, { timeout: 90000 });
     await walletClick(w, mintTx.id);
     await w.waitForSelector(`tr[data-subscription="${sub.id}"][data-sub-status="MINTED"]`, {
       timeout: 90000,
@@ -417,7 +512,7 @@ async function confirmedByWallet(label, id, wallet, signer, expectedData) {
       s1.paymentEvidenceRef,
     ]);
     const { hash: mintHash, receipt: mintReceipt } = await confirmedByWallet(
-      "con MINTER_ROLE otorgado por el emisor, mintSubscription CONFIRMED desde la wallet del Administrador",
+      "con MINTER_ROLE otorgado desde la mesa, mintSubscription CONFIRMED desde la wallet del Administrador",
       mintTx.id,
       wallet,
       ACCOUNTS.admin,
@@ -554,21 +649,51 @@ async function confirmedByWallet(label, id, wallet, signer, expectedData) {
         })) === dist.merkleRoot,
     );
 
-    // ── revokeInvestor: sent while the node does not mine; the row stays claimed by its hash ──
-    // (queued as the compliance decision would queue it: revokeInvestor(wallet) against the tenant's registry)
-    const revokeTx = await db.chainTransaction.create({
-      data: {
-        organizationId: org.id,
-        network: "HARDHAT",
-        kind: "INVESTOR_REVOKED",
-        contractAddress: SETUP.registry,
-        method: "revokeInvestor(address)",
-        args: { wallet: investor.walletAddress },
-        status: "PENDING",
-      },
-    });
-    await openBackofficeTab(w, "avista", "Suscripciones y Pagos");
+    // ── setFrozen(true/false) decided in the compliance inbox, signed by the officer's wallet ──
+    const isFrozen = () => chain.readContract({ address: SETUP.registry, abi: registryAbi, functionName: "isFrozen", args: [investor.walletAddress] });
     wallet.account = ACCOUNTS.officer;
+    for (const [frozen, note, button] of [
+      [true, "Embargo judicial notificado por el juzgado: oficio 2026-0457.", "Congelar wallet (setFrozen)"],
+      [false, "Levantamiento del embargo: oficio 2026-0521 del mismo juzgado.", "Descongelar wallet (setFrozen)"],
+    ]) {
+      await openComplianceCase(w, "avista", investor.id);
+      await w.waitForSelector(`[data-freeze-form][data-frozen="${!frozen}"]`, { timeout: 30000 });
+      await fill(w, "#freeze-note", note);
+      await clickText(w, button, "[data-freeze-form]");
+      await waitToast(w, frozen ? "Congelamiento de la wallet" : "Descongelamiento de la wallet");
+      const freezeTx = await db.chainTransaction.findFirstOrThrow({
+        where: { organizationId: org.id, kind: "INVESTOR_FREEZE_UPDATED", status: "PENDING" },
+      });
+      await openBackofficeTab(w, "avista", "Suscripciones y Pagos");
+      await walletClick(w, freezeTx.id);
+      await w.waitForFunction((id) => !document.querySelector(`[data-queue-item="${id}"]`), { timeout: 90000 }, freezeTx.id);
+      await confirmedByWallet(
+        `setFrozen(wallet, ${frozen}) desde la bandeja, CONFIRMED con la tx de la wallet del Oficial`,
+        freezeTx.id,
+        wallet,
+        ACCOUNTS.officer,
+        calldata(registryAbi, "setFrozen", [investor.walletAddress, frozen]),
+      );
+      ok(`on-chain: isFrozen(wallet) = ${frozen}`, (await isFrozen()) === frozen && freezeTx.args.frozen === frozen);
+    }
+
+    // ── Revocation from the inbox; revokeInvestor sent while the node does not mine: claimed by its hash ──
+    await openComplianceCase(w, "avista", investor.id);
+    await w.waitForSelector("[data-revoke-form]", { timeout: 30000 });
+    await w.select("#revoke-reason", "2");
+    await fill(w, "#revoke-note", "Origen de fondos sin soporte tras el requerimiento del Oficial de Cumplimiento.");
+    await clickText(w, "Revocar inversionista", "[data-revoke-form]");
+    await waitToast(w, "revokeInvestor en cola");
+    const revokeTx = await db.chainTransaction.findFirstOrThrow({
+      where: { organizationId: org.id, kind: "INVESTOR_REVOKED", status: "PENDING" },
+    });
+    ok(
+      "revocación desde la bandeja (KYC REVOKED) → revokeInvestor(wallet) PENDING en el registro del tenant",
+      revokeTx.args.wallet === investor.walletAddress &&
+        lower(revokeTx.contractAddress) === lower(SETUP.registry) &&
+        (await db.kycCase.findFirstOrThrow({ where: { investorId: investor.id }, orderBy: { createdAt: "desc" } })).status === "REVOKED",
+    );
+    await openBackofficeTab(w, "avista", "Suscripciones y Pagos");
     await chain.request({ method: "evm_setAutomine", params: [false] });
     try {
       await walletClick(w, revokeTx.id);

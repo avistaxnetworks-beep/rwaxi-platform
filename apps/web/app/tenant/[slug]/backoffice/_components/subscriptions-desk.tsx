@@ -8,22 +8,29 @@ import { money, onColor, shortHash } from "@/app/_lib/format";
 import { msg } from "@/app/_i18n/marks";
 import { useI18n } from "@/app/_i18n/provider";
 import { WALLET_SIGNER_ROLE, type ChainQueueItem } from "@/app/_lib/chain-queue-types";
-import { executeChainTransaction, processChainQueue, registerOfficerTransaction } from "../chain-actions";
+import { executeChainTransaction, processChainQueue, registerOfficerTransaction, requestIssuerMinterRole } from "../chain-actions";
 import { confirmPayment } from "../payment-actions";
-import type { DeskSession, SubscriptionRow, SubscriptionsDeskData, SubscriptionsDeskResult } from "../_lib/types";
+import type {
+  DeskSession,
+  IssuerMintPanel,
+  IssuerMinterState,
+  SubscriptionRow,
+  SubscriptionsDeskData,
+  SubscriptionsDeskResult,
+} from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
 import { DeskAccess, SessionLine, useCanAct } from "./desk-access";
 import { WalletSign } from "./wallet-sign";
 
 type Currency = "COP" | "USD";
 type Toast = (message: string) => void;
-type Busy = { id: string; kind: "pay" | "exec" | "queue" } | null;
+type Busy = { id: string; kind: "pay" | "exec" | "queue" | "grant" } | null;
 
 const brandVars = (color: string) => ({ "--tc": color, "--tc-on": onColor(color) }) as CSSProperties;
 const hash = (h: string) => shortHash(h, 12, 6);
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
-/** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: distribution roots). */
-const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED"]);
+/** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: roots and its own MINTER_ROLE). */
+const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED", "MINTER_ROLE_GRANTED"]);
 /** Role that executes a queued call (chain-actions.ts roleFor): the officer the registry, the admin the rest. */
 const SIGNER_ROLE = (kind: string) => (REGISTRY_KINDS.has(kind) ? "COMPLIANCE_OFFICER" : "TENANT_ADMIN");
 const ROLE_NAME = { COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento"), TENANT_ADMIN: msg("Administrador") } as const;
@@ -34,6 +41,17 @@ const STATUS: Record<SubscriptionRow["status"], [string, string]> = {
   MINT_PENDING: [msg("Mint en cola"), "bg-[#E8F0FA] text-rxBlue"],
   MINTED: [msg("En wallet"), "bg-aquaTint text-aquaInk"],
   CANCELLED: [msg("Cancelada"), "bg-cloud text-muted"],
+};
+/** Why a subscription was cancelled (Subscription.cancellationReason). */
+const CANCELLATION: Record<string, string> = {
+  KYC_REVOKED: msg("Revocación del KYC por cumplimiento: unidades liberadas"),
+};
+const MINTER_STATE: Record<IssuerMinterState, [string, string]> = {
+  minter: [msg("Tu wallet tiene MINTER_ROLE: puedes firmar los mint de este token con ella (EIP-1193)."), "text-aquaInk"],
+  grantable: [msg("Tu wallet tiene DEFAULT_ADMIN_ROLE y aún no MINTER_ROLE: puedes otorgártelo."), "text-inkBody"],
+  pending: [msg("grantRole(MINTER_ROLE) en cola: fírmalo con tu wallet en la cola on-chain."), "text-goldInk"],
+  "not-admin": [msg("Tu wallet no tiene DEFAULT_ADMIN_ROLE en este token: los mint los envía el operador RWAXI."), "text-muted"],
+  unreadable: [msg("No se pudo leer el token en la red."), "text-[#B42318]"],
 };
 
 /** "Suscripciones y Pagos" tab: fiduciary reconciliation and ordered execution of the outbox. */
@@ -82,6 +100,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
 
   const pay = (row: SubscriptionRow) => run({ id: row.id, kind: "pay" }, () => confirmPayment(row.id, reference));
   const execute = (chainTxId: string) => run({ id: chainTxId, kind: "exec" }, () => executeChainTransaction(chainTxId));
+  const grantMinter = (offeringId: string) => run({ id: offeringId, kind: "grant" }, () => requestIssuerMinterRole(offeringId));
   const registerHash = (chainTxId: string, txHash: string) =>
     run({ id: chainTxId, kind: "exec" }, () => registerOfficerTransaction(chainTxId, txHash));
   const processAll = () =>
@@ -167,7 +186,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
                     key={s.id}
                     data-subscription={s.id}
                     data-sub-status={s.status}
-                    className="border-b border-line last:border-b-0 align-top"
+                    className={`border-b border-line last:border-b-0 align-top ${s.status === "CANCELLED" ? "bg-cloud/60" : ""}`}
                   >
                     <td className="px-5 py-3.5">
                       <p className="font-semibold text-rxPurple">{s.investorName}</p>
@@ -193,6 +212,17 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
                         </p>
                       )}
                       {s.paymentBlocker && <p className="text-[10.5px] text-[#B42318] mt-1 max-w-[220px]">{s.paymentBlocker}</p>}
+                      {s.cancellation && (
+                        <p className="text-[10.5px] text-muted mt-1 max-w-[240px]" data-cancellation={s.cancellation.reason ?? ""}>
+                          {s.cancellation.reason && CANCELLATION[s.cancellation.reason] ? tr(CANCELLATION[s.cancellation.reason]) : tr("Cancelada")}
+                          {` · ${utc(s.cancellation.at)}`}
+                        </p>
+                      )}
+                      {s.cancellation?.refundDue && (
+                        <p className="text-[10.5px] text-[#B42318] font-semibold mt-1 max-w-[240px]" data-refund-due="true">
+                          {tr("Pago ya conciliado: reembolso pendiente al inversionista, fuera de la plataforma.")}
+                        </p>
+                      )}
                     </td>
                     <td className="px-3 py-3.5 font-mono text-[10.5px] text-muted">
                       {s.status === "RESERVED" && <span className="font-sans text-[11px]">{tr("Sin cobro hasta desplegar el token")}</span>}
@@ -260,6 +290,10 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
           </div>
         )}
       </div>
+
+      {data.issuerMint && (
+        <IssuerMint panel={data.issuerMint} busy={busy} canAct={canAct} spinning={(id) => spinning(id, "grant")} onGrant={grantMinter} />
+      )}
 
       <QueuePanel
         session={data.session}
@@ -491,6 +525,91 @@ function QueuePanel({
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * RPC mode, optional: by default RWAXI's operator sends the mints with its MINTER_ROLE; the issuer may instead grant
+ * MINTER_ROLE to its administrator's registered wallet (signed by that same wallet, DEFAULT_ADMIN_ROLE of the token)
+ * and sign its own mints with it. RWAXI never receives a role.
+ */
+function IssuerMint({
+  panel,
+  busy,
+  canAct,
+  spinning,
+  onGrant,
+}: {
+  panel: IssuerMintPanel;
+  busy: Busy;
+  canAct: boolean;
+  spinning: (offeringId: string) => boolean;
+  onGrant: (offeringId: string) => void;
+}) {
+  const { rich, tr } = useI18n();
+  return (
+    <div className="bg-white border border-line" data-issuer-mint>
+      <div className="px-5 py-3.5 border-b border-line">
+        <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">{tr("Firma de mint del emisor · opcional")}</p>
+        <p className="text-[11.5px] text-muted mt-1 leading-relaxed max-w-[880px]">
+          {rich(
+            "Por defecto el operador RWAXI envía {mint} con su MINTER_ROLE. Si el emisor lo prefiere, otorga {role} a la wallet registrada de su Administrador y firma sus propios mint con ella (EIP-1193). La concesión la firma esa misma wallet con {admin} del token: RWAXI no recibe ningún rol nuevo.",
+            {
+              mint: <span className="font-mono text-rxPurple">mintSubscription</span>,
+              role: <span className="font-mono text-rxPurple">MINTER_ROLE</span>,
+              admin: <span className="font-mono text-rxPurple">DEFAULT_ADMIN_ROLE</span>,
+            },
+          )}
+        </p>
+      </div>
+      {!panel.wallet ? (
+        <p className="px-5 py-4 text-[12.5px] text-goldInk" data-issuer-wallet="none">
+          {tr("Tu usuario no tiene una wallet registrada en este tenant: no hay una cuenta a la que otorgar MINTER_ROLE.")}
+        </p>
+      ) : panel.tokens.length === 0 ? (
+        <p className="px-5 py-4 text-[12.5px] text-muted">{tr("Ninguna oferta tiene su token desplegado todavía.")}</p>
+      ) : (
+        <ul>
+          {panel.tokens.map((t) => (
+            <li
+              key={t.offeringId}
+              data-issuer-token={t.offeringCode}
+              data-minter-state={t.state}
+              className="px-5 py-3 border-b border-line last:border-b-0 flex flex-wrap gap-x-4 gap-y-2 items-center justify-between"
+            >
+              <div className="min-w-0">
+                <p className="font-mono text-[12px] text-rxPurple break-words">
+                  {t.offeringCode}
+                  <span className="text-muted">{` · RwaxiPropertyToken ${shortHash(t.token, 8, 6)} · ${t.network}`}</span>
+                </p>
+                <p className={`text-[11px] mt-0.5 ${MINTER_STATE[t.state][1]}`}>
+                  {tr(MINTER_STATE[t.state][0])}
+                  {t.detail && ` (${t.detail})`}
+                </p>
+              </div>
+              {t.state === "grantable" && (
+                <button
+                  data-grant-minter={t.offeringId}
+                  disabled={!!busy || !canAct}
+                  onClick={() => onGrant(t.offeringId)}
+                  className="tc-btn px-2.5 py-1.5 text-[11.5px] font-semibold inline-flex items-center gap-1.5 focus-ring disabled:opacity-50"
+                >
+                  <Icon name={spinning(t.offeringId) ? "Loader2" : "KeyRound"} size={13} className={spinning(t.offeringId) ? "spin" : ""} />
+                  {tr("Habilitar MINTER_ROLE para mi wallet")}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {panel.wallet && (
+        <p className="px-5 py-2.5 border-t border-line text-[10.5px] text-muted flex items-center gap-1.5">
+          <Icon name="Wallet" size={12} />
+          {tr("Wallet registrada del Administrador")}
+          <span className="font-mono text-rxPurple">{shortHash(panel.wallet, 10, 8)}</span>
+        </p>
       )}
     </div>
   );

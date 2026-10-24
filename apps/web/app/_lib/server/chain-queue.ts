@@ -27,6 +27,7 @@ const CONTRACT: Record<ChainTxKind, RwaxiContract> = {
   FORCED_RECOVERY: "RwaxiPropertyToken",
   TOKEN_PAUSED: "RwaxiPropertyToken",
   TOKEN_UNPAUSED: "RwaxiPropertyToken",
+  MINTER_ROLE_GRANTED: "RwaxiPropertyToken",
 };
 
 /** Who signs, per the contracts' AccessControl (RWAXI never holds the issuer's roles). */
@@ -42,6 +43,7 @@ const SIGNER: Record<ChainTxKind, string> = {
   FORCED_RECOVERY: msg("LEGAL_ENFORCEMENT_ROLE · emisor"),
   TOKEN_PAUSED: msg("ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor"),
   TOKEN_UNPAUSED: msg("ISSUER_ADMIN_ROLE o COMPLIANCE_OFFICER_ROLE · emisor"),
+  MINTER_ROLE_GRANTED: msg("DEFAULT_ADMIN_ROLE · emisor, a su propia wallet"),
 };
 
 interface CallSpec {
@@ -77,6 +79,12 @@ const CALLS: Partial<Record<ChainTxKind, CallSpec>> = {
   },
   TOKEN_PAUSED: { abi: rwaxiPropertyTokenAbi, fn: "pause", event: "Paused" },
   TOKEN_UNPAUSED: { abi: rwaxiPropertyTokenAbi, fn: "unpause", event: "Unpaused" },
+  MINTER_ROLE_GRANTED: {
+    abi: rwaxiPropertyTokenAbi,
+    fn: "grantRole",
+    event: "RoleGranted",
+    note: msg("El emisor se otorga MINTER_ROLE para firmar sus propios mint con su wallet; RWAXI no recibe ningún rol nuevo."),
+  },
 };
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -85,7 +93,8 @@ const BYTES32 = /^0x[0-9a-fA-F]{64}$/;
 /** Stored JSON value → the value viem expects for an ABI parameter, or undefined if invalid. */
 function coerce(param: AbiParameter, value: unknown): unknown {
   const t = param.type;
-  if (t === "address") return typeof value === "string" && ADDRESS.test(value) ? value : undefined;
+  // Lowercase: the same 20 bytes, and viem rejects a mixed- or upper-case address whose checksum does not match.
+  if (t === "address") return typeof value === "string" && ADDRESS.test(value) ? value.toLowerCase() : undefined;
   if (t === "bytes32") return typeof value === "string" && BYTES32.test(value) ? value : undefined;
   if (t === "bool") return typeof value === "boolean" ? value : undefined;
   if (t === "string") return typeof value === "string" ? value : undefined;

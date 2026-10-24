@@ -24,10 +24,11 @@ const KYC_VIEW: Record<string, KycKey> = {
   PENDING: "pendiente",
   APPROVED: "aprobado",
   REJECTED: "rechazado",
+  REVOKED: "revocado",
 };
 
 const num = (d: Prisma.Decimal | number | null | undefined) => (d === null || d === undefined ? 0 : Number(Number(d).toFixed(2)));
-const emptyFees = (): FeeTotals => ({ ACCRUED: 0, INVOICED: 0, PAID: 0, total: 0 });
+const emptyFees = (): FeeTotals => ({ ACCRUED: 0, INVOICED: 0, PAID: 0, VOIDED: 0, total: 0 });
 const emptyVolume = (): SubscribedVolume => ({
   count: 0,
   units: 0,
@@ -162,8 +163,10 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
       const amount = num(g._sum.amountUsd);
       const kind = totalsFees[g.kind as FeeKindKey];
       kind[g.status as FeeStatusKey] = round2(kind[g.status as FeeStatusKey] + amount);
-      kind.total = round2(kind.total + amount);
       feesAll[g.status as FeeStatusKey] = round2(feesAll[g.status as FeeStatusKey] + amount);
+      // A voided entry (its emission never happened) is shown, never counted as RWAXI revenue.
+      if (g.status === "VOIDED") continue;
+      kind.total = round2(kind.total + amount);
       feesAll.total = round2(feesAll.total + amount);
     }
 

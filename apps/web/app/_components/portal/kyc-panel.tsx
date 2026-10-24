@@ -165,6 +165,23 @@ export function KycPanel({ t: e, p: a, journey: t, setJourney: o, currency: n, t
           </button>
         </div>
       </div>
+    ) : r.status === "revocado" ? (
+      // Revoked after approval: the investor is never told why (no tipping-off under SAGRILAFT/SARLAFT).
+      <div className="flex flex-col gap-4 max-w-[760px]" data-kyc-revoked>
+        <div className="border border-[#F3C5BF] bg-[#FDF6F5] p-4" role="status">
+          <p className="text-[12px] font-semibold tracking-[0.06em] uppercase text-[#B42318]">
+            {tr("Verificación revocada")}
+            {" · "}
+            {e.legalName}
+          </p>
+          <p className="text-[14px] text-inkBody leading-[1.6] mt-1.5">
+            {tr(
+              "El Oficial de Cumplimiento de {name} revocó tu verificación: no se reciben nuevas suscripciones y el acceso reservado del Data Room quedó cerrado. Para más información, comunícate directamente con el desarrollador.",
+              { name: e.legalName },
+            )}
+          </p>
+        </div>
+      </div>
     ) : r.status === "rechazado" ? (
       <div className="flex flex-col gap-4 max-w-[760px]">
         <div className="border border-[#F3C5BF] bg-[#FDF6F5] p-4" role="alert">

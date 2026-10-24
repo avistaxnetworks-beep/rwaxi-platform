@@ -27,7 +27,7 @@ const KIND_LABEL: Record<FeeKindKey, string> = {
   INFRASTRUCTURE_USAGE: "Uso de infraestructura",
 };
 const KINDS = Object.keys(KIND_LABEL) as FeeKindKey[];
-const STATUSES: FeeStatusKey[] = ["ACCRUED", "INVOICED", "PAID"];
+const STATUSES: FeeStatusKey[] = ["ACCRUED", "INVOICED", "PAID", "VOIDED"];
 const today = () => new Date().toISOString().slice(0, 10);
 const label = "text-[11px] font-semibold tracking-[0.06em] uppercase text-muted";
 

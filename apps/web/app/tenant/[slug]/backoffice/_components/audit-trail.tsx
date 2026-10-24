@@ -38,6 +38,10 @@ const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   DATA_ROOM_DOCUMENT_DOWNLOADED: msg("Documento del Data Room descargado"),
   KYC_DOCUMENT_VIEWED: msg("Documento KYC consultado"),
   VAULT_INTEGRITY_FAILED: msg("Integridad de la bóveda comprometida"),
+  KYC_REVOKED: msg("Inversionista revocado"),
+  SUBSCRIPTION_CANCELLED: msg("Suscripción cancelada"),
+  INVESTOR_FREEZE_REQUESTED: msg("Congelamiento de wallet solicitado"),
+  MINTER_ROLE_REQUESTED: msg("MINTER_ROLE solicitado para el emisor"),
 };
 const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "text-aquaInk",
@@ -70,6 +74,10 @@ const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   DATA_ROOM_DOCUMENT_DOWNLOADED: "text-muted",
   KYC_DOCUMENT_VIEWED: "text-muted",
   VAULT_INTEGRITY_FAILED: "text-[#B42318]",
+  KYC_REVOKED: "text-[#B42318]",
+  SUBSCRIPTION_CANCELLED: "text-goldInk",
+  INVESTOR_FREEZE_REQUESTED: "text-goldInk",
+  MINTER_ROLE_REQUESTED: "text-rxBlue",
 };
 const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: msg("SHA-256 expediente"),
@@ -102,6 +110,10 @@ const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   DATA_ROOM_DOCUMENT_DOWNLOADED: msg("SHA-256 documento"),
   KYC_DOCUMENT_VIEWED: msg("SHA-256 documento"),
   VAULT_INTEGRITY_FAILED: msg("SHA-256 esperado"),
+  KYC_REVOKED: msg("SHA-256 decisión"),
+  SUBSCRIPTION_CANCELLED: msg("SHA-256 decisión"),
+  INVESTOR_FREEZE_REQUESTED: msg("SHA-256 decisión"),
+  MINTER_ROLE_REQUESTED: msg("SHA-256 solicitud"),
 };
 
 export function AuditTrail({ entries, empty }: { entries: AuditEntry[]; empty?: string }) {

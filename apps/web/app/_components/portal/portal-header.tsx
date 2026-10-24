@@ -15,6 +15,8 @@ export function PortalHeader({ t: e, journey: a, go: t }) {
           ? [tr("KYC en revisión"), "bg-goldTint text-goldInk", "Clock"]
           : o === "rechazado"
             ? [tr("KYC rechazado"), "bg-[#FDECEA] text-[#B42318]", "AlertTriangle"]
+            : o === "revocado"
+              ? [tr("KYC revocado"), "bg-[#FDECEA] text-[#B42318]", "AlertTriangle"]
             : a.nda
               ? [tr("NDA firmado"), "bg-cloud text-inkBody", "FileSignature"]
               : [tr("Visitante"), "bg-cloud text-muted", "User"];

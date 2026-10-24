@@ -22,7 +22,7 @@ export function FunnelStepper({ journey: e, active: a, setActive: t, minted: o, 
           : e.nda
             ? l === "pendiente"
               ? "wait"
-              : l === "rechazado"
+              : l === "rechazado" || l === "revocado"
                 ? "fail"
                 : "open"
             : "locked",
@@ -32,6 +32,8 @@ export function FunnelStepper({ journey: e, active: a, setActive: t, minted: o, 
             ? tr("En revisión del Oficial de Cumplimiento")
             : l === "rechazado"
               ? tr("Requiere corrección")
+              : l === "revocado"
+                ? tr("Revocada por cumplimiento")
               : tr("Identidad, biometría y origen de fondos"),
       ],
       [

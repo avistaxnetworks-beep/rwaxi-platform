@@ -23,7 +23,15 @@ export function SubscriptionPanel({
   distributionsSlot: w,
 }) {
   const { tr } = useI18n();
-  if (!t.grant)
+  // Revoked by the compliance officer: no new subscription, but the tokens already minted stay in view (never the reason).
+  const revoked = t.kyc?.status === "revocado",
+    revokedNote = (
+      <div data-subscribe-locked="revoked">
+        <LockedNote text={tr("Tu verificación fue revocada: no se reciben nuevas suscripciones.")} />
+      </div>
+    );
+  if (revoked && !t.holdings.length) return revokedNote;
+  if (!t.grant && !revoked)
     return (
       <LockedNote
         text={tr("La suscripción se habilita cuando el desarrollador emite tu AccessGrant (NDA + KYC/{sys} aprobado).", { sys: REGIMES[e.regime].sys })}
@@ -93,7 +101,9 @@ export function SubscriptionPanel({
             </div>
           ))}
         </dl>
-        {c ? (
+        {revoked ? (
+          revokedNote
+        ) : c ? (
           <LockedNote text={tr("Nuevas suscripciones suspendidas temporalmente.")} />
         ) : t.offering?.capturePaused ? (
           <LockedNote

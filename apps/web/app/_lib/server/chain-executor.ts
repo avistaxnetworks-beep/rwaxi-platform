@@ -13,13 +13,16 @@ import {
   type Address,
   type Hex,
   type Log,
+  zeroHash,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { RWAXI_CHAINS, rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi, rwaxiTenantFactoryAbi } from "@rwaxi/blockchain-sdk";
+import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
 import { withTenant, type ChainNetwork, type ChainTransaction, type Prisma } from "@rwaxi/database";
 import { LocalizedError, msg, type Reason } from "@/app/_i18n/marks";
 import { WALLET_SIGNER_ROLE, type WalletCall } from "@/app/_lib/chain-queue-types";
 import {
+  MINTER_ROLE_ID,
   REGISTRY_KINDS,
   TENANT_SIGNED_KINDS,
   blockerReason,
@@ -277,6 +280,10 @@ async function simulate(
       // One operator account serves every tenant: its executions on a network run one at a time,
       // so the nonce sequence is global and gapless (the unique index backs it up).
       const { tx, encoded } = await prepare(db, chainTxId, (network) => `rwaxi-signer:${account.address}:${network}`, origin);
+      // The issuer granting MINTER_ROLE to its own wallet only means something on a real network.
+      if (tx.kind === "MINTER_ROLE_GRANTED") {
+        throw new ExecutionError("Otorgar MINTER_ROLE al emisor lo firma su wallet en modo RPC: en simulación no aplica.");
+      }
       const [next] = await db.$queryRaw<{ nonce: number }[]>`
         SELECT rwaxi_next_simulated_nonce(${tx.network}::"ChainNetwork", ${account.address}) AS nonce`;
       const nonce = Number(next?.nonce ?? 0);
@@ -365,6 +372,10 @@ function emitsQueuedEvent(tx: ChainTransaction, logs: Log[]): boolean {
           lower(e.args.merkleRoot) === lower(args.merkleRoot) &&
           e.args.totalAmountCents === BigInt(String(args.totalAmountCents)) &&
           e.args.snapshotSupply === BigInt(String(args.snapshotSupply)),
+      );
+    case "MINTER_ROLE_GRANTED":
+      return parseEventLogs({ abi: token, logs, eventName: "RoleGranted" }).some(
+        (e) => fromQueued(e.address) && lower(e.args.role) === lower(args.role) && lower(e.args.account) === lower(args.account),
       );
     default:
       return false;
@@ -481,7 +492,9 @@ async function broadcast(
             ? msg("Modo RPC: el emisor firma anchorDistributionRoot con su propia wallet (RWAXI no custodia DISTRIBUTION_ROLE); registra luego su tx hash.")
             : prepared.tx.kind === "DATA_ROOM_ROOT_ANCHORED"
               ? msg("Modo RPC: el emisor firma updateDataRoomMerkleRoot con su propia wallet (RWAXI no custodia DATA_ROOM_ROLE); registra luego su tx hash.")
-              : msg("Modo RPC: esta operación la firma el Oficial de Cumplimiento con su propia wallet (RWAXI no custodia COMPLIANCE_OFFICER_ROLE); registra luego su tx hash."),
+              : prepared.tx.kind === "MINTER_ROLE_GRANTED"
+                ? msg("Modo RPC: el emisor se otorga MINTER_ROLE con su propia wallet (DEFAULT_ADMIN_ROLE del token); RWAXI no lo firma.")
+                : msg("Modo RPC: esta operación la firma el Oficial de Cumplimiento con su propia wallet (RWAXI no custodia COMPLIANCE_OFFICER_ROLE); registra luego su tx hash."),
         );
       }
       const clients = rpcClients(prepared.tx.network, account); // a missing RPC_URL fails before claiming
@@ -530,10 +543,11 @@ export async function executeChainTx(
 }
 
 /**
- * RPC mode, tenant-signed calls: registers the hash of an approveInvestor() the compliance officer —
- * or an anchorDistributionRoot() the issuer — signed with their own wallet, once the receipt shows
- * it succeeded and emitted InvestorWhitelisted / DistributionRootAnchored from the queued contract
- * with exactly the queued arguments.
+ * RPC mode, tenant-signed calls: registers the hash of a registry call the compliance officer — or a
+ * root anchor or MINTER_ROLE grant the issuer — signed with their own wallet, once the receipt shows
+ * it succeeded and emitted the queued event (InvestorWhitelisted, InvestorRevoked, InvestorFreezeUpdated,
+ * DistributionRootAnchored, DataRoomMerkleRootAnchored, RoleGranted) from the queued contract with exactly
+ * the queued arguments.
  */
 export async function confirmExternalTransaction(
   organizationId: string,
@@ -546,7 +560,7 @@ export async function confirmExternalTransaction(
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new ExecutionError("Tx hash inválido.");
   const { tx } = await withTenant(organizationId, (db) => prepare(db, chainTxId), TX_OPTIONS);
   if (!TENANT_SIGNED_KINDS.has(tx.kind)) {
-    throw new ExecutionError("Sólo approveInvestor(), anchorDistributionRoot() y updateDataRoomMerkleRoot() se registran por hash.");
+    throw new ExecutionError("Sólo las operaciones que firma el tenant con su wallet (registro de cumplimiento, raíces y MINTER_ROLE del emisor) se registran por hash.");
   }
   const { publicClient } = rpcClients(tx.network);
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
@@ -606,8 +620,16 @@ export async function prepareWalletCall(organizationId: string, chainTxId: strin
   const to = getAddress(tx.contractAddress);
   const code = await publicClient.getCode({ address: to });
   if (!code || code === "0x") throw new ExecutionError("Modo RPC: no hay contrato desplegado en esa dirección de la red configurada.");
+  if (tx.kind === "MINTER_ROLE_GRANTED") {
+    // The issuer grants MINTER_ROLE only to its own wallet — never to RWAXI's operator or anyone else.
+    const account = argsOf(tx.args).account;
+    if (lower(account) !== lower(from) || lower(account) === lower(operatorAddress())) {
+      throw new ExecutionError("MINTER_ROLE sólo se otorga a la wallet registrada del Administrador que lo firma.");
+    }
+  }
   const abi = (REGISTRY_KINDS.has(tx.kind) ? rwaxiComplianceRegistryAbi : rwaxiPropertyTokenAbi) as Abi;
-  const roleId = keccak256(toHex(role));
+  // AccessControl: DEFAULT_ADMIN_ROLE is bytes32(0); every other role is keccak256 of its name.
+  const roleId = role === "DEFAULT_ADMIN_ROLE" ? zeroHash : keccak256(toHex(role));
   const holds = await publicClient.readContract({ address: to, abi, functionName: "hasRole", args: [roleId, from] });
   if (holds !== true) {
     throw tx.kind === "SUBSCRIPTION_MINTED"
@@ -723,6 +745,126 @@ export async function confirmWalletCall(
   );
   if (claimed.count !== 1) throw new ExecutionError("Otra ejecución tomó esta transacción.");
   return reconcile({ ...tx, executionMode: "RPC", txHash: hash, signerAddress: getAddress(sent.from), error: null });
+}
+
+// ───────────────────────────────────────────────────────── optional: the issuer signs its own mints
+
+/** What a token's AccessControl says about a wallet (RPC): MINTER_ROLE, and DEFAULT_ADMIN_ROLE (it may grant it). */
+export async function readIssuerRoles(network: ChainNetwork, token: string, wallet: string): Promise<{ minter: boolean; admin: boolean }> {
+  const { publicClient } = rpcClients(network);
+  const address = getAddress(token);
+  const code = await publicClient.getCode({ address });
+  if (!code || code === "0x") throw new ExecutionError("Modo RPC: no hay contrato desplegado en esa dirección de la red configurada.");
+  const account = getAddress(wallet);
+  const has = (role: Hex) => publicClient.readContract({ address, abi: rwaxiPropertyTokenAbi, functionName: "hasRole", args: [role, account] });
+  const [minter, admin] = await Promise.all([has(MINTER_ROLE_ID), has(zeroHash)]);
+  return { minter: minter === true, admin: admin === true };
+}
+
+/**
+ * RPC mode, optional: queues grantRole(MINTER_ROLE, the administrator's registered wallet) on an offering's token, so
+ * the issuer may sign its own mints in its browser wallet. Only once the token itself shows that this wallet holds
+ * DEFAULT_ADMIN_ROLE and not MINTER_ROLE yet, and never for RWAXI's operator. That same wallet signs the grant
+ * (WALLET_SIGNER_ROLE: DEFAULT_ADMIN_ROLE): RWAXI gains no role, and its own MINTER_ROLE stays as it was.
+ */
+export async function queueIssuerMinterGrant(
+  organizationId: string,
+  offeringId: string,
+  wallet: string | null,
+  actor: Actor,
+  meta: RequestMeta,
+): Promise<{ chainTxId: string; account: Address; offeringCode: string }> {
+  if (executionMode() !== "RPC") {
+    throw new ExecutionError("Otorgar MINTER_ROLE al emisor lo firma su wallet en modo RPC: en simulación no aplica.");
+  }
+  const account = signerWallet(wallet);
+  if (lower(account) === lower(operatorAddress())) {
+    throw new ExecutionError("MINTER_ROLE sólo se otorga a la wallet registrada del Administrador que lo firma.");
+  }
+  const offering = await withTenant(organizationId, (db) =>
+    db.offering.findUnique({
+      where: { id: offeringId },
+      select: { id: true, code: true, token: { select: { contractAddress: true, network: true, status: true } } },
+    }),
+  );
+  if (!offering) throw new ExecutionError("Oferta no encontrada en este tenant.");
+  const token = offering.token;
+  if (!token?.contractAddress || token.status === "NOT_DEPLOYED" || token.status === "DEPLOYING") {
+    throw new ExecutionError("El token destino no está desplegado.");
+  }
+  const roles = await readIssuerRoles(token.network, token.contractAddress, account);
+  if (roles.minter) throw new ExecutionError("Esa wallet ya tiene MINTER_ROLE en el token.");
+  if (!roles.admin) {
+    throw new ExecutionError("Tu wallet registrada {wallet} no tiene DEFAULT_ADMIN_ROLE en el token: sólo el administrador del emisor se otorga MINTER_ROLE.", {
+      wallet: account,
+    });
+  }
+  const contractAddress = token.contractAddress;
+  return withTenant(
+    organizationId,
+    async (db) => {
+      // One grant per wallet and token: concurrent requests are serialised here.
+      await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`rwaxi-minter-grant:${lower(contractAddress)}:${lower(account)}`}))`;
+      const existing = await db.chainTransaction.findFirst({
+        where: {
+          kind: "MINTER_ROLE_GRANTED",
+          contractAddress: { equals: contractAddress, mode: "insensitive" },
+          status: { in: ["PENDING", "CONFIRMED"] },
+          args: { path: ["account"], equals: account.toLowerCase() },
+        },
+        select: { status: true },
+      });
+      if (existing) {
+        throw new ExecutionError(
+          existing.status === "PENDING"
+            ? msg("Prelación: ya hay un grantRole(MINTER_ROLE) pendiente para esa wallet.")
+            : msg("Esa wallet ya tiene MINTER_ROLE en el token."),
+        );
+      }
+      const now = new Date();
+      const row = await db.chainTransaction.create({
+        data: {
+          organizationId,
+          offeringId: offering.id,
+          network: token.network,
+          kind: "MINTER_ROLE_GRANTED",
+          contractAddress,
+          method: "grantRole(bytes32,address)",
+          args: { role: MINTER_ROLE_ID, account: account.toLowerCase() },
+          status: "PENDING",
+          createdAt: now,
+        },
+      });
+      const payload = {
+        offeringCode: offering.code,
+        token: contractAddress,
+        network: token.network,
+        role: "MINTER_ROLE",
+        roleId: MINTER_ROLE_ID,
+        account: account.toLowerCase(),
+        signerRole: "DEFAULT_ADMIN_ROLE",
+        // what the token said when the grant was queued
+        onchain: { minter: roles.minter, admin: roles.admin },
+        chainTransactionId: row.id,
+      };
+      await db.auditEvent.create({
+        data: {
+          organizationId,
+          action: "MINTER_ROLE_REQUESTED",
+          actorUserId: actor.id,
+          actorEmail: actor.email,
+          entityType: "ChainTransaction",
+          entityId: row.id,
+          subjectHash: evidenceHash({ action: "MINTER_ROLE_REQUESTED", organizationId, entityId: row.id, ...payload }),
+          payload,
+          ...meta,
+          createdAt: now,
+        },
+      });
+      return { chainTxId: row.id, account, offeringCode: offering.code };
+    },
+    TX_OPTIONS,
+  );
 }
 
 /** Runs the tenant's PENDING rows oldest first; blocked rows are reported and skipped. */

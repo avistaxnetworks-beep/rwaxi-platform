@@ -145,6 +145,9 @@ async function main() {
         factory: boolean;
         rateLimitHit: boolean;
         redactMail: boolean;
+        mailDue: boolean;
+        mailExhausted: boolean;
+        vaultKeys: boolean;
       }[]
     >`SELECT to_regclass('public._prisma_migrations') IS NOT NULL AS migrations,
              to_regclass('public.audit_events') IS NOT NULL AS audit,
@@ -157,7 +160,10 @@ async function main() {
              to_regprocedure('public.rwaxi_next_simulated_nonce("ChainNetwork",text)') IS NOT NULL AS nonce,
              to_regprocedure('public.rwaxi_factory_creations("ChainNetwork",text)') IS NOT NULL AS factory,
              to_regprocedure('public.rwaxi_rate_limit_hit(text,integer,integer)') IS NOT NULL AS "rateLimitHit",
-             to_regprocedure('public.rwaxi_redact_expired_mail()') IS NOT NULL AS "redactMail"`;
+             to_regprocedure('public.rwaxi_redact_expired_mail()') IS NOT NULL AS "redactMail",
+             to_regprocedure('public.rwaxi_mail_due(integer,integer,integer)') IS NOT NULL AS "mailDue",
+             to_regprocedure('public.rwaxi_mail_fail_exhausted(integer,integer)') IS NOT NULL AS "mailExhausted",
+             to_regprocedure('public.rwaxi_vault_referenced_keys()') IS NOT NULL AS "vaultKeys"`;
 
     if (!exists || opts.rotate) password = newPassword();
     const role = q(opts.role);
@@ -192,6 +198,9 @@ async function main() {
       ...(obj?.factory ? [`GRANT EXECUTE ON FUNCTION rwaxi_factory_creations("ChainNetwork", text) TO ${role}`] : []),
       ...(obj?.rateLimitHit ? [`GRANT EXECUTE ON FUNCTION rwaxi_rate_limit_hit(text, integer, integer) TO ${role}`] : []),
       ...(obj?.redactMail ? [`GRANT EXECUTE ON FUNCTION rwaxi_redact_expired_mail() TO ${role}`] : []),
+      ...(obj?.mailDue ? [`GRANT EXECUTE ON FUNCTION rwaxi_mail_due(integer, integer, integer) TO ${role}`] : []),
+      ...(obj?.mailExhausted ? [`GRANT EXECUTE ON FUNCTION rwaxi_mail_fail_exhausted(integer, integer) TO ${role}`] : []),
+      ...(obj?.vaultKeys ? [`GRANT EXECUTE ON FUNCTION rwaxi_vault_referenced_keys() TO ${role}`] : []),
       // the app never touches the migration history; the audit trail, distribution allocations and vault
       // objects are append-only;
       ...(obj?.migrations ? [`REVOKE ALL ON TABLE _prisma_migrations FROM ${role}`] : []),

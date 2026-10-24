@@ -37,6 +37,15 @@ interface AuditPayload {
   by?: "investor" | "staff";
   dataRoomRoot?: string;
   anchorChainTransactionId?: string | null;
+  // revocation, freeze and the issuer's MINTER_ROLE
+  note?: string;
+  frozen?: boolean;
+  unitsReleased?: number;
+  cancelledSubscriptions?: unknown[];
+  refundDue?: boolean;
+  revokeChainTransactionId?: string | null;
+  voidedFeeIds?: string[];
+  wallet?: string;
   // chain confirmations: who sent the transaction
   via?: "operator" | "wallet" | "registered";
   signer?: string;
@@ -134,6 +143,33 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate):
       });
     case "VAULT_INTEGRITY_FAILED":
       return tr("{name}: el archivo no coincide con su SHA-256 · acceso bloqueado", { name: String(p.name ?? "") });
+    case "KYC_REVOKED":
+      return [
+        p.reason ? tr(p.reason) : null,
+        tr("{n} suscripción(es) cancelada(s) · {units} unidades liberadas", {
+          n: p.cancelledSubscriptions?.length ?? 0,
+          units: p.unitsReleased ?? 0,
+          count: p.cancelledSubscriptions?.length ?? 0,
+        }),
+        p.revokeChainTransactionId ? tr("revokeInvestor en cola") : tr("whitelist retirada antes de enviarse"),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    case "SUBSCRIPTION_CANCELLED":
+      return [
+        amount,
+        tr("por revocación del KYC"),
+        p.refundDue ? tr("reembolso del pago fiduciario pendiente") : null,
+        p.voidedFeeIds?.length ? tr("fee RWAXI anulado") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    case "INVESTOR_FREEZE_REQUESTED":
+      return [p.frozen ? tr("setFrozen(true) en cola") : tr("setFrozen(false) en cola"), p.note ?? null].filter(Boolean).join(" · ");
+    case "MINTER_ROLE_REQUESTED":
+      return tr("grantRole(MINTER_ROLE) a la wallet del emisor {wallet} en cola", {
+        wallet: p.wallet ? `${p.wallet.slice(0, 8)}…${p.wallet.slice(-6)}` : "",
+      });
     case "DISTRIBUTION_DECLARED":
       return tr("Distribución {period} · {total} USD entre {holders} tenedor(es) · anchorDistributionRoot en cola", {
         period: String(p.period),

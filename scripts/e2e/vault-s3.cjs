@@ -387,6 +387,32 @@ async function ndaOnly(browser) {
         ? `${run.report.purged.length} borrados · ${run.report.kept.referenced} referenciados · ${run.report.kept.recent} recientes`
         : run.stderr.split("\n")[0],
     );
+    // ── 6 · The same GC over HTTP (/api/internal/maintenance, as Vercel Cron calls it), against the bucket ──
+    const cron = async (query, auth) => {
+      const r = await fetch(url(null, `/api/internal/maintenance${query}`), { headers: { Authorization: auth } });
+      return { status: r.status, body: await r.json().catch(() => null) };
+    };
+    const late = await directUpload(inv.page, { purpose: "kyc", bytes: pdfBytes(), confirm: false });
+    const lateKey = new URL(late.presign.body.upload.url).pathname.split("/").slice(2).join("/");
+    await age(lateKey, 48);
+    const denied = await cron("?only=vault", "Bearer not-the-secret");
+    const stillUploaded = !!(await objectAt(lateKey));
+    const viaCron = await cron("?only=vault", `Bearer ${lib.webEnv("CRON_SECRET")}`);
+    const afterCron = await bucket();
+    const inBucket = (key) => afterCron.objects.some((o) => o.key === key);
+    ok(
+      "/api/internal/maintenance?only=vault sobre S3: sin el secreto 401 y nada se toca; con él borra el PUT nunca confirmado y conserva lo referenciado",
+      late.bucket.status === 200 &&
+        denied.status === 401 &&
+        stillUploaded &&
+        viaCron.status === 200 &&
+        viaCron.body?.vault?.driver === "s3" &&
+        viaCron.body.vault.purged.some((p) => p.key === lateKey) &&
+        !inBucket(lateKey) &&
+        keep.every(inBucket) &&
+        inBucket(freshKey),
+      viaCron.body?.vault ? `${viaCron.body.vault.purgedCount} borrado(s) · digest ${viaCron.body.digest.slice(0, 18)}…` : JSON.stringify(viaCron.body),
+    );
     await shot(admin, "vault-s3-data-room", { fullPage: true });
     for (const p of [inv.page, admin, consolePage]) await p.browserContext().close();
   } catch (e) {

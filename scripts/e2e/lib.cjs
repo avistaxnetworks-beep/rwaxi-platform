@@ -221,6 +221,9 @@ const fill = (page, selector, value) =>
     value,
   );
 const toastText = (page) => page.$eval(".toast-wrap", (n) => n.textContent.trim()).catch(() => "");
+/** Waits until the toast shows a text that includes `needle`. */
+const waitToast = (page, needle, timeout = 60000) =>
+  page.waitForFunction((n) => (document.querySelector(".toast-wrap")?.textContent ?? "").includes(n), { timeout }, needle);
 const alertText = (page) => page.$$eval('[role="alert"]', (n) => n.map((x) => x.textContent.trim()).join(" | "));
 const waitAlert = (page, re, timeout = 90000) =>
   page.waitForFunction(
@@ -340,6 +343,14 @@ async function approveInvestor(page, slug, investorId) {
   await page.waitForSelector(`tr[data-investor="${investorId}"]`, { timeout: 90000 });
   await clickIn(page, `tr[data-investor="${investorId}"]`, "Aprobar Inversionista");
   await page.waitForFunction((id) => document.querySelector(`tr[data-investor="${id}"] [data-kyc]`)?.dataset.kyc === "aprobado", { timeout: 90000 }, investorId);
+}
+
+/** Opens an investor's case (the review modal) in the backoffice compliance inbox. */
+async function openComplianceCase(page, slug, investorId) {
+  await openBackofficeTab(page, slug, "Cumplimiento y Leads");
+  await page.waitForSelector(`tr[data-investor="${investorId}"]`, { timeout: 90000 });
+  await clickIn(page, `tr[data-investor="${investorId}"]`, "Revisar formulario");
+  await page.waitForSelector('[role="dialog"]', { timeout: 30000 });
 }
 
 /** Signs a subscription for the default amount (25.000 USD) from the investor's portal page. */
@@ -574,6 +585,7 @@ module.exports = {
   clickIn,
   fill,
   toastText,
+  waitToast,
   alertText,
   waitAlert,
   openGovernance,
@@ -583,6 +595,7 @@ module.exports = {
   tryAction,
   onboardInvestor,
   approveInvestor,
+  openComplianceCase,
   subscribe,
   confirmPayment,
   DEMO_PASSWORD,

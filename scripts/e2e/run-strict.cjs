@@ -1,9 +1,9 @@
-// Runs the suites whose browsers sign in for real (auth, activation, vault) against `next dev` started with
-// RWAXI_DEMO_AUTH=0: no request can fall back on the demo session. Mail goes out through an HTTP provider
-// (a Resend-compatible fake, fake-mail.cjs): every mail is SENT and its body redacted at once, so the suites read
-// codes and links from what the provider received. Reseeds before each suite and at the end.
+// Runs the suites whose browsers sign in for real (auth, activation, vault) and the cron endpoint (maintenance)
+// against `next dev` started with RWAXI_DEMO_AUTH=0: no request can fall back on the demo session. Mail goes out
+// through an HTTP provider (a Resend-compatible fake, fake-mail.cjs): every mail is SENT and its body redacted at
+// once, so the suites read codes and links from what the provider received. Reseeds before each suite and at the end.
 // The regular dev server must be stopped first (this script owns the port).
-//   pnpm e2e:strict                 the three suites
+//   pnpm e2e:strict                 the four suites
 //   pnpm e2e:strict activation      only those
 const crypto = require("crypto");
 const path = require("path");
@@ -11,7 +11,7 @@ const ORIGINAL_ENV = { ...process.env }; // before lib.cjs loads packages/databa
 const { PORT, url } = require("./lib.cjs");
 const { seed, runSuite, waitForHttp, portFree, startService, killTree, summary } = require("./runner.cjs");
 
-const SUITES = ["auth", "activation", "vault"];
+const SUITES = ["auth", "activation", "vault", "maintenance"];
 const MAIL_PORT = Number(process.env.E2E_MAIL_PORT || 4010);
 const services = [];
 const stopAll = () => services.splice(0).reverse().forEach(killTree);

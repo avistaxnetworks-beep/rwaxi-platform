@@ -4,10 +4,10 @@ import { useState, useTransition, type CSSProperties } from "react";
 import { Icon } from "@/app/_components/ui/icon";
 import { Modal } from "@/app/_components/ui/modal";
 import { fieldCls } from "@/app/_components/ui/form";
-import { INCOME, KYC_LABEL, REGIMES, REJECT_REASONS, RISK, incomeLabel } from "@/app/_lib/data/kyc";
+import { INCOME, KYC_LABEL, REGIMES, REJECT_REASONS, REVOCATION_REASONS, RISK, incomeLabel } from "@/app/_lib/data/kyc";
 import { onColor, shortHash } from "@/app/_lib/format";
 import { useI18n } from "@/app/_i18n/provider";
-import { approveInvestor, rejectInvestor } from "../actions";
+import { approveInvestor, rejectInvestor, revokeInvestor, setInvestorFrozen } from "../actions";
 import type { ComplianceInboxData, ComplianceInboxResult, ComplianceRow } from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
 import { DeskAccess, SessionLine, useCanAct } from "./desk-access";
@@ -41,17 +41,27 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
   const regime = REGIMES[org.regime];
   const [openId, setOpenId] = useState<string | null>(null);
   const [reasonIdx, setReasonIdx] = useState(0);
-  const [busy, setBusy] = useState<{ investorId: string; kind: "approve" | "reject" } | null>(null);
+  const [revokeIdx, setRevokeIdx] = useState(0);
+  const [revokeNote, setRevokeNote] = useState("");
+  const [freezeNote, setFreezeNote] = useState("");
+  const [busy, setBusy] = useState<{ investorId: string; kind: "approve" | "reject" | "revoke" | "freeze" } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  const decide = (row: ComplianceRow, kind: "approve" | "reject") => {
+  const decide = (row: ComplianceRow, kind: "approve" | "reject" | "revoke" | "freeze") => {
     const kycCaseId = row.kycCaseId;
     if (!kycCaseId || busy) return;
     setError(null);
     setBusy({ investorId: row.investorId, kind });
     startTransition(async () => {
-      const result = kind === "approve" ? await approveInvestor(kycCaseId) : await rejectInvestor(kycCaseId, reasonIdx);
+      const result =
+        kind === "approve"
+          ? await approveInvestor(kycCaseId)
+          : kind === "reject"
+            ? await rejectInvestor(kycCaseId, reasonIdx)
+            : kind === "revoke"
+              ? await revokeInvestor(kycCaseId, revokeIdx, revokeNote)
+              : await setInvestorFrozen(row.investorId, !row.registry.frozen, freezeNote);
       setBusy(null);
       if (result.ok) {
         setOpenId(null);
@@ -61,6 +71,16 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
       }
     });
   };
+  const openCase = (row: ComplianceRow) => {
+    setOpenId(row.investorId);
+    setReasonIdx(0);
+    setRevokeIdx(0);
+    setRevokeNote("");
+    setFreezeNote("");
+    setError(null);
+  };
+  const noteOk = (note: string) => note.trim().length >= 10 && note.trim().length <= 300;
+  const pendingOf = (row: ComplianceRow, kind: string) => row.pendingRegistry.some((p) => p.kind === kind);
 
   const kpis: [string, number][] = [
     [tr("Leads totales"), rows.length],
@@ -161,6 +181,17 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                     {r.whitelist?.status === "PENDING" && (
                       <p className="text-[10.5px] text-goldInk mt-1">{tr("Whitelist on-chain en cola")}</p>
                     )}
+                    {r.registry.frozen && (
+                      <p className="text-[10.5px] text-[#B42318] font-semibold mt-1" data-frozen="true">
+                        {tr("Wallet congelada")}
+                      </p>
+                    )}
+                    {pendingOf(r, "INVESTOR_REVOKED") && (
+                      <p className="text-[10.5px] text-goldInk mt-1">{tr("revokeInvestor en cola")}</p>
+                    )}
+                    {pendingOf(r, "INVESTOR_FREEZE_UPDATED") && (
+                      <p className="text-[10.5px] text-goldInk mt-1">{tr("setFrozen en cola")}</p>
+                    )}
                   </td>
                   <td
                     className={`px-3 py-3.5 text-[11.5px] ${/revisar/.test(r.lists) ? "text-goldInk font-semibold" : "text-inkBody"}`}
@@ -171,11 +202,7 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                     <div className="flex flex-wrap gap-2">
                       <button
                         disabled={r.kyc === "no_iniciado"}
-                        onClick={() => {
-                          setOpenId(r.investorId);
-                          setReasonIdx(0);
-                          setError(null);
-                        }}
+                        onClick={() => openCase(r)}
                         className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue disabled:opacity-40 focus-ring"
                       >
                         {tr("Revisar formulario")}
@@ -292,10 +319,119 @@ function InboxView({ data, currency, toast }: { data: ComplianceInboxData; curre
                 )}
               </p>
             )}
+            {open.revocation && (
+              <div className="border border-[#F3C5C0] bg-[#FDF6F5] px-4 py-3 text-[12.5px]" data-revocation>
+                <p className="text-[10.5px] font-semibold tracking-[0.06em] uppercase text-[#B42318]">
+                  {tr("Revocado")}
+                  {" · "}
+                  {open.revocation.by ?? "—"}
+                  {" · "}
+                  {utc(open.revocation.at)}
+                </p>
+                <p className="text-inkBody mt-1">{tr(open.revocation.reason)}</p>
+                <p className="text-muted mt-1">{open.revocation.note}</p>
+                <p className="text-[11px] text-muted mt-1">
+                  {tr("El inversionista no ve el motivo: el portal sólo le indica que su verificación fue revocada.")}
+                </p>
+              </div>
+            )}
             {error && (
               <p role="alert" className="border border-[#F3C5C0] bg-[#FDECEA] text-[#B42318] text-[12.5px] px-4 py-3">
                 {error}
               </p>
+            )}
+            {open.mintedUnits > 0 && (
+              <div className="flex flex-col gap-2 border-t border-line pt-4" data-freeze-form data-frozen={open.registry.frozen ? "true" : "false"}>
+                <p className="text-[11px] font-semibold tracking-[0.06em] uppercase text-muted">
+                  {tr("Congelamiento de la wallet")}
+                  {" · "}
+                  {tr("{n} tokens emitidos", { n: open.mintedUnits, count: open.mintedUnits })}
+                </p>
+                <p className="text-[12px] text-inkBody">
+                  {open.registry.frozen
+                    ? tr("La wallet está congelada en el registro: no puede transferir ni recibir tokens.")
+                    : tr("La wallet está activa en el registro. Congelarla impide que transfiera sus tokens y que reciba nuevas suscripciones.")}
+                </p>
+                {open.lastFreeze && (
+                  <p className="text-[11.5px] text-muted">
+                    {open.lastFreeze.frozen ? tr("Último congelamiento:") : tr("Último descongelamiento:")} {open.lastFreeze.note} · {utc(open.lastFreeze.at)}
+                  </p>
+                )}
+                <label htmlFor="freeze-note" className="sr-only">
+                  {tr("Justificación del Oficial")}
+                </label>
+                <textarea
+                  id="freeze-note"
+                  value={freezeNote}
+                  onChange={(ev) => setFreezeNote(ev.target.value)}
+                  maxLength={300}
+                  rows={2}
+                  placeholder={tr("Justificación del Oficial (10–300 caracteres)")}
+                  className={fieldCls(false) + " text-[12.5px]"}
+                />
+                <button
+                  disabled={!!busy || !canAct || !noteOk(freezeNote) || pendingOf(open, "INVESTOR_FREEZE_UPDATED")}
+                  onClick={() => decide(open, "freeze")}
+                  className="self-start border border-rxBlue text-rxBlue px-4 py-2 text-[12.5px] font-semibold inline-flex items-center gap-1.5 focus-ring disabled:opacity-50"
+                >
+                  {busy?.kind === "freeze" && <Icon name="Loader2" size={13} className="spin" />}
+                  {open.registry.frozen ? tr("Descongelar wallet (setFrozen)") : tr("Congelar wallet (setFrozen)")}
+                </button>
+                {pendingOf(open, "INVESTOR_FREEZE_UPDATED") && (
+                  <p className="text-[11.5px] text-goldInk">{tr("Hay un setFrozen() en cola: fírmalo desde la cola on-chain.")}</p>
+                )}
+              </div>
+            )}
+            {open.kyc === "aprobado" && (
+              <div className="flex flex-col gap-2 border-t border-line pt-4" data-revoke-form>
+                <p className="text-[11px] font-semibold tracking-[0.06em] uppercase text-[#B42318]">{tr("Revocar inversionista")}</p>
+                <p className="text-[12px] text-inkBody leading-relaxed">
+                  {tr(
+                    "Se cancelarán {n} suscripción(es) sin emitir ({units} unidades vuelven a la oferta; {paid} con pago conciliado a reembolsar), se cerrará su acceso al Data Room y se retirará de la whitelist con revokeInvestor(). El inversionista no verá el motivo.",
+                    {
+                      n: open.openSubscriptions.count,
+                      units: open.openSubscriptions.units,
+                      paid: open.openSubscriptions.paid,
+                      count: open.openSubscriptions.count,
+                    },
+                  )}
+                </p>
+                <label htmlFor="revoke-reason" className="sr-only">
+                  {tr("Causal de la revocación")}
+                </label>
+                <select
+                  id="revoke-reason"
+                  value={revokeIdx}
+                  onChange={(ev) => setRevokeIdx(Number(ev.target.value))}
+                  className={fieldCls(false) + " text-[12.5px]"}
+                >
+                  {(REVOCATION_REASONS as string[]).map((reason, i) => (
+                    <option key={i} value={i}>
+                      {tr(reason)}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="revoke-note" className="sr-only">
+                  {tr("Justificación del Oficial")}
+                </label>
+                <textarea
+                  id="revoke-note"
+                  value={revokeNote}
+                  onChange={(ev) => setRevokeNote(ev.target.value)}
+                  maxLength={300}
+                  rows={3}
+                  placeholder={tr("Justificación del Oficial (10–300 caracteres)")}
+                  className={fieldCls(false) + " text-[12.5px]"}
+                />
+                <button
+                  disabled={!!busy || !canAct || !noteOk(revokeNote)}
+                  onClick={() => decide(open, "revoke")}
+                  className="self-start border border-[#B42318] bg-[#B42318] text-white px-4 py-2.5 text-[12.5px] font-semibold inline-flex items-center gap-1.5 focus-ring disabled:opacity-50"
+                >
+                  {busy?.kind === "revoke" && <Icon name="Loader2" size={13} className="spin" />}
+                  {tr("Revocar inversionista")}
+                </button>
+              </div>
             )}
             {open.kyc === "pendiente" && (
               <div className="flex flex-col gap-3 border-t border-line pt-4">

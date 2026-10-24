@@ -144,6 +144,7 @@ export const KYC_LABEL = {
   pendiente: [msg("Pendiente de revisión"), "bg-goldTint text-goldInk"],
   aprobado: [msg("Aprobado · Whitelist"), "bg-aquaTint text-aquaInk"],
   rechazado: [msg("Rechazado"), "bg-[#FDECEA] text-[#B42318]"],
+  revocado: [msg("Revocado"), "bg-[#FDECEA] text-[#B42318]"],
 };
 
 // Restrictive-list screening results as the seed and the portal store them (KycCase.listsResult).
@@ -160,4 +161,14 @@ export const REJECT_REASONS = [
   ),
   msg("La declaración de origen de fondos no tiene soporte suficiente para el rango de ingresos declarado."),
   msg("Coincidencia en listas restrictivas pendiente de aclaración por el inversionista."),
+];
+
+// Grounds of revoking an approved investor (KycCase.revocationReason, Spanish source; backoffice only: the investor
+// is never told why — no tipping-off under SAGRILAFT/SARLAFT).
+export const REVOCATION_REASONS = [
+  msg("Coincidencia confirmada en listas restrictivas o vinculantes (ONU, OFAC, Procuraduría, Policía)."),
+  msg("Operación inusual o sospechosa reportada a la UIAF (ROS)."),
+  msg("Información de identidad u origen de fondos desvirtuada o sin actualizar tras el requerimiento."),
+  msg("Requerimiento de una autoridad competente."),
+  msg("Otra causal del sistema de cumplimiento del desarrollador."),
 ];

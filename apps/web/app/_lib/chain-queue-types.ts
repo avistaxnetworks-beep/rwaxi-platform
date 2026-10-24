@@ -14,6 +14,8 @@ export const WALLET_SIGNER_ROLE: Readonly<Record<string, string>> = {
   SUBSCRIPTION_MINTED: "MINTER_ROLE",
   DATA_ROOM_ROOT_ANCHORED: "DATA_ROOM_ROLE",
   DISTRIBUTION_ROOT_ANCHORED: "DISTRIBUTION_ROLE",
+  // the issuer's administrator grants MINTER_ROLE to its own wallet (DEFAULT_ADMIN_ROLE of its token)
+  MINTER_ROLE_GRANTED: "DEFAULT_ADMIN_ROLE",
 };
 
 /** What the server prepared for one queued call: the browser wallet must sign exactly this. */
@@ -39,7 +41,7 @@ export interface WalletCall {
 export interface ChainQueueItem {
   id: string;
   kind: string;
-  status: "PENDING" | "CONFIRMED" | "REVERTED";
+  status: "PENDING" | "CONFIRMED" | "REVERTED" | "CANCELLED";
   network: string;
   contract: RwaxiContract;
   contractAddress: string;

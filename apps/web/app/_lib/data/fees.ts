@@ -12,6 +12,7 @@ export const FEE_STATUS = {
   ACCRUED: ["ACCRUED", "bg-goldTint text-goldInk", "Causado"],
   INVOICED: ["INVOICED", "bg-blueTint text-rxBlue", "Facturado"],
   PAID: ["PAID", "bg-aquaTint text-aquaInk", "Pagado"],
+  VOIDED: ["VOIDED", "bg-cloud text-muted", "Anulado"],
 };
 
 export const FEE_KIND = {

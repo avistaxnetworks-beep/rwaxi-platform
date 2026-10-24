@@ -3,6 +3,8 @@ import { forTenant, type KycStatus, type RiskProfile } from "@rwaxi/database";
 import { msg } from "@/app/_i18n/marks";
 import { render, requestTranslate } from "@/app/_i18n/server";
 import { spanish, type Translate } from "@/app/_i18n/translate";
+import { REGISTRY_KIND_LIST, registryEntry } from "@/app/_lib/server/chain-invariants";
+import { walletOf } from "@/app/_lib/server/chain-queue";
 import { TenantAccessError } from "@/app/_lib/server/tenant-context";
 import { toAuditEntry } from "./audit";
 import { deskSession, requireBackofficeSession, type BackofficeSession } from "./session";
@@ -13,7 +15,9 @@ const KYC_VIEW: Record<KycStatus, KycView> = {
   PENDING: "pendiente",
   APPROVED: "aprobado",
   REJECTED: "rechazado",
+  REVOKED: "revocado",
 };
+const OPEN = new Set(["RESERVED", "PAYMENT_PENDING", "MINT_PENDING"]);
 
 const RISK_VIEW: Record<RiskProfile, RiskKey> = {
   CONSERVATIVE: "conservador",
@@ -59,10 +63,10 @@ function evidenceSummary(evidence: unknown, stored: Set<string>, tr: Translate):
 
 async function readInbox(session: BackofficeSession, tr: Translate): Promise<ComplianceInboxData> {
   const db = forTenant(session.tenant.id);
-  const [org, investors, whitelistTxs, audit, vaultObjects] = await Promise.all([
+  const [org, investors, whitelistTxs, audit, vaultObjects, registryTxs, subscriptions, freezes] = await Promise.all([
     db.organization.findUniqueOrThrow({
       where: { id: session.tenant.id },
-      select: { slug: true, legalName: true, brandColor: true, complianceRegime: true },
+      select: { slug: true, legalName: true, brandColor: true, complianceRegime: true, complianceRegistry: true },
     }),
     db.investor.findMany({
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -72,7 +76,7 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
         kycCases: {
           orderBy: { createdAt: "desc" },
           take: 1,
-          include: { reviewedBy: { select: { email: true } } },
+          include: { reviewedBy: { select: { email: true } }, revokedBy: { select: { email: true } } },
         },
       },
     }),
@@ -83,7 +87,17 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
     }),
     db.auditEvent.findMany({ orderBy: { createdAt: "desc" }, take: 12 }),
     db.vaultObject.findMany({ select: { sha256: true } }),
+    db.chainTransaction.findMany({ where: { kind: { in: [...REGISTRY_KIND_LIST] } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
+    db.subscription.findMany({ select: { investorId: true, status: true, units: true, paymentConfirmedAt: true } }),
+    db.auditEvent.findMany({ where: { action: "INVESTOR_FREEZE_REQUESTED" }, orderBy: { createdAt: "desc" }, select: { entityId: true, payload: true, createdAt: true } }),
   ]);
+  // The registry as the confirmed history leaves it (the same fold the queue's invariants replay).
+  const chain = { registry: org.complianceRegistry, txs: registryTxs, subscriptions: [], tokens: [], distributions: [] };
+  const lastFreeze = new Map<string, ComplianceRow["lastFreeze"]>();
+  for (const f of freezes) {
+    const p = (f.payload ?? {}) as { frozen?: unknown; note?: unknown };
+    if (!lastFreeze.has(f.entityId)) lastFreeze.set(f.entityId, { frozen: p.frozen === true, note: String(p.note ?? ""), at: f.createdAt.toISOString() });
+  }
   // Dossier documents whose file is in the tenant's DocumentVault (seeded cases predate it).
   const stored = new Set(vaultObjects.map((o) => o.sha256));
 
@@ -101,6 +115,9 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
     const lead = inv.leads[0];
     const kyc = inv.kycCases[0];
     const submitted = !!kyc && kyc.status !== "NOT_STARTED";
+    const wallet = inv.walletAddress?.toLowerCase() ?? null;
+    const mine = subscriptions.filter((s) => s.investorId === inv.id);
+    const open = mine.filter((s) => OPEN.has(s.status));
     return {
       investorId: inv.id,
       kycCaseId: kyc?.id ?? null,
@@ -124,6 +141,21 @@ async function readInbox(session: BackofficeSession, tr: Translate): Promise<Com
       rejectionReason: kyc?.rejectionReason ?? null,
       reviewedAt: kyc?.reviewedAt?.toISOString() ?? null,
       reviewedBy: kyc?.reviewedBy?.email ?? null,
+      revocation:
+        kyc?.status === "REVOKED" && kyc.revokedAt
+          ? { at: kyc.revokedAt.toISOString(), by: kyc.revokedBy?.email ?? null, reason: kyc.revocationReason ?? "", note: kyc.revocationNote ?? "" }
+          : null,
+      mintedUnits: mine.filter((s) => s.status === "MINTED").reduce((n, s) => n + s.units, 0),
+      openSubscriptions: {
+        count: open.length,
+        units: open.reduce((n, s) => n + s.units, 0),
+        paid: open.filter((s) => s.paymentConfirmedAt).length,
+      },
+      registry: wallet ? registryEntry(chain, wallet) : { approved: false, frozen: false },
+      pendingRegistry: wallet
+        ? registryTxs.filter((t) => t.status === "PENDING" && walletOf(t.args) === wallet).map((t) => ({ kind: t.kind, inFlight: !!t.executionMode }))
+        : [],
+      lastFreeze: lastFreeze.get(inv.id) ?? null,
     };
   });
 

@@ -22,11 +22,12 @@ const STATUS: Record<ChainQueueItem["status"], [string, string]> = {
   PENDING: [msg("⏳ PENDING · en cola"), "bg-[#3a2a08] text-[#D9A24A]"],
   CONFIRMED: ["✓ CONFIRMED", "bg-[#0c3a2c] text-[#6EE7B7]"],
   REVERTED: ["✗ REVERTED", "bg-[#3a1018] text-[#FF8A80]"],
+  CANCELLED: [msg("⊘ CANCELLED · retirada sin enviarse"), "bg-[#2a2440] text-[#A79FC0]"],
 };
 
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
 /** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: Data Room and distribution roots). */
-const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED"]);
+const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED", "MINTER_ROLE_GRANTED"]);
 
 type Run = (
   busyId: string,

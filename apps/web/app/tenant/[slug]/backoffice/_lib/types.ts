@@ -2,7 +2,7 @@
 import type { ChainQueueItem, WalletCall } from "@/app/_lib/chain-queue-types";
 
 /** KYC status keys used by the prototype UI (KYC_LABEL). */
-export type KycView = "no_iniciado" | "pendiente" | "aprobado" | "rechazado";
+export type KycView = "no_iniciado" | "pendiente" | "aprobado" | "rechazado" | "revocado";
 export type RegimeKey = "sagrilaft" | "sarlaft";
 export type RiskKey = "conservador" | "moderado" | "dinamico";
 
@@ -28,7 +28,19 @@ export interface ComplianceRow {
   /** From KycCase.evidence (portal submissions): files verified by the DocumentVault; `stored` = file in the vault */
   documents: { kind: string; name: string; sha256: string; stored: boolean }[];
   liveness: string | null;
-  whitelist: { status: "PENDING" | "CONFIRMED" | "REVERTED"; txHash: string | null } | null;
+  whitelist: { status: ChainQueueItem["status"]; txHash: string | null } | null;
+  /** revocation of the approved case: backoffice only, never shown to the investor */
+  revocation: { at: string; by: string | null; reason: string; note: string } | null;
+  /** tokens minted to the investor's wallet */
+  mintedUnits: number;
+  /** what a revocation would cancel: subscriptions not minted yet (paid = payment already reconciled) */
+  openSubscriptions: { count: number; units: number; paid: number };
+  /** the wallet in the tenant's registry, from the confirmed on-chain history */
+  registry: { approved: boolean; frozen: boolean };
+  /** registry calls of the wallet still queued (inFlight: sent, receipt not seen yet) */
+  pendingRegistry: { kind: string; inFlight: boolean }[];
+  /** the latest freeze decision recorded for the investor */
+  lastFreeze: { frozen: boolean; note: string; at: string } | null;
   rejectionReason: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
@@ -71,7 +83,12 @@ export interface AuditEntry {
     | "DATA_ROOM_DOCUMENT_ADDED"
     | "DATA_ROOM_DOCUMENT_DOWNLOADED"
     | "KYC_DOCUMENT_VIEWED"
-    | "VAULT_INTEGRITY_FAILED";
+    | "VAULT_INTEGRITY_FAILED"
+    // compliance after approval and the issuer's own minting
+    | "KYC_REVOKED"
+    | "SUBSCRIPTION_CANCELLED"
+    | "INVESTOR_FREEZE_REQUESTED"
+    | "MINTER_ROLE_REQUESTED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;
@@ -129,9 +146,43 @@ export interface SubscriptionRow {
   paymentEvidenceRef: string | null;
   mintTxHash: string | null;
   /** the queued mintSubscription() of this subscription, when there is one */
-  mint: { chainTxId: string; status: "PENDING" | "CONFIRMED" | "REVERTED"; blockedReason: string | null } | null;
+  mint: { chainTxId: string; status: ChainQueueItem["status"]; blockedReason: string | null } | null;
   /** why the payment cannot be confirmed yet (token not deployed or paused) */
   paymentBlocker: string | null;
+  /** a cancelled subscription (its units went back to the offering); refundDue = its payment had been reconciled */
+  cancellation: { at: string; reason: string | null; refundDue: boolean } | null;
+}
+
+/** What the token says about the administrator's own wallet: may it sign this token's mints itself? */
+export type IssuerMinterState =
+  /** the wallet holds MINTER_ROLE: it can sign its mints with EIP-1193 */
+  | "minter"
+  /** it holds DEFAULT_ADMIN_ROLE and may grant itself MINTER_ROLE */
+  | "grantable"
+  /** grantRole(MINTER_ROLE) for it waits in the queue */
+  | "pending"
+  /** it is not the token's DEFAULT_ADMIN_ROLE */
+  | "not-admin"
+  /** the token could not be read on the network */
+  | "unreadable";
+
+export interface IssuerMinterToken {
+  offeringId: string;
+  offeringCode: string;
+  token: string;
+  network: string;
+  state: IssuerMinterState;
+  /** the queued grantRole(MINTER_ROLE) of this wallet, while it is pending */
+  chainTxId: string | null;
+  /** why the token could not be read */
+  detail: string | null;
+}
+
+/** RPC mode only: the optional MINTER_ROLE of the administrator's registered wallet, token by token. */
+export interface IssuerMintPanel {
+  /** the registered wallet of the administrator looking at the desk (null: none registered) */
+  wallet: string | null;
+  tokens: IssuerMinterToken[];
 }
 
 export interface SubscriptionsDeskData {
@@ -146,6 +197,8 @@ export interface SubscriptionsDeskData {
   recent: ChainQueueItem[];
   fees: { accruedUsd: number; entries: number };
   audit: AuditEntry[];
+  /** RPC mode: may the issuer sign its own mints? (null in simulation, where RWAXI's demo key signs the queue) */
+  issuerMint: IssuerMintPanel | null;
 }
 
 export type SubscriptionsDeskResult = { ok: true; data: SubscriptionsDeskData } | { ok: false; error: string };
@@ -195,7 +248,7 @@ export interface DistributionRow {
   /** the queued anchorDistributionRoot() and how it was (or can be) executed */
   anchor: {
     chainTxId: string;
-    status: "PENDING" | "CONFIRMED" | "REVERTED";
+    status: ChainQueueItem["status"];
     mode: "SIMULATION" | "RPC" | null;
     blockedReason: string | null;
     /** sent and awaiting its receipt (RPC): the hash and the wallet that sent it */

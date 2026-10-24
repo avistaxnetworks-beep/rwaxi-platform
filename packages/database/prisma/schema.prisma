@@ -88,6 +88,7 @@ enum KycStatus {
   PENDING
   APPROVED
   REJECTED
+  REVOKED // approved, then revoked by the compliance officer (revokeInvestor queued); never shown with its reason
 }
 
 enum RiskProfile {
@@ -121,12 +122,14 @@ enum ChainTxKind {
   FORCED_RECOVERY
   TOKEN_PAUSED
   TOKEN_UNPAUSED
+  MINTER_ROLE_GRANTED // grantRole(MINTER_ROLE, issuer's own wallet): the issuer signs its own mints
 }
 
 enum ChainTxStatus {
   PENDING
   CONFIRMED
   REVERTED
+  CANCELLED // withdrawn before it was ever sent (e.g. the approveInvestor or the mint of a revoked investor)
 }
 
 enum FeeKind {
@@ -139,6 +142,7 @@ enum FeeStatus {
   ACCRUED
   INVOICED
   PAID
+  VOIDED // accrued for an emission that never happened (subscription cancelled before its mint): never billed
 }
 
 enum AuditAction {
@@ -178,6 +182,11 @@ enum AuditAction {
   DATA_ROOM_DOCUMENT_DOWNLOADED
   KYC_DOCUMENT_VIEWED
   VAULT_INTEGRITY_FAILED
+  // compliance after approval (backoffice) and the issuer's own minting
+  KYC_REVOKED
+  SUBSCRIPTION_CANCELLED
+  INVESTOR_FREEZE_REQUESTED
+  MINTER_ROLE_REQUESTED
 }
 
 enum SessionScope {
@@ -291,6 +300,7 @@ model User {
   sessions              UserSession[]
   invitations           UserInvitation[]
   reviewedCases         KycCase[]        @relation("KycReviewer")
+  revokedCases          KycCase[]        @relation("KycRevoker")
   auditEvents           AuditEvent[]
   confirmedPayments     Subscription[]   @relation("SubscriptionPaymentConfirmer")
   declaredDistributions Distribution[]
@@ -457,33 +467,41 @@ model NdaAcceptance {
 }
 
 model KycCase {
-  id              String       @id @default(cuid())
-  organizationId  String       @map("organization_id")
-  investorId      String       @map("investor_id")
-  offeringId      String?      @map("offering_id")
-  status          KycStatus    @default(NOT_STARTED)
-  activity        String?
-  incomeBracket   Int?         @map("income_bracket")
-  riskProfile     RiskProfile? @map("risk_profile")
-  isPep           Boolean      @default(false) @map("is_pep")
-  listsResult     String?      @map("lists_result") // listas restrictivas (OFAC, ONU, …)
+  id               String       @id @default(cuid())
+  organizationId   String       @map("organization_id")
+  investorId       String       @map("investor_id")
+  offeringId       String?      @map("offering_id")
+  status           KycStatus    @default(NOT_STARTED)
+  activity         String?
+  incomeBracket    Int?         @map("income_bracket")
+  riskProfile      RiskProfile? @map("risk_profile")
+  isPep            Boolean      @default(false) @map("is_pep")
+  listsResult      String?      @map("lists_result") // listas restrictivas (OFAC, ONU, …)
   /// SHA-256 of the KYC dossier + NDA — written on-chain as kycDossierHash
-  dossierHash     String?      @map("dossier_hash")
+  dossierHash      String?      @map("dossier_hash")
   /// Canonical dossier the server hashed into dossierHash (form, document SHA-256s, consents);
   /// sha256(JSON.stringify(evidence)) must equal dossierHash. Files themselves are not stored here.
-  evidence        Json?
-  rejectionReason String?      @map("rejection_reason")
-  reviewedById    String?      @map("reviewed_by_id")
-  reviewedAt      DateTime?    @map("reviewed_at")
-  whitelistTxHash String?      @map("whitelist_tx_hash")
-  submittedAt     DateTime?    @map("submitted_at")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  evidence         Json?
+  rejectionReason  String?      @map("rejection_reason")
+  reviewedById     String?      @map("reviewed_by_id")
+  reviewedAt       DateTime?    @map("reviewed_at")
+  whitelistTxHash  String?      @map("whitelist_tx_hash")
+  /// revocation of an approved case (REVOKED): never shown to the investor (no tipping-off under SAGRILAFT/SARLAFT)
+  revokedAt        DateTime?    @map("revoked_at")
+  revokedById      String?      @map("revoked_by_id")
+  /// closed list (REVOCATION_REASONS, Spanish source text)
+  revocationReason String?      @map("revocation_reason")
+  /// the compliance officer's justification (10–300 characters)
+  revocationNote   String?      @map("revocation_note")
+  submittedAt      DateTime?    @map("submitted_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   investor     Investor              @relation(fields: [investorId], references: [id], onDelete: Cascade)
   offering     Offering?             @relation(fields: [offeringId], references: [id], onDelete: SetNull)
   reviewedBy   User?                 @relation("KycReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  revokedBy    User?                 @relation("KycRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
   accessGrants DataRoomAccessGrant[]
 
   @@index([organizationId, status])
@@ -556,6 +574,10 @@ model Subscription {
   /// evidenceHash({subscriptionId, agreementHash, paymentReference}) — mintSubscription(paymentEvidenceRef)
   paymentEvidenceRef   String?            @map("payment_evidence_ref")
   mintTxHash           String?            @map("mint_tx_hash")
+  /// set exactly when CANCELLED (CHECK); a cancelled subscription released its committed units
+  cancelledAt          DateTime?          @map("cancelled_at")
+  /// e.g. KYC_REVOKED
+  cancellationReason   String?            @map("cancellation_reason")
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
 
@@ -680,6 +702,8 @@ model FeeLedgerEntry {
   status         FeeStatus @default(ACCRUED)
   /// RWAXI invoice that billed it: set exactly when status is INVOICED or PAID (CHECK)
   invoiceId      String?   @map("invoice_id")
+  /// set exactly when VOIDED (CHECK): its subscription was cancelled before the mint
+  voidedAt       DateTime? @map("voided_at")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 

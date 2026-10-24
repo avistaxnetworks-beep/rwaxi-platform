@@ -29,6 +29,8 @@ export const KYC_STATUS_VIEW: Partial<Record<KycStatus, KycStatusView>> = {
   PENDING: "pendiente",
   APPROVED: "aprobado",
   REJECTED: "rechazado",
+  // Revoked by the compliance officer: the portal never learns why (no tipping-off under SAGRILAFT/SARLAFT).
+  REVOKED: "revocado",
 };
 
 /** The offering a tenant portal presents: its first published offering. */
@@ -73,7 +75,21 @@ const HOLDING_STATUS: Record<Subscription["status"], PersistedHolding["status"] 
   CANCELLED: null,
 };
 
-export function toHolding(s: Subscription): PersistedHolding | null {
+/** The columns of a subscription a holding shows. */
+export const HOLDING_SELECT = {
+  id: true,
+  status: true,
+  units: true,
+  capitalUsd: true,
+  createdAt: true,
+  mintTxHash: true,
+  agreementHash: true,
+  paymentEvidenceRef: true,
+  onchainId: true,
+} as const;
+type HoldingSource = Pick<Subscription, keyof typeof HOLDING_SELECT>;
+
+export function toHolding(s: HoldingSource): PersistedHolding | null {
   const status = HOLDING_STATUS[s.status];
   if (!status) return null;
   return {
@@ -89,7 +105,7 @@ export function toHolding(s: Subscription): PersistedHolding | null {
   };
 }
 
-export const toHoldings = (subs: Subscription[]) => subs.flatMap((s) => toHolding(s) ?? []);
+export const toHoldings = (subs: HoldingSource[]) => subs.flatMap((s) => toHolding(s) ?? []);
 
 /** Distributions allocated to an investor in an offering, with their proofs and how the root was anchored. */
 async function investorDistributions(
@@ -214,18 +230,40 @@ export async function loadInvestorJourney(refParam?: string): Promise<PersistedJ
     const session = await readInvestorSession(tenant.id);
     if (!session || !offering) return { ok: true, data: anonymous };
 
+    // Only the columns the portal shows: what a server component awaits can travel to the browser (React's
+    // development debug info does serialize it), and a case's review — a revocation's ground and the officer's note,
+    // the dossier — is never the investor's to see (SAGRILAFT/SARLAFT: no tipping-off).
     const investor = await db.investor.findUnique({
       where: { id: session.investorId },
-      include: {
-        leads: { where: { offeringId: offering.id }, orderBy: { landedAt: "asc" }, take: 1 },
-        ndas: { where: { offeringId: offering.id }, take: 1 },
-        kycCases: { where: { offeringId: offering.id }, orderBy: { createdAt: "desc" }, take: 1 },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        walletAddress: true,
+        leads: {
+          where: { offeringId: offering.id },
+          orderBy: { landedAt: "asc" },
+          take: 1,
+          select: { referralToken: true, landedAt: true, source: true },
+        },
+        ndas: {
+          where: { offeringId: offering.id },
+          take: 1,
+          select: { id: true, signerName: true, signerEmail: true, acceptedAt: true, documentHash: true },
+        },
+        kycCases: {
+          where: { offeringId: offering.id },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, status: true, rejectionReason: true, dossierHash: true, whitelistTxHash: true },
+        },
         accessGrants: {
           where: { offeringId: offering.id, revokedAt: null },
           orderBy: { grantedAt: "desc" },
           take: 1,
+          select: { id: true, grantedAt: true, expiresAt: true },
         },
-        subscriptions: { where: { offeringId: offering.id }, orderBy: { createdAt: "asc" } },
+        subscriptions: { where: { offeringId: offering.id }, orderBy: { createdAt: "asc" }, select: HOLDING_SELECT },
       },
     });
     // Stale cookie (e.g. the database was re-seeded): behave as a new visitor.

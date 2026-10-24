@@ -14,14 +14,17 @@ const SUITES = [
   "superadmin-ops",
   "onboarding",
   "distributions",
+  "revocation",
   "i18n",
   "auth",
   "activation",
   "vault",
+  "maintenance",
 ];
-// They act through the demo staff session (RWAXI_DEMO_AUTH); the last three opt their browsers out and sign in
-// for real (pnpm e2e:strict runs them against a server with RWAXI_DEMO_AUTH=0).
-const REAL_AUTH_SUITES = ["auth", "activation", "vault"];
+// They act through the demo staff session (RWAXI_DEMO_AUTH); auth, activation and vault opt their browsers out and
+// sign in for real, and maintenance calls the cron endpoint with CRON_SECRET (pnpm e2e:strict runs those four against
+// a server with RWAXI_DEMO_AUTH=0).
+const REAL_AUTH_SUITES = ["auth", "activation", "vault", "maintenance"];
 const DEMO_SUITES = SUITES.filter((s) => !REAL_AUTH_SUITES.includes(s));
 
 (async () => {

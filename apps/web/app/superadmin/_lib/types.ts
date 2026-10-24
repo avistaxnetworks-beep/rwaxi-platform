@@ -2,9 +2,9 @@
 import type { PlatformAuditActionKey } from "@/app/_lib/server/platform-audit";
 
 export type FeeKindKey = "ONBOARDING_SETUP" | "MONTHLY_SAAS" | "INFRASTRUCTURE_USAGE";
-export type FeeStatusKey = "ACCRUED" | "INVOICED" | "PAID";
+export type FeeStatusKey = "ACCRUED" | "INVOICED" | "PAID" | "VOIDED";
 export type PortalStatusKey = "ACTIVE" | "REVIEW" | "SUSPENDED";
-export type KycKey = "no_iniciado" | "pendiente" | "aprobado" | "rechazado";
+export type KycKey = "no_iniciado" | "pendiente" | "aprobado" | "rechazado" | "revocado";
 
 export type FeeTotals = Record<FeeStatusKey, number> & { total: number };
 

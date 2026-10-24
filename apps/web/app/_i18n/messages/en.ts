@@ -55,9 +55,17 @@ const catalog: Catalog = {
   "{n} intentos fallidos": "{n} failed attempts",
   "{n} meses": { one: "{n} month", other: "{n} months" },
   "{n} suscripción(es)": { one: "{n} subscription", other: "{n} subscriptions" },
+  "{n} suscripción(es) cancelada(s) · {units} unidades liberadas": {
+    one: "{n} subscription cancelled · {units} units released",
+    other: "{n} subscriptions cancelled · {units} units released",
+  },
   "{n} tenedor(es)": { one: "{n} holder", other: "{n} holders" },
   "{n} tokens": "{n} tokens",
   "{n} tokens {symbol} emitidos en {network}": "{n} {symbol} tokens issued on {network}",
+  "{n} tokens emitidos": {
+    one: "{n} token minted",
+    other: "{n} tokens minted",
+  },
   "{n} transacciones · más reciente primero": {
     one: "{n} transaction · most recent first",
     other: "{n} transactions · most recent first",
@@ -69,6 +77,14 @@ const catalog: Catalog = {
   "{name} · Portal de inversión": "{name} · Investment portal",
   "{name} · SHA-256 verificado al servirlo · {by}": "{name} · SHA-256 verified when served · {by}",
   "{name} aprobado · whitelist on-chain en cola": "{name} approved · on-chain whitelist queued",
+  "{name} revocado · {n} suscripción(es) cancelada(s) · revokeInvestor en cola": {
+    one: "{name} revoked · {n} subscription cancelled · revokeInvestor queued",
+    other: "{name} revoked · {n} subscriptions cancelled · revokeInvestor queued",
+  },
+  "{name} revocado · {n} suscripción(es) cancelada(s) · whitelist retirada antes de enviarse": {
+    one: "{name} revoked · {n} subscription cancelled · whitelisting withdrawn before it was sent",
+    other: "{name} revoked · {n} subscriptions cancelled · whitelisting withdrawn before it was sent",
+  },
   "{name}: {error}": "{name}: {error}",
   "{name}: el archivo no coincide con su SHA-256 · acceso bloqueado":
     "{name}: the file does not match its SHA-256 · access blocked",
@@ -87,6 +103,7 @@ const catalog: Catalog = {
     one: "{units} unit · {capital} USD",
     other: "{units} units · {capital} USD",
   },
+  "⊘ CANCELLED · retirada sin enviarse": "⊘ CANCELLED · withdrawn before it was sent",
   "⏳ PENDING · en cola": "⏳ PENDING · queued",
   "✓ La prueba reconstruye la raíz": "✓ The proof reconstructs the root",
   "✗ La prueba no corresponde a la raíz": "✗ The proof does not match the root",
@@ -232,6 +249,7 @@ const catalog: Catalog = {
   "Carpeta del Data Room inválida.": "Invalid Data Room folder.",
   "Catálogo en vivo no disponible: se muestran los datos ilustrativos del prototipo.":
     "Live catalog unavailable: showing the prototype's illustrative data.",
+  "Causal de la revocación": "Grounds for revocation",
   "Cédula · frente": "Cédula · front",
   "Cédula · reverso": "Cédula · back",
   "Cédula de Ciudadanía": "Colombian citizen ID (cédula)",
@@ -257,6 +275,8 @@ const catalog: Catalog = {
     "Incorrect code. Check the time on your device and try again.",
   "código TOTP": "TOTP code",
   "Código TOTP incorrecto": "Incorrect TOTP code",
+  "Coincidencia confirmada en listas restrictivas o vinculantes (ONU, OFAC, Procuraduría, Policía).":
+    "Confirmed match on restrictive or binding lists (UN, OFAC, Procuraduría, Police).",
   "Coincidencia en listas restrictivas pendiente de aclaración por el inversionista.":
     "Sanctions list match pending clarification by the investor.",
   "Coincidencia parcial · revisar homónimo": "Partial match · review possible namesake",
@@ -299,6 +319,10 @@ const catalog: Catalog = {
   "Confirmar Pago Fiduciario · {name}": "Confirm Fiduciary Payment · {name}",
   "Confirmar y entrar": "Confirm and sign in",
   congelada: "frozen",
+  "Congelamiento de la wallet": "Wallet freeze",
+  "Congelamiento de la wallet de {name} en cola (setFrozen)": "Freeze of {name}'s wallet queued (setFrozen)",
+  "Congelamiento de wallet solicitado": "Wallet freeze requested",
+  "Congelar wallet (setFrozen)": "Freeze wallet (setFrozen)",
   "Conozco y acepto el PTEE de {entity}, adoptado conforme al Capítulo XIII de la Circular Básica Jurídica de la Superintendencia de Sociedades, y me comprometo a reportar cualquier situación de soborno o corrupción relacionada con este negocio.":
     "I am aware of and accept the PTEE of {entity}, adopted pursuant to Chapter XIII of the Basic Legal Circular (Circular Básica Jurídica) of the Superintendency of Companies (Supersociedades), and I undertake to report any situation of bribery or corruption related to this business.",
   "ConsentRecord registrado": "ConsentRecord recorded",
@@ -348,6 +372,7 @@ const catalog: Catalog = {
     "You must accept the agreement, the risks and the 4 structural layers.",
   "Debida Diligencia": "Due Diligence",
   "Debida diligencia · Paso 2 ({regime})": "Due diligence · Step 2 ({regime})",
+  "Decisión inválida.": "Invalid decision.",
   "Declaración de No-PEP": "Non-PEP Declaration",
   "Declaración PEP": "PEP declaration",
   "Declarada · raíz en cola": "Declared · root queued",
@@ -360,6 +385,7 @@ const catalog: Catalog = {
     "I declare that the information provided is truthful and that my funds come from lawful activities, and I authorize its verification pursuant to Chapter X of the Basic Legal Circular (Circular Básica Jurídica) of the Superintendency of Companies (Supersociedades).",
   "Declaro que no soy Persona Expuesta Políticamente (PEP), ni familiar o asociado cercano de una PEP, en los términos del Decreto 830 de 2021. Me obligo a informar cualquier cambio en esta condición.":
     "I declare that I am not a Politically Exposed Person (PEP), nor a family member or close associate of a PEP, under the terms of Decree 830 of 2021. I undertake to report any change in this status.",
+  "DEFAULT_ADMIN_ROLE · emisor, a su propia wallet": "DEFAULT_ADMIN_ROLE · issuer, to its own wallet",
   "Define las etiquetas y declaraciones del Paso 2 del portal. Autoridad: {authority}.":
     "Defines the labels and declarations for Step 2 of the portal. Authority: {authority}.",
   "Define primero tu contraseña.": "Set your password first.",
@@ -376,10 +402,13 @@ const catalog: Catalog = {
   "Desarrollador y emisor responsable": "Developer and responsible issuer",
   "Desarrollador:": "Developer:",
   "Descargar {name}": "Download {name}",
+  "Descongelamiento de la wallet de {name} en cola (setFrozen)": "Unfreeze of {name}'s wallet queued (setFrozen)",
+  "Descongelar wallet (setFrozen)": "Unfreeze wallet (setFrozen)",
   "Describe brevemente la actividad.": "Briefly describe the activity.",
   "Describe la actividad": "Describe the activity",
   "Descubre en RWAXI": "Discover on RWAXI",
   "Desde el mes {month}": "From month {month}",
+  "Desde la cola sólo se otorga MINTER_ROLE.": "Only MINTER_ROLE is granted from the queue.",
   "Destino de carga inválido.": "Invalid upload destination.",
   Dinámico: "Dynamic",
   "Dirección 0x… en Polygon o Base. Es la que el Oficial de Cumplimiento añadirá a la whitelist al aprobarte.":
@@ -469,6 +498,8 @@ const catalog: Catalog = {
     "The issuer has paused the token: no new units can be minted.",
   "El emisor pausó el token: reanúdalo antes de conciliar pagos.":
     "The issuer paused the token: resume it before reconciling payments.",
+  "El emisor se otorga MINTER_ROLE para firmar sus propios mint con su wallet; RWAXI no recibe ningún rol nuevo.":
+    "The issuer grants itself MINTER_ROLE to sign its own mints with its wallet; RWAXI receives no new role.",
   "El expediente no está asociado a una oferta.": "The KYC file is not linked to an offering.",
   "El expediente no tiene un hash SHA-256 válido.": "The KYC file has no valid SHA-256 hash.",
   "El expediente ya está {status}; recarga la bandeja.": "The KYC file is {status}; reload the inbox.",
@@ -477,10 +508,14 @@ const catalog: Catalog = {
     "The token's _update hook requires the recipient to be on the whitelist: their approveInvestor() must be confirmed first.",
   "El inversionista no ha registrado una wallet.": "The investor has not registered a wallet.",
   "El inversionista no tiene una wallet válida.": "The investor has no valid wallet.",
+  "El inversionista no ve el motivo: el portal sólo le indica que su verificación fue revocada.":
+    "The investor does not see the reason: the portal only tells them their verification was revoked.",
   "El máximo por suscripción es {amount}.": "The maximum per subscription is {amount}.",
   "El Merkle Root del Data Room difiere del anclado on-chain.":
     "The Data Room Merkle Root differs from the one anchored on-chain.",
   "El Merkle Root se ancla al desplegar el token.": "The Merkle Root is anchored when the token is deployed.",
+  "El Oficial de Cumplimiento de {name} revocó tu verificación: no se reciben nuevas suscripciones y el acceso reservado del Data Room quedó cerrado. Para más información, comunícate directamente con el desarrollador.":
+    "{name}'s Compliance Officer revoked your verification: no new subscriptions are accepted and your restricted Data Room access has been closed. For more information, please contact the developer directly.",
   "El pasaporte tiene entre 6 y 12 caracteres alfanuméricos.":
     "The passport number has 6 to 12 alphanumeric characters.",
   "El portal de este desarrollador no está disponible desde la vitrina.":
@@ -563,6 +598,7 @@ const catalog: Catalog = {
   "Esa transacción no fue exitosa en la red.": "That transaction did not succeed on the network.",
   "Esa wallet ya está registrada por otro inversionista de este portal.":
     "That wallet is already registered by another investor on this portal.",
+  "Esa wallet ya tiene MINTER_ROLE en el token.": "That wallet already holds MINTER_ROLE on the token.",
   "Escenario base": "Base case",
   "Escenario base · E.A.": "Base case · effective annual",
   "Escenario Estimado": "Estimated Scenario",
@@ -634,11 +670,13 @@ const catalog: Catalog = {
   "Fecha (UTC)": "Date (UTC)",
   "fee RWAXI {fee} USD": "RWAXI fee {fee} USD",
   "fee RWAXI {fee} USD devengado": "RWAXI fee {fee} USD accrued",
+  "fee RWAXI anulado": "RWAXI fee voided",
   "Fee RWAXI devengado": "Accrued RWAXI fee",
   "Ficha técnica": "Fact sheet",
   "Ficha técnica del inmueble": "Property technical data sheet",
   "Filtrar por etapa": "Filter by stage",
   Financiero: "Financial",
+  "Firma de mint del emisor · opcional": "Issuer-signed minting · optional",
   "Firma de NDA digital": "Digital NDA signature",
   "Firma del contrato del vehículo": "Vehicle agreement signature",
   "Firma del contrato y registro en PostgreSQL": "Agreement signature and PostgreSQL record",
@@ -687,8 +725,19 @@ const catalog: Catalog = {
   "Gobierno RWAXI · estado del portal": "RWAXI governance · portal status",
   "Gobierno RWAXI · publicación en vitrina": "RWAXI governance · showcase publication",
   Guardar: "Save",
+  "grantRole(MINTER_ROLE) a la wallet del emisor {wallet} en cola":
+    "grantRole(MINTER_ROLE) to the issuer's wallet {wallet} queued",
+  "grantRole(MINTER_ROLE) en cola para tu wallet {wallet} en el token de {code}: fírmalo con esa wallet en la cola on-chain.":
+    "grantRole(MINTER_ROLE) queued for your wallet {wallet} on the {code} token: sign it with that wallet in the on-chain queue.",
+  "grantRole(MINTER_ROLE) en cola: fírmalo con tu wallet en la cola on-chain.":
+    "grantRole(MINTER_ROLE) queued: sign it with your wallet in the on-chain queue.",
   "Guardar contraseña y continuar": "Save password and continue",
+  "Habilitar MINTER_ROLE para mi wallet": "Enable MINTER_ROLE for my wallet",
   "Hash SHA-256 del documento": "Document SHA-256 hash",
+  "Hay un setFrozen() en cola: fírmalo desde la cola on-chain.":
+    "A setFrozen() is queued: sign it from the on-chain queue.",
+  "Hay una transacción de este inversionista en curso en la red ({fn} · {hash}): concíliala antes de revocar.":
+    "A transaction of this investor is in flight on the network ({fn} · {hash}): reconcile it before revoking.",
   "histórico (seed)": "historical (seed)",
   hoja: "leaf",
   "Hoja (SHA-256)": "Leaf (SHA-256)",
@@ -704,6 +753,8 @@ const catalog: Catalog = {
     "Reference images generated for this prototype. Upload the Data Room photos to replace them.",
   "Indica el monto: el cálculo prorrata se muestra antes de declarar y el servidor lo recalcula sobre el snapshot de PostgreSQL.":
     "Enter the amount: the pro rata calculation is shown before declaring, and the server recalculates it on the PostgreSQL snapshot.",
+  "Información de identidad u origen de fondos desvirtuada o sin actualizar tras el requerimiento.":
+    "Identity or source-of-funds information disproved, or not updated after the request.",
   "Informe del comité de inversiones": "Investment committee report",
   "Infraestructura digital": "Digital infrastructure",
   "infraestructura maestra RWAXI": "RWAXI master infrastructure",
@@ -729,8 +780,11 @@ const catalog: Catalog = {
   "inversionista con NDA": "investor with NDA",
   "Inversionista demo": "Demo investor",
   "Inversionista Elegible": "Eligible Investor",
+  "Inversionista inválido.": "Invalid investor.",
+  "Inversionista no encontrado en este tenant.": "Investor not found in this tenant.",
   "Inversionista no residente: se solicitará registro de inversión extranjera.":
     "Non-resident investor: foreign investment registration will be requested.",
+  "Inversionista revocado": "Investor revoked",
   "Invitación de activación enviada": "Activation invitation sent",
   "Invitación de activación enviada a {email} ({role}) · vence {expires}":
     "Activation invitation sent to {email} ({role}) · expires {expires}",
@@ -744,10 +798,15 @@ const catalog: Catalog = {
     "ISSUER_ADMIN_ROLE or COMPLIANCE_OFFICER_ROLE · issuer",
   "JPG, PNG o PDF · máx. 10 MB": "JPG, PNG or PDF · max. 10 MB",
   "Jurídico y Tradición": "Legal & Title",
+  "Justifica la decisión (entre {min} y {max} caracteres).":
+    "Justify the decision (between {min} and {max} characters).",
+  "Justificación del Oficial": "Officer's justification",
+  "Justificación del Oficial (10–300 caracteres)": "Officer's justification (10–300 characters)",
   "KYC aprobado": "KYC approved",
   "KYC en revisión": "KYC under review",
   "KYC pendientes": "Pending KYC",
   "KYC rechazado": "KYC rejected",
+  "KYC revocado": "KYC revoked",
   "KYC/{sys} aprobado": "KYC/{sys} approved",
   "KYC/AML + {regime}": "KYC/AML + {regime}",
   "La autorización de carga no es válida o venció: vuelve a cargar el archivo.":
@@ -795,6 +854,7 @@ const catalog: Catalog = {
   "La raíz de esta distribución ya está anclada.": "This distribution's root is already anchored.",
   "La red {network} no conoce la transacción {hash}: revisa que tu wallet la haya enviado a {chain}.":
     "Network {network} does not know transaction {hash}: check that your wallet sent it to {chain}.",
+  "La red no respondió a tiempo.": "The network did not respond in time.",
   "La red rechazaría la llamada desde tu wallet ({detail}): no se pidió ninguna firma.":
     "The network would reject the call from your wallet ({detail}): no signature was requested.",
   "La solicitud supera el tamaño máximo permitido.": "The request exceeds the maximum allowed size.",
@@ -822,7 +882,13 @@ const catalog: Catalog = {
     "The transaction transferred value along with the call: nothing was recorded.",
   "La transacción ya no está PENDING.": "The transaction is no longer PENDING.",
   "La wallet de la operación no es una dirección válida.": "The operation's wallet is not a valid address.",
+  "La wallet está activa en el registro. Congelarla impide que transfiera sus tokens y que reciba nuevas suscripciones.":
+    "The wallet is active in the registry. Freezing it stops it from transferring its tokens and from receiving new subscriptions.",
+  "La wallet está congelada en el registro: no puede transferir ni recibir tokens.":
+    "The wallet is frozen in the registry: it can neither transfer nor receive tokens.",
   "La wallet EVM no es válida.": "The EVM wallet is not valid.",
+  "La wallet no está congelada.": "The wallet is not frozen.",
+  "La wallet ya está congelada.": "The wallet is already frozen.",
   "Las contraseñas no coinciden.": "The passwords do not match.",
   "Las unidades reservadas se entregan en tu wallet cuando el desarrollador emite los tokens.":
     "Reserved units are delivered to your wallet when the developer issues the tokens.",
@@ -866,6 +932,9 @@ const catalog: Catalog = {
   "Mint en cola": "Mint queued",
   "MINTER_ROLE · adaptador RWAXI, tras verificar el pago":
     "MINTER_ROLE · RWAXI adapter, after the payment is verified",
+  "MINTER_ROLE solicitado para el emisor": "MINTER_ROLE requested for the issuer",
+  "MINTER_ROLE sólo se otorga a la wallet registrada del Administrador que lo firma.":
+    "MINTER_ROLE is only granted to the registered wallet of the Administrator who signs it.",
   "mintSubscription en cola": "mintSubscription queued",
   "mintSubscription() por cada suscripción aprobada ({n})":
     "mintSubscription() for each approved subscription ({n})",
@@ -880,6 +949,8 @@ const catalog: Catalog = {
     "RPC mode: the issuer signs anchorDistributionRoot with its own wallet (RWAXI does not hold DISTRIBUTION_ROLE); then register its tx hash.",
   "Modo RPC: el emisor firma updateDataRoomMerkleRoot con su propia wallet (RWAXI no custodia DATA_ROOM_ROLE); registra luego su tx hash.":
     "RPC mode: the issuer signs updateDataRoomMerkleRoot with its own wallet (RWAXI does not hold DATA_ROOM_ROLE); then register its tx hash.",
+  "Modo RPC: el emisor se otorga MINTER_ROLE con su propia wallet (DEFAULT_ADMIN_ROLE del token); RWAXI no lo firma.":
+    "RPC mode: the issuer grants itself MINTER_ROLE with its own wallet (the token's DEFAULT_ADMIN_ROLE); RWAXI does not sign it.",
   "Modo RPC: el nodo rechazó la transacción ({detail}).":
     "RPC mode: the node rejected the transaction ({detail}).",
   "Modo RPC: esta operación la firma el Oficial de Cumplimiento con su propia wallet (RWAXI no custodia COMPLIANCE_OFFICER_ROLE); registra luego su tx hash.":
@@ -896,6 +967,7 @@ const catalog: Catalog = {
   "Monto en USD": "Amount in USD",
   "Monto total ({currency})": "Total amount ({currency})",
   "Motivo de rechazo inválido.": "Invalid rejection reason.",
+  "Motivo de revocación inválido.": "Invalid revocation reason.",
   "Motivo del rechazo": "Rejection reason",
   "Motivo del rechazo:": "Rejection reason:",
   "Nada ejecutable: {blocked} transacción(es) bloqueada(s)": {
@@ -910,6 +982,7 @@ const catalog: Catalog = {
   "Negocios Inmobiliarios.": "Real Estate Ventures.",
   "Ninguna oferta de este tenant tiene su token emitido todavía: las distribuciones se calculan sobre los tokens MINTED en wallets de inversionistas.":
     "None of this tenant's offerings has issued its token yet: distributions are calculated on MINTED tokens in investor wallets.",
+  "Ninguna oferta tiene su token desplegado todavía.": "No offering has its token deployed yet.",
   "NIT del desarrollador": "Developer's NIT",
   No: "No",
   "no desplegado": "not deployed",
@@ -926,6 +999,9 @@ const catalog: Catalog = {
   "No se detectó una wallet EIP-1193 en este navegador (MetaMask, Rabby, Frame…).":
     "No EIP-1193 wallet was detected in this browser (MetaMask, Rabby, Frame…).",
   "No se encontró el archivo subido: vuelve a cargarlo.": "The uploaded file was not found: upload it again.",
+  "No se encontró la red del registro de esta wallet.": "The network of this wallet's registry was not found.",
+  "No se pudieron liberar las unidades comprometidas de la oferta.":
+    "The offering's committed units could not be released.",
   "No se pudo abrir el documento. Inténtalo de nuevo.": "The document could not be opened. Please try again.",
   "No se pudo activar la cuenta. Inténtalo de nuevo.":
     "The account could not be activated. Please try again.",
@@ -950,6 +1026,7 @@ const catalog: Catalog = {
     "Could not read ChainTransaction from the database.",
   "No se pudo leer el Data Room desde la base de datos.":
     "The Data Room could not be read from the database.",
+  "No se pudo leer el token en la red.": "The token could not be read on the network.",
   "No se pudo leer la bandeja de cumplimiento desde la base de datos.":
     "Could not read the compliance inbox from the database.",
   "No se pudo leer la mesa de distribuciones desde la base de datos.":
@@ -990,6 +1067,8 @@ const catalog: Catalog = {
   "Ofertas con token emitido": "Offerings with issued token",
   "Oficial de Cumplimiento": "Compliance Officer",
   operador: "operator",
+  "Operación inusual o sospechosa reportada a la UIAF (ROS).":
+    "Unusual or suspicious transaction reported to the UIAF (ROS).",
   "operador {address}": "operator {address}",
   "OPERATOR_PRIVATE_KEY no configurada": "OPERATOR_PRIVATE_KEY not configured",
   "OPERATOR_PRIVATE_KEY no está configurada (0x + 64 hex): no se puede firmar la cola.":
@@ -1000,7 +1079,11 @@ const catalog: Catalog = {
   "Origen de fondos ({sys}) y perfil": "Source of funds ({sys}) and profile",
   "Origen lícito de fondos ({sys})": "Lawful source of funds ({sys})",
   "Origen: {from} → {to}": "Origin: {from} → {to}",
+  "Otorgar MINTER_ROLE al emisor lo firma su wallet en modo RPC: en simulación no aplica.":
+    "Granting MINTER_ROLE to the issuer is signed by its own wallet in RPC mode: it does not apply in simulation.",
   "Otra actividad": "Other activity",
+  "Otra causal del sistema de cumplimiento del desarrollador.":
+    "Other grounds under the developer's compliance system.",
   "Otra ejecución confirmó esta transacción primero.": "Another execution confirmed this transaction first.",
   "Otra ejecución RPC tomó esta transacción.": "Another RPC execution claimed this transaction.",
   "Otra ejecución tomó ese nonce o tx hash primero; vuelve a intentarlo.":
@@ -1022,6 +1105,8 @@ const catalog: Catalog = {
   "pago fiduciario pendiente · ref. {code}": "fiduciary payment pending · ref. {code}",
   "Pago pendiente": "Payment pending",
   "Pago y evidencia": "Payment & evidence",
+  "Pago ya conciliado: reembolso pendiente al inversionista, fuera de la plataforma.":
+    "Payment already reconciled: refund to the investor pending, outside the platform.",
   "Pagos por conciliar": "Payments to reconcile",
   "País de residencia": "Country of residence",
   "País de residencia no admitido.": "Country of residence not accepted.",
@@ -1084,9 +1169,12 @@ const catalog: Catalog = {
   "por {email}": "by {email}",
   "Por decisión de gobierno de la plataforma, {name} no puede recibir nuevos NDA, verificaciones ni suscripciones. Si ya eres inversionista, tu portafolio y tus documentos siguen disponibles.":
     "Following a platform governance decision, {name} cannot receive new NDAs, verifications or subscriptions. If you are already an investor, your portfolio and your documents remain available.",
+  "Por defecto el operador RWAXI envía {mint} con su MINTER_ROLE. Si el emisor lo prefiere, otorga {role} a la wallet registrada de su Administrador y firma sus propios mint con ella (EIP-1193). La concesión la firma esa misma wallet con {admin} del token: RWAXI no recibe ningún rol nuevo.":
+    "By default the RWAXI operator sends {mint} with its MINTER_ROLE. If the issuer prefers, it grants {role} to its Administrator's registered wallet and signs its own mints with it (EIP-1193). That same wallet signs the grant with the token's {admin}: RWAXI receives no new role.",
   "Por defecto, el nombre del archivo": "Defaults to the file name",
   "Por renta": "From rental income",
   "Por renta · desde mes {month}": "From rental income · starting month {month}",
+  "por revocación del KYC": "due to KYC revocation",
   "Portada del video: {title}": "Video cover: {title}",
   "Portada personalizada": "Custom cover",
   Portal: "Portal",
@@ -1126,6 +1214,8 @@ const catalog: Catalog = {
     "Precedence: an earlier registry operation is pending for this wallet.",
   "Prelación: hay una operación del registro pendiente para esta wallet.":
     "Precedence: a registry operation is pending for this wallet.",
+  "Prelación: ya hay un grantRole(MINTER_ROLE) pendiente para esa wallet.":
+    "Precedence: a grantRole(MINTER_ROLE) is already pending for that wallet.",
   "Preparando la operación…": "Preparing the operation…",
   "Presentación del desarrollador": "Developer's presentation",
   "Presentación oficial · {asset}": "Official presentation · {asset}",
@@ -1175,6 +1265,7 @@ const catalog: Catalog = {
   "Red blockchain": "Blockchain network",
   Redes: "Networks",
   Reemplazar: "Replace",
+  "reembolso del pago fiduciario pendiente": "fiduciary payment refund pending",
   "Ref. {code}": "Ref. {code}",
   "Ref. esperada": "Expected ref.",
   "Referencia del comprobante fiduciario": "Fiduciary proof of payment reference",
@@ -1204,6 +1295,7 @@ const catalog: Catalog = {
   Reproducir: "Play",
   "Reproducir video": "Play video",
   "Requerido para ver detalles reservados": "Required to view confidential details",
+  "Requerimiento de una autoridad competente.": "Order from a competent authority.",
   "Requiere AccessGrant (NDA + KYC)": "Requires AccessGrant (NDA + KYC)",
   "Requiere corrección": "Correction required",
   "Requiere NDA": "Requires NDA",
@@ -1264,6 +1356,12 @@ const catalog: Catalog = {
     "Check name, symbol (2–6 uppercase letters), units and price",
   "Revisado por": "Reviewed by",
   "Revisar formulario": "Review form",
+  "Revocación del KYC por cumplimiento: unidades liberadas": "KYC revoked by compliance: units released",
+  "Revocada por cumplimiento": "Revoked by compliance",
+  "revocado": "revoked",
+  "Revocado": "Revoked",
+  "Revocar inversionista": "Revoke investor",
+  "revokeInvestor en cola": "revokeInvestor queued",
   "Ronda de suscripción para inversionistas elegibles, registro on-chain de la titularidad y distribuciones periódicas en USDC o transferencia bancaria.":
     "Subscription round for eligible investors, on-chain record of ownership and periodic distributions in USDC or by bank transfer.",
   "RPC · nodo configurado": "RPC · configured node",
@@ -1286,6 +1384,10 @@ const catalog: Catalog = {
   Salida: "Exit",
   "SARLAFT (Entidades Vigiladas Superfinanciera / Fiduciarias)":
     "SARLAFT (Superfinanciera-Supervised Entities / Trust Companies)",
+  "Se cancelarán {n} suscripción(es) sin emitir ({units} unidades vuelven a la oferta; {paid} con pago conciliado a reembolsar), se cerrará su acceso al Data Room y se retirará de la whitelist con revokeInvestor(). El inversionista no verá el motivo.": {
+    one: "{n} unminted subscription will be cancelled ({units} units go back to the offering; {paid} with a reconciled payment to refund), their Data Room access will be closed and they will be removed from the whitelist with revokeInvestor(). The investor will not see the reason.",
+    other: "{n} unminted subscriptions will be cancelled ({units} units go back to the offering; {paid} with a reconciled payment to refund), their Data Room access will be closed and they will be removed from the whitelist with revokeInvestor(). The investor will not see the reason.",
+  },
   "Se habilita con NDA + KYC aprobado": "Enabled with NDA + approved KYC",
   "Se repartirán {amount} entre {holders} tenedor(es) en proporción a sus tokens (centavos exactos, método del mayor residuo). Cada asignación será una hoja del árbol de Merkle (SHA-256) y la raíz se anclará con anchorDistributionRoot().":
     {
@@ -1309,6 +1411,9 @@ const catalog: Catalog = {
   "Sesión demo": "Demo session",
   "Sesión recuperada.": "Session recovered.",
   setup: "setup",
+  "setFrozen en cola": "setFrozen queued",
+  "setFrozen(false) en cola": "setFrozen(false) queued",
+  "setFrozen(true) en cola": "setFrozen(true) queued",
   "SHA-256 alta": "Onboarding SHA-256",
   "SHA-256 contrato de suscripción": "Subscription agreement SHA-256",
   "SHA-256 decisión": "Decision SHA-256",
@@ -1321,6 +1426,7 @@ const catalog: Catalog = {
   "SHA-256 factura": "Invoice SHA-256",
   "SHA-256 pago": "Payment SHA-256",
   Sí: "Yes",
+  "SHA-256 solicitud": "Request SHA-256",
   "Si ese correo tiene un proceso en este portal, te enviamos un código de 6 dígitos. Vence en 10 minutos.":
     "If that email has a process on this portal, we have sent you a 6-digit code. It expires in 10 minutes.",
   "Si no lo pediste, ignora este correo: sin el código nadie puede entrar a tu proceso.":
@@ -1369,12 +1475,16 @@ const catalog: Catalog = {
   "Snapshot de tenedores · {n} tokens MINTED": "Holder snapshot · {n} MINTED tokens",
   "Solicitud de {name} rechazada con motivo": "Application from {name} rejected with reason",
   "Solicitud inválida.": "Invalid request.",
-  "Sólo approveInvestor(), anchorDistributionRoot() y updateDataRoomMerkleRoot() se registran por hash.":
-    "Only approveInvestor(), anchorDistributionRoot() and updateDataRoomMerkleRoot() are registered by hash.",
   "Solo el ISSUER_ADMIN_ROLE o el COMPLIANCE_OFFICER_ROLE de {name} pueden pausar el token. RWAXI no tiene esta facultad.":
     "Only the ISSUER_ADMIN_ROLE or the COMPLIANCE_OFFICER_ROLE of {name} can pause the token. RWAXI does not hold this power.",
+  "Sólo las operaciones que firma el tenant con su wallet (registro de cumplimiento, raíces y MINTER_ROLE del emisor) se registran por hash.":
+    "Only the operations the tenant signs with its own wallet (compliance registry, the issuer's roots and MINTER_ROLE) are registered by hash.",
   "Solo lectura: tu rol es {role}; estas acciones requieren el rol {required}.":
     "Read-only: your role is {role}; these actions require the {required} role.",
+  "Sólo se congela la wallet de un inversionista con tokens emitidos.":
+    "Only the wallet of an investor holding minted tokens can be frozen.",
+  "Sólo se revoca un inversionista aprobado; el expediente está {status}.":
+    "Only an approved investor can be revoked; the KYC file is {status}.",
   "SPV Sociedad por Acciones Simplificada (S.A.S.)": "SPV Simplified Stock Company (S.A.S.)",
   Streaming: "Streaming",
   "Sube la foto del frente del documento.": "Upload a photo of the front of the document.",
@@ -1387,6 +1497,7 @@ const catalog: Catalog = {
   "Superintendencia Financiera": "Financial Superintendency of Colombia",
   "Suscribir este monto": "Subscribe for this amount",
   Suscripción: "Subscription",
+  "Suscripción cancelada": "Subscription cancelled",
   "Suscripción firmada: {units} unidades reservadas · transfiere el pago con la referencia {code}":
     "Subscription signed: {units} unit(s) reserved · transfer the payment using reference {code}",
   "Suscripción inválida.": "Invalid subscription.",
@@ -1465,20 +1576,36 @@ const catalog: Catalog = {
   "Tu proceso con el desarrollador": "Your process with the developer",
   "Tu sesión no es válida; firma de nuevo el NDA.": "Your session is not valid; sign the NDA again.",
   "Tu sesión ya no es válida; firma de nuevo el NDA.": "Your session is no longer valid; sign the NDA again.",
+  "Tu usuario no tiene una wallet registrada en este tenant: no hay una cuenta a la que otorgar MINTER_ROLE.":
+    "Your user has no registered wallet in this tenant: there is no account to grant MINTER_ROLE to.",
   "Tu usuario no tiene una wallet registrada en este tenant: no hay una cuenta autorizada para firmar.":
     "Your user has no wallet registered in this tenant: there is no authorized account to sign.",
+  "Tu verificación fue revocada por el Oficial de Cumplimiento: comunícate con el desarrollador.":
+    "Your verification was revoked by the Compliance Officer: please contact the developer.",
+  "Tu verificación fue revocada: no se reciben nuevas suscripciones.":
+    "Your verification was revoked: no new subscriptions are accepted.",
   "Tu wallet {wallet} no tiene MINTER_ROLE en el token: el mint lo envía el operador RWAXI («Firmar y ejecutar»), salvo que el emisor otorgue MINTER_ROLE a su propia wallet.":
     "Your wallet {wallet} does not hold MINTER_ROLE on the token: the mint is sent by the RWAXI operator (“Sign and execute”) unless the issuer grants MINTER_ROLE to its own wallet.",
+  "Tu wallet está congelada por una decisión de cumplimiento: no se reciben nuevas suscripciones.":
+    "Your wallet is frozen by a compliance decision: no new subscriptions are accepted.",
   "Tu wallet está en la red {actual}; cambia a {chain} (chainId {id}) para firmar.":
     "Your wallet is on network {actual}; switch to {chain} (chainId {id}) to sign.",
   "Tu wallet no compartió ninguna cuenta: conéctala y vuelve a intentarlo.":
     "Your wallet shared no account: connect it and try again.",
   "Tu wallet no devolvió un tx hash válido.": "Your wallet did not return a valid tx hash.",
+  "Tu wallet no tiene DEFAULT_ADMIN_ROLE en este token: los mint los envía el operador RWAXI.":
+    "Your wallet does not hold DEFAULT_ADMIN_ROLE on this token: mints are sent by the RWAXI operator.",
   "Tu wallet no tiene la red {chain} (chainId {id}): añádela y vuelve a intentarlo.":
     "Your wallet does not have the {chain} network (chainId {id}): add it and try again.",
   "Tu wallet registrada {wallet} no tiene {role} en {contract}: no puede firmar esta operación.":
     "Your registered wallet {wallet} does not hold {role} on {contract}: it cannot sign this operation.",
+  "Tu wallet registrada {wallet} no tiene DEFAULT_ADMIN_ROLE en el token: sólo el administrador del emisor se otorga MINTER_ROLE.":
+    "Your registered wallet {wallet} does not hold DEFAULT_ADMIN_ROLE on the token: only the issuer's administrator grants itself MINTER_ROLE.",
   "Tu wallet respondió con un error: {detail}": "Your wallet answered with an error: {detail}",
+  "Tu wallet tiene DEFAULT_ADMIN_ROLE y aún no MINTER_ROLE: puedes otorgártelo.":
+    "Your wallet holds DEFAULT_ADMIN_ROLE but not MINTER_ROLE yet: you can grant it to yourself.",
+  "Tu wallet tiene MINTER_ROLE: puedes firmar los mint de este token con ella (EIP-1193).":
+    "Your wallet holds MINTER_ROLE: you can sign this token's mints with it (EIP-1193).",
   "Tu wallet tiene seleccionada la cuenta {account}; esta operación la firma {expected}. Cámbiala en tu wallet y vuelve a intentarlo.":
     "Your wallet has account {account} selected; this operation is signed by {expected}. Switch accounts in your wallet and try again.",
   "Tus datos se encuentran en revisión por el Oficial de Cumplimiento de {name} (Auditoría estimada: 15 minutos).":
@@ -1496,8 +1623,14 @@ const catalog: Catalog = {
   Ubicación: "Location",
   "Ubicación / Render": "Location / Rendering",
   "Últimas confirmadas": "Recently confirmed",
+  "Último congelamiento:": "Last freeze:",
+  "Último descongelamiento:": "Last unfreeze:",
   "Un canal de descubrimiento, un portal por desarrollador":
     "One discovery channel, one portal per developer",
+  "Una suscripción del inversionista cambió mientras se revocaba; vuelve a intentarlo.":
+    "One of the investor's subscriptions changed during the revocation; please try again.",
+  "Una transacción en cola del inversionista cambió mientras se revocaba; vuelve a intentarlo.":
+    "A queued transaction of the investor changed during the revocation; please try again.",
   "Única asignación: la hoja es la raíz.": "Single allocation: the leaf is the root.",
   Unidades: "Units",
   "Unidades · capital": "Units · capital",
@@ -1542,6 +1675,7 @@ const catalog: Catalog = {
   "Ver prueba ({n} hashes)": { one: "View proof ({n} hash)", other: "View proof ({n} hashes)" },
   "Ver prueba (1 hash)": "View proof (1 hash)",
   "Verificación de vida completada con éxito ✓": "Liveness check completed successfully ✓",
+  "Verificación revocada": "Verification revoked",
   "Verificado · SSL activo": "Verified · SSL active",
   "Verificando el enlace de activación…": "Verifying the activation link…",
   "Verificando el rol on-chain…": "Checking the on-chain role…",
@@ -1575,18 +1709,23 @@ const catalog: Catalog = {
   "Vuelve a cargar {name}: el archivo ya no está disponible en este navegador.":
     "Upload {name} again: the file is no longer available in this browser.",
   Wallet: "Wallet",
+  "Wallet congelada": "Wallet frozen",
   "Wallet declarada": "Declared wallet",
   "Wallet del inversionista": "Investor wallet",
   "Wallet EVM para recibir tus unidades digitales": "EVM wallet to receive your digital units",
   "Wallet externa": "External wallet",
+  "Wallet registrada del Administrador": "Administrator's registered wallet",
   "Wallets en whitelist": "Whitelisted wallets",
   "Whitelist on-chain en cola": "On-chain whitelist queued",
   "Whitelist on-chain en cola: ChainTransaction PENDING, a la espera de la firma del Oficial de Cumplimiento en RwaxiComplianceRegistry.approveInvestor().":
     "On-chain whitelist queued: ChainTransaction PENDING, awaiting the Compliance Officer's signature on RwaxiComplianceRegistry.approveInvestor().",
+  "whitelist retirada antes de enviarse": "whitelisting withdrawn before it was sent",
   "www.rwaxi.com es una vitrina de descubrimiento e infraestructura tecnológica. RWAXI no capta recursos ni ofrece valores.":
     "www.rwaxi.com is a discovery showcase and technology infrastructure. RWAXI neither raises funds nor offers securities.",
   "Ya existe una distribución de ese periodo para esta oferta.":
     "A distribution for that period already exists for this offering.",
+  "Ya hay un setFrozen() en cola para esta wallet: fírmalo o espera su confirmación.":
+    "A setFrozen() is already queued for this wallet: sign it or wait for its confirmation.",
   "Ya puedes ver los detalles reservados del proyecto. El siguiente paso es tu verificación KYC/AML con el Oficial de Cumplimiento del desarrollador.":
     "You can now view the project's confidential details. The next step is your KYC/AML verification with the developer's Compliance Officer.",
   "YouTube (no listado)": "YouTube (unlisted)",

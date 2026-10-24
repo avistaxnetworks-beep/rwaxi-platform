@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ChainTransaction } from "@rwaxi/database";
 import { interpolate } from "@/app/_i18n/translate";
-import { blockerFor, registryEntry, walletTxMismatch, type ChainState, type SentTransaction } from "./chain-invariants";
+import { MINTER_ROLE_ID, blockerFor, registryEntry, walletTxMismatch, type ChainState, type SentTransaction } from "./chain-invariants";
 
 const REGISTRY = `0x${"1".repeat(40)}`;
 const TOKEN = `0x${"2".repeat(40)}`;
@@ -27,6 +27,7 @@ function row(kind: ChainTransaction["kind"], args: Record<string, unknown>, extr
     DATA_ROOM_ROOT_ANCHORED: "updateDataRoomMerkleRoot(bytes32)",
     TENANT_REGISTRY_DEPLOYED: "deployTenantRegistry(bytes32,string,string,address,address)",
     DISTRIBUTION_ROOT_ANCHORED: "anchorDistributionRoot(bytes32,bytes32,uint256,uint256)",
+    MINTER_ROLE_GRANTED: "grantRole(bytes32,address)",
   };
   seq += 1;
   return {
@@ -35,7 +36,7 @@ function row(kind: ChainTransaction["kind"], args: Record<string, unknown>, extr
     offeringId: "off",
     network: "POLYGON_AMOY",
     kind,
-    contractAddress: kind === "SUBSCRIPTION_MINTED" || kind === "DATA_ROOM_ROOT_ANCHORED" ? TOKEN : REGISTRY,
+    contractAddress: kind === "SUBSCRIPTION_MINTED" || kind === "DATA_ROOM_ROOT_ANCHORED" || kind === "MINTER_ROLE_GRANTED" ? TOKEN : REGISTRY,
     method: method[kind] ?? "unknown()",
     args: args as ChainTransaction["args"],
     txHash: null,
@@ -219,6 +220,36 @@ test("a distribution root is anchored once, for a declared distribution, on a de
   assert.equal(blockerFor(a, state([a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "PAUSED", maxSupply: 1000 }] })), null);
   const broken = anchor({}, { totalAmountCents: "mil" });
   assert.match(blockerFor(broken, state([broken], declared))!, /calldata/);
+});
+
+test("the issuer grants only MINTER_ROLE from the queue, once per wallet and token, on a deployed token", () => {
+  const grant = (extra: Partial<ChainTransaction> = {}, args: Record<string, unknown> = {}) =>
+    row("MINTER_ROLE_GRANTED", { role: MINTER_ROLE_ID, account: WALLET, ...args }, extra);
+  const g = grant();
+  assert.equal(MINTER_ROLE_ID, "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6"); // keccak256("MINTER_ROLE")
+  assert.equal(blockerFor(g, state([g])), null);
+  // any other role — DEFAULT_ADMIN_ROLE (bytes32 0) included — is never granted from the queue
+  const admin = grant({}, { role: ZERO32 });
+  assert.match(blockerFor(admin, state([admin]))!, /sólo se otorga MINTER_ROLE/);
+  const other = grant({}, { role: `0x${"9".repeat(64)}` });
+  assert.match(blockerFor(other, state([other]))!, /sólo se otorga MINTER_ROLE/);
+  assert.match(blockerFor(g, state([g], { tokens: [{ contractAddress: TOKEN, status: "NOT_DEPLOYED", maxSupply: 1000 }] }))!, /no está desplegado/);
+  // the same grant twice: the later one waits, and once one is confirmed the other would be a no-op
+  const again = grant();
+  assert.match(blockerFor(again, state([g, again]))!, /^Prelación: ya hay un grantRole\(MINTER_ROLE\) pendiente/);
+  assert.match(blockerFor(again, state([{ ...g, status: "CONFIRMED" }, again]))!, /ya tiene MINTER_ROLE/);
+  // another account, or the same account on another token, is a different grant (account compared without case)
+  const otherAccount = grant({}, { account: OTHER });
+  assert.equal(blockerFor(otherAccount, state([{ ...g, status: "CONFIRMED" }, otherAccount])), null);
+  const otherToken = grant({ contractAddress: FACTORY });
+  assert.equal(
+    blockerFor(otherToken, state([{ ...g, status: "CONFIRMED" }, otherToken], { tokens: [{ contractAddress: FACTORY, status: "DEPLOYED", maxSupply: 1 }] })),
+    null,
+  );
+  const upper = grant({}, { account: WALLET.toUpperCase().replace("0X", "0x") });
+  assert.match(blockerFor(upper, state([{ ...g, status: "CONFIRMED" }, upper]))!, /ya tiene MINTER_ROLE/);
+  // pausing the token does not stop AccessControl
+  assert.equal(blockerFor(g, state([g], { tokens: [{ contractAddress: TOKEN, status: "PAUSED", maxSupply: 1000 }] })), null);
 });
 
 test("a browser-wallet transaction must be exactly the queued call: chain, signer, contract, calldata, no value", () => {
