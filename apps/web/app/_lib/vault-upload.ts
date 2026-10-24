@@ -1,5 +1,7 @@
-// Browser-side: sends a file to the DocumentVault (/api/vault/upload) with the SHA-256 computed here; the
-// server recomputes it from the bytes it receives and refuses the file if they differ.
+// Browser-side: sends a file to the DocumentVault with the SHA-256 computed here; the server recomputes it from
+// the bytes and refuses the file if they differ. With S3/R2 the bytes go straight to the bucket through a
+// presigned PUT bound to that size, type and SHA-256 (presign → PUT → confirm), so no file crosses the app's
+// functions; with the local vault they are posted to /api/vault/upload.
 import { sha256Bytes } from "./sha256";
 
 export type VaultUploadPurpose = "kyc" | "onboarding" | "data-room";
@@ -14,8 +16,36 @@ export type VaultUploadResult =
       documentId?: string;
       anchorQueued?: boolean;
     }
-  /** `error` is already in the visitor's language; null when the server could not be reached */
+  /** `error` is already in the visitor's language; null when the server (or the bucket) refused without one */
   | { ok: false; error: string | null; status: number };
+
+type Presigned =
+  | { ok: true; mode: "server" }
+  | {
+      ok: true;
+      mode: "direct";
+      upload: { method: "PUT"; url: string; headers: Record<string, string> };
+      ticket: string;
+    }
+  | { ok: false; error: string };
+
+async function postJson<T>(path: string, body: unknown): Promise<{ status: number; body: T | null }> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, body: (await response.json().catch(() => null)) as T | null };
+}
+
+const failed = (r: {
+  status: number;
+  body: { ok: boolean; error?: string | null } | null;
+}): VaultUploadResult => ({
+  ok: false,
+  error: r.body && !r.body.ok ? (r.body.error ?? null) : null,
+  status: r.status,
+});
 
 export async function uploadToVault(
   file: Blob,
@@ -25,12 +55,33 @@ export async function uploadToVault(
 ): Promise<VaultUploadResult & { localSha256: string }> {
   const bytes = await file.arrayBuffer();
   const localSha256 = `0x${await sha256Bytes(bytes)}`;
-  const form = new FormData();
-  form.set("purpose", purpose);
-  form.set("sha256", localSha256);
-  for (const [k, v] of Object.entries(fields)) form.set(k, v);
-  form.set("file", new File([bytes], fileName, { type: file.type }));
   try {
+    const presign = await postJson<Presigned>("/api/vault/upload/presign", {
+      purpose,
+      sha256: localSha256,
+      sizeBytes: bytes.byteLength,
+      type: file.type,
+      fileName,
+      ...fields,
+    });
+    if (!presign.body?.ok) return { ...failed(presign), localSha256 };
+    if (presign.body.mode === "direct") {
+      const { upload, ticket } = presign.body;
+      const put = await fetch(upload.url, { method: upload.method, headers: upload.headers, body: bytes });
+      if (!put.ok) return { ok: false, error: null, status: put.status, localSha256 };
+      const done = await postJson<VaultUploadResult>("/api/vault/upload/confirm", {
+        purpose,
+        ticket,
+        fileName,
+        ...fields,
+      });
+      return done.body?.ok ? { ...done.body, localSha256 } : { ...failed(done), localSha256 };
+    }
+    const form = new FormData();
+    form.set("purpose", purpose);
+    form.set("sha256", localSha256);
+    for (const [k, v] of Object.entries(fields)) form.set(k, v);
+    form.set("file", new File([bytes], fileName, { type: file.type }));
     const response = await fetch("/api/vault/upload", { method: "POST", body: form });
     const body = (await response.json().catch(() => null)) as VaultUploadResult | null;
     if (body && body.ok) return { ...body, localSha256 };

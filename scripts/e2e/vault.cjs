@@ -380,6 +380,43 @@ async function signedIn(browser, label, slug, email) {
         restored.sha256 === restrictedDoc.sha256,
       blocked.error,
     );
+
+    // ── 6 · Upload rate limit (counted in PostgreSQL, shared by every server instance): per session ──
+    const perSession = Number(process.env.VAULT_UPLOADS_PER_SESSION || 20);
+    const burst = await inv.page.evaluate(async (max) => {
+      const out = [];
+      for (let i = 0; i < max; i++) {
+        const bytes = new TextEncoder().encode(`%PDF-1.4\n% rafaga ${i} ${Math.random()}\n%%EOF\n`);
+        const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+        const form = new FormData();
+        form.set("purpose", "kyc");
+        form.set("sha256", `0x${digest}`);
+        form.set("file", new File([bytes], "rafaga.pdf", { type: "application/pdf" }));
+        const r = await fetch("/api/vault/upload", { method: "POST", body: form });
+        out.push({ status: r.status, retryAfter: r.headers.get("retry-after"), error: (await r.json().catch(() => null))?.error ?? null });
+        if (r.status === 429) break;
+      }
+      return out;
+    }, perSession + 2);
+    const throttled = burst.at(-1);
+    const accepted = burst.filter((r) => r.status === 200).length;
+    const forOther = await vaultUpload(admin, {
+      purpose: "data-room",
+      bytes: pdfBytes(),
+      type: "application/pdf",
+      sha256: sha256Of(pdfBytes()),
+      fields: { offeringId: offering.id, folder: restrictedDoc.folder, restricted: "1" },
+    });
+    ok(
+      "límite de cargas por sesión: tras el cupo de 10 min → 429 con Retry-After, sin guardar nada; otra sesión sigue cargando",
+      throttled?.status === 429 &&
+        Number(throttled.retryAfter) > 0 &&
+        /Demasiadas cargas en poco tiempo/.test(throttled.error ?? "") &&
+        accepted < perSession &&
+        burst.slice(0, -1).every((r) => r.status === 200) &&
+        forOther.status === 422,
+      `${accepted} aceptadas en la ráfaga · Retry-After ${throttled?.retryAfter} s · ${throttled?.error}`,
+    );
     await shot(inv.page, "vault-portal");
     for (const p of [b, stranger, officer, admin, inv.page]) await p.browserContext().close();
   } catch (e) {

@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ChainTransaction } from "@rwaxi/database";
-import { blockerFor, registryEntry, type ChainState } from "./chain-invariants";
+import { interpolate } from "@/app/_i18n/translate";
+import { blockerFor, registryEntry, walletTxMismatch, type ChainState, type SentTransaction } from "./chain-invariants";
 
 const REGISTRY = `0x${"1".repeat(40)}`;
 const TOKEN = `0x${"2".repeat(40)}`;
@@ -157,8 +158,34 @@ test("rows that cannot be signed from the queue are refused", () => {
   assert.match(blockerFor(lost, state([approve(confirmed), lost]))!, /sin tx hash/);
   const broken = mint({}, { amount: "muchos" });
   assert.match(blockerFor(broken, state([approve(confirmed), broken]))!, /calldata/);
-  const anchor = row("DATA_ROOM_ROOT_ANCHORED", { newRoot: EVIDENCE });
-  assert.match(blockerFor(anchor, state([anchor]))!, /no se ejecuta desde la cola/);
+  const pause = row("TOKEN_PAUSED", {}, { contractAddress: TOKEN, method: "pause()" });
+  assert.match(blockerFor(pause, state([pause]))!, /no se ejecuta desde la cola/);
+});
+
+test("revokeInvestor() needs an approved wallet; setFrozen() waits for earlier registry calls", () => {
+  const revoke = row("INVESTOR_REVOKED", { wallet: WALLET });
+  assert.match(blockerFor(revoke, state([revoke]))!, /InvestorNotApproved/);
+  assert.equal(blockerFor(revoke, state([approve(confirmed), revoke])), null);
+  // an approval of another wallet does not count; a confirmed revocation leaves nothing to revoke
+  assert.match(blockerFor(revoke, state([approve(confirmed, OTHER), revoke]))!, /InvestorNotApproved/);
+  assert.match(blockerFor(revoke, state([approve(confirmed), row("INVESTOR_REVOKED", { wallet: WALLET }, confirmed), revoke]))!, /InvestorNotApproved/);
+
+  const pendingApprove = approve();
+  const freeze = row("INVESTOR_FREEZE_UPDATED", { wallet: WALLET, frozen: true });
+  assert.match(blockerFor(freeze, state([pendingApprove, freeze]))!, /^Prelación/);
+  assert.equal(blockerFor(freeze, state([approve(confirmed), freeze])), null);
+  assert.match(blockerFor(row("INVESTOR_FREEZE_UPDATED", { wallet: WALLET }), state([]))!, /calldata/);
+});
+
+test("updateDataRoomMerkleRoot() runs on a deployed token, oldest first", () => {
+  const first = row("DATA_ROOM_ROOT_ANCHORED", { newRoot: EVIDENCE });
+  const second = row("DATA_ROOM_ROOT_ANCHORED", { newRoot: DOSSIER });
+  assert.equal(blockerFor(first, state([first, second])), null);
+  assert.match(blockerFor(second, state([first, second]))!, /^Prelación: hay un updateDataRoomMerkleRoot/);
+  assert.equal(blockerFor(second, state([{ ...first, status: "CONFIRMED" }, second])), null);
+  // no whenNotPaused on the token: the issuer may anchor while transfers are paused
+  assert.equal(blockerFor(first, state([first], { tokens: [{ contractAddress: TOKEN, status: "PAUSED", maxSupply: 1000 }] })), null);
+  assert.match(blockerFor(first, state([first], { tokens: [] }))!, /no está desplegado/);
 });
 
 test("the tenant registry is deployed only by RWAXI's operator (platform console), once", () => {
@@ -192,4 +219,21 @@ test("a distribution root is anchored once, for a declared distribution, on a de
   assert.equal(blockerFor(a, state([a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "PAUSED", maxSupply: 1000 }] })), null);
   const broken = anchor({}, { totalAmountCents: "mil" });
   assert.match(blockerFor(broken, state([broken], declared))!, /calldata/);
+});
+
+test("a browser-wallet transaction must be exactly the queued call: chain, signer, contract, calldata, no value", () => {
+  const expected = { from: WALLET, to: REGISTRY, data: "0xa1b2c3d4", chainId: 31337, chainName: "Hardhat", fn: "approveInvestor" };
+  const sent: SentTransaction = { from: WALLET.toUpperCase().replace("0X", "0x"), to: REGISTRY, input: "0xA1B2C3D4", value: 0n, chainId: 31337 };
+  const why = (overrides: Partial<typeof sent>) => {
+    const r = walletTxMismatch({ ...sent, ...overrides }, expected);
+    return r ? interpolate(r.source, r.vars) : null;
+  };
+  assert.equal(why({}), null); // hex case does not matter
+  assert.equal(why({ chainId: undefined }), null); // legacy transaction: the node it was read from is the chain
+  assert.match(why({ chainId: 1 })!, /cadena 1, no para Hardhat \(31337\)/);
+  assert.match(why({ from: OTHER })!, /no tu wallet autorizada/);
+  assert.match(why({ to: TOKEN })!, /no al contrato del tenant/);
+  assert.match(why({ to: null })!, /no al contrato del tenant/);
+  assert.match(why({ input: "0xa1b2c3d5" })!, /calldata firmado no coincide .*\(approveInvestor\)/);
+  assert.match(why({ value: 1n })!, /transfirió valor/);
 });

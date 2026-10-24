@@ -475,6 +475,8 @@ const vaultGet = (page, target) =>
     }
     return {
       status: r.status,
+      redirected: r.redirected,
+      finalUrl: r.url,
       type: r.headers.get("content-type"),
       disposition: r.headers.get("content-disposition"),
       nosniff: r.headers.get("x-content-type-options"),
@@ -483,6 +485,62 @@ const vaultGet = (page, target) =>
       error,
     };
   }, target);
+
+// ── mail_outbox (MailDispatcher) ───────────────────────────────────────────
+/** The fake mail provider the server delivers through (pnpm e2e:strict), or null with the development sink. */
+const MAIL_PROVIDER = process.env.E2E_MAIL_PROVIDER || null;
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** The text a mail carried: its body while it has one; once redacted, the copy the provider received. */
+async function mailText(db, row, timeout = 30000) {
+  if (row.body !== null) return row.body;
+  if (!MAIL_PROVIDER) return null;
+  for (const end = Date.now() + timeout; ; await pause(300)) {
+    const fresh = await db.mailOutbox.findUnique({ where: { id: row.id } });
+    if (fresh?.providerMessageId) {
+      const { messages } = await (await fetch(`${MAIL_PROVIDER}/__fake/messages`)).json();
+      const message = messages.find((m) => m.id === fresh.providerMessageId);
+      if (message) return message.text;
+    }
+    if (Date.now() > end) return null;
+  }
+}
+/** mail_outbox rows matching `where` (oldest first), each with the `text` it carried. */
+async function mailsWithText(db, where) {
+  const rows = await db.mailOutbox.findMany({ where, orderBy: { createdAt: "asc" } });
+  return Promise.all(rows.map(async (row) => ({ ...row, text: await mailText(db, row) })));
+}
+/** A mail_outbox row once `test(row)` holds (e.g. delivered, redacted), or its last state after `timeout`. */
+async function waitMail(db, id, test, timeout = 30000) {
+  for (const end = Date.now() + timeout; ; await pause(300)) {
+    const row = await db.mailOutbox.findUnique({ where: { id } });
+    if ((row && test(row)) || Date.now() > end) return row;
+  }
+}
+/**
+ * Whether a mail lost its body with its delivery trail intact: the SHA-256 of what it carried and why it was
+ * cleared. Through the provider every mail is cleared when it is sent (SENT, with the provider's message id);
+ * with the development sink, by `reason` (CONSUMED, SUPERSEDED, EXPIRED).
+ */
+function mailRedacted(row, text, reason) {
+  const sha = crypto.createHash("sha256").update(text ?? "", "utf8").digest("hex");
+  const trail = !!text && row?.body === null && !!row.redactedAt && row.bodySha256 === sha;
+  if (MAIL_PROVIDER) {
+    return trail && row.status === "SENT" && row.redactionReason === "SENT" && !!row.providerMessageId && !!row.sentAt;
+  }
+  // CANCELLED when the code was used before the sink took it (the sink then records it anyway)
+  return trail && row.redactionReason === reason && ["CAPTURED", "CANCELLED"].includes(row.status);
+}
+/** Runs the mail job (pnpm mail:dispatch) as a cron would: { ok, report }. */
+function mailDispatch() {
+  const r = require("child_process").spawnSync("pnpm -s mail:dispatch -- --json", { cwd: ROOT, shell: true, encoding: "utf8" });
+  const last = (r.stdout ?? "").trim().split("\n").filter(Boolean).at(-1) ?? "";
+  try {
+    return { ok: r.status === 0, report: JSON.parse(last) };
+  } catch {
+    return { ok: false, report: null, error: (r.stderr ?? "").split("\n").slice(-3).join(" ") };
+  }
+}
 
 module.exports = {
   ROOT,
@@ -544,4 +602,10 @@ module.exports = {
   sha256Of,
   vaultUpload,
   vaultGet,
+  MAIL_PROVIDER,
+  mailText,
+  mailsWithText,
+  waitMail,
+  mailRedacted,
+  mailDispatch,
 };

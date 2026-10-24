@@ -13,6 +13,7 @@ import {
   type ResolvedTenant,
 } from "@rwaxi/database";
 import { passwordFailures, type PasswordRule } from "@/app/_lib/password-policy";
+import { redactMailFor } from "./mail-outbox";
 import { audit, openVerifiedSession, setSessionCookie } from "./staff-auth";
 import { TenantAccessError, requestMeta } from "./tenant-context";
 
@@ -152,6 +153,8 @@ export async function confirmActivation(
         },
       });
       if (used.count !== 1 || activated.count !== 1) throw invalid();
+      // The link is spent: its email keeps only its delivery metadata.
+      await redactMailFor(tx, [inv.id], "CONSUMED");
       const opened = await openVerifiedSession(tx, "TENANT", tenant.id, inv.user.id, meta);
       const user = { id: inv.user.id, email: inv.user.email };
       await audit(tx, "TENANT", tenant.id, meta, {

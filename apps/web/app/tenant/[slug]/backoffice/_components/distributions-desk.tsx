@@ -12,6 +12,7 @@ import { declareDistribution } from "../distribution-actions";
 import type { DistributionOfferingRow, DistributionRow, DistributionsDeskData, DistributionsDeskResult } from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
 import { DeskAccess, SessionLine, useCanAct } from "./desk-access";
+import { WalletSign } from "./wallet-sign";
 
 type Currency = "COP" | "USD";
 type Toast = (message: string) => void;
@@ -107,7 +108,7 @@ function DeskView({ data, toast }: { data: DistributionsDeskData; toast: Toast }
         </div>
       ) : (
         data.offerings.map((o) => (
-          <OfferingPanel key={o.id} offering={o} data={data} busy={busy} run={run} />
+          <OfferingPanel key={o.id} offering={o} data={data} busy={busy} run={run} toast={toast} />
         ))
       )}
 
@@ -121,11 +122,13 @@ function OfferingPanel({
   data,
   busy,
   run,
+  toast,
 }: {
   offering: DistributionOfferingRow;
   data: DistributionsDeskData;
   busy: string | null;
   run: (id: string, action: () => Promise<Result>, onOk?: () => void) => void;
+  toast: Toast;
 }) {
   const { tr } = useI18n();
   const canAct = useCanAct();
@@ -291,6 +294,7 @@ function OfferingPanel({
                 toggle={() => setOpen(open === d.id ? null : d.id)}
                 onExecute={(id) => run(id, () => executeChainTransaction(id))}
                 onRegister={(id, txHash) => run(id, () => registerOfficerTransaction(id, txHash))}
+                onWalletDone={toast}
               />
             ))}
           </ul>
@@ -308,6 +312,7 @@ function DistributionItem({
   toggle,
   onExecute,
   onRegister,
+  onWalletDone,
 }: {
   d: DistributionRow;
   mode: "SIMULATION" | "RPC";
@@ -316,12 +321,15 @@ function DistributionItem({
   toggle: () => void;
   onExecute: (chainTxId: string) => void;
   onRegister: (chainTxId: string, txHash: string) => void;
+  onWalletDone: (message: string) => void;
 }) {
   const { tr } = useI18n();
   const canAct = useCanAct();
   const [txHash, setTxHash] = useState("");
   const anchor = d.anchor;
   const pending = anchor?.status === "PENDING";
+  // RWAXI's operator never sends this call in RPC mode: a hash on the PENDING row is the issuer's wallet's.
+  const claimed = anchor?.mode === "RPC" && anchor.txHash ? anchor.txHash : null;
   return (
     <li className="px-5 py-3 border-t border-line first:border-t-0 text-[12.5px]" data-distribution={d.period} data-distribution-status={d.status}>
       <div className="flex flex-wrap gap-x-4 gap-y-2 items-start">
@@ -362,6 +370,14 @@ function DistributionItem({
               <Icon name={busy === anchor.chainTxId ? "Loader2" : "Play"} size={13} className={busy === anchor.chainTxId ? "spin" : ""} />
               {tr("Firmar y ejecutar")}
             </button>
+          )}
+          {pending && anchor && mode === "RPC" && (
+            <WalletSign
+              chainTxId={anchor.chainTxId}
+              pendingHash={claimed}
+              disabled={!!busy || !canAct || (!claimed && !!anchor.blockedReason)}
+              onDone={onWalletDone}
+            />
           )}
           {pending && anchor && mode === "RPC" && (
             <div className="flex flex-wrap items-center gap-2 justify-end" data-issuer-form={anchor.chainTxId}>

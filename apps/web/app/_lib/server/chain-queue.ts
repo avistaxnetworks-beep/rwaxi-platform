@@ -143,6 +143,9 @@ export function calldataOf(tx: Pick<ChainTransaction, "kind" | "args" | "method"
   return calldata ? { calldata: calldata as `0x${string}`, fn: spec.fn } : null;
 }
 
+/** Event the contract emits when the call behind an outbox kind succeeds (e.g. InvestorWhitelisted). */
+export const eventOf = (kind: ChainTxKind): string | null => CALLS[kind]?.event ?? null;
+
 /** Wallet an outbox row refers to (whitelisting: `wallet`; minting: `investor`). */
 export function walletOf(args: unknown): string | null {
   const a = (args ?? {}) as { wallet?: unknown; investor?: unknown };

@@ -712,12 +712,9 @@ async function freshPage(browser, label, hosts) {
       .digest();
     const otpHash = (code) =>
       crypto.createHmac("sha256", otpKey).update(`${avista.id}:${inv.investor.id}:${code}`).digest("hex");
-    const mails = () =>
-      db.mailOutbox.findMany({
-        where: { toEmail: inv.email, purpose: "INVESTOR_OTP" },
-        orderBy: { createdAt: "asc" },
-      });
-    const codeOf = (mail) => /\b(\d{6})\b/.exec(mail.body)?.[1];
+    // Each row with the text it carried (its body, or once redacted the provider's copy).
+    const mails = () => lib.mailsWithText(db, { toEmail: inv.email, purpose: "INVESTOR_OTP" });
+    const codeOf = (mail) => /\b(\d{6})\b/.exec(mail.text ?? "")?.[1];
     const latestOtp = () =>
       db.investorOtp.findFirstOrThrow({
         where: { investorId: inv.investor.id },
@@ -776,6 +773,18 @@ async function freshPage(browser, label, hosts) {
         otp1.attempts === 0 &&
         !otp1.consumedAt,
     );
+    const delivered1 = await lib.waitMail(db, mail1.id, (m) => m.status !== "PENDING");
+    ok(
+      lib.MAIL_PROVIDER
+        ? "MailDispatcher tras responder: entregado al proveedor (SENT, id del mensaje) y el cuerpo borrado de mail_outbox al instante"
+        : "MailDispatcher tras responder: entregado al sumidero de desarrollo (CAPTURED, log), cuerpo legible hasta usar el código",
+      delivered1?.relatedId === otp1.id &&
+        Math.abs(delivered1.expiresAt.getTime() - otp1.expiresAt.getTime()) < 1000 &&
+        (lib.MAIL_PROVIDER
+          ? lib.mailRedacted(delivered1, mail1.text)
+          : delivered1.status === "CAPTURED" && delivered1.provider === "dev" && delivered1.body === mail1.text && !!delivered1.sentAt),
+      `${delivered1?.status} · ${delivered1?.provider}`,
+    );
 
     await fill(b, "#recovery-code", String((Number(code1) + 1) % 1e6).padStart(6, "0"));
     await act(b, () => b.$eval('[data-recovery-step="code"] form', (f) => f.requestSubmit()));
@@ -813,6 +822,12 @@ async function freshPage(browser, label, hosts) {
         invOrg === avista.id &&
         sig === expectedSig &&
         !(await b.$("[data-recovery-open]")),
+    );
+    const used1 = await lib.waitMail(db, mail1.id, (m) => m.body === null);
+    ok(
+      "al usar el código su correo queda sin cuerpo en mail_outbox (CONSUMED; con proveedor, ya al enviarse: SENT): quedan destinatario, asunto, SHA-256 y fechas",
+      lib.mailRedacted(used1, mail1.text, "CONSUMED"),
+      `${used1?.status} · ${used1?.redactionReason}`,
     );
     ok(
       "código consumido (un solo uso) e INVESTOR_SESSION_RECOVERED auditado (subjectHash recalculado)",
@@ -867,6 +882,12 @@ async function freshPage(browser, label, hosts) {
         burntAudit?.payload.attempts === 5 &&
         burntAudit.subjectHash === auditHash(burntAudit),
     );
+    const burntMail = await lib.waitMail(db, mail2.id, (m) => m.body === null);
+    ok(
+      "el correo del código agotado también queda sin cuerpo (EXPIRED; con proveedor, ya SENT)",
+      lib.mailRedacted(burntMail, mail2.text, "EXPIRED"),
+      `${burntMail?.status} · ${burntMail?.redactionReason}`,
+    );
 
     await act(c, () => clickText(c, "Enviar otro código", '[role="dialog"]'));
     const mail3 = (await mails())[2];
@@ -881,6 +902,16 @@ async function freshPage(browser, label, hosts) {
         otp3.id !== otp2.id &&
         !(await cookieOf(c, "avista", "rwaxi_inv")) &&
         !(await db.investorOtp.findUniqueOrThrow({ where: { id: otp3.id } })).consumedAt,
+    );
+    // The job a cron runs (pnpm mail:dispatch) clears what expired, in every tenant, and sends nothing twice.
+    await lib.waitMail(db, mail3.id, (m) => m.status !== "PENDING");
+    await db.mailOutbox.update({ where: { id: mail3.id }, data: { expiresAt: new Date(Date.now() - 60_000) } });
+    const job = lib.mailDispatch();
+    const expiredMail = await db.mailOutbox.findUniqueOrThrow({ where: { id: mail3.id } });
+    ok(
+      "pnpm mail:dispatch: el correo cuyo código venció queda sin cuerpo (EXPIRED; con proveedor, ya SENT) y no se reenvía ninguno",
+      job.ok && job.report.sent === 0 && job.report.captured === 0 && lib.mailRedacted(expiredMail, mail3.text, "EXPIRED"),
+      job.ok ? `vencidos redactados ${job.report.expiredRedacted}` : job.error,
     );
 
     await act(c, () => clickText(c, "Enviar otro código", '[role="dialog"]'));

@@ -2,20 +2,32 @@ import "server-only";
 import {
   createPublicClient,
   createWalletClient,
+  encodeFunctionData,
   getAddress,
   getContractAddress,
   http,
   keccak256,
   parseEventLogs,
+  toHex,
+  type Abi,
   type Address,
   type Hex,
+  type Log,
 } from "viem";
 import { privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { RWAXI_CHAINS, rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi, rwaxiTenantFactoryAbi } from "@rwaxi/blockchain-sdk";
 import { withTenant, type ChainNetwork, type ChainTransaction, type Prisma } from "@rwaxi/database";
 import { LocalizedError, msg, type Reason } from "@/app/_i18n/marks";
-import { TENANT_SIGNED_KINDS, blockerReason, loadChainState, type ExecutionOrigin } from "./chain-invariants";
-import { calldataOf, walletOf } from "./chain-queue";
+import { WALLET_SIGNER_ROLE, type WalletCall } from "@/app/_lib/chain-queue-types";
+import {
+  REGISTRY_KINDS,
+  TENANT_SIGNED_KINDS,
+  blockerReason,
+  loadChainState,
+  walletTxMismatch,
+  type ExecutionOrigin,
+} from "./chain-invariants";
+import { calldataOf, eventOf, walletOf } from "./chain-queue";
 
 /**
  * Ordered execution of a tenant's ChainTransaction outbox.
@@ -25,9 +37,14 @@ import { calldataOf, walletOf } from "./chain-queue";
  *                         (RFC 6979 signature, global sequential nonce, fixed gas) and never
  *                         broadcasts it: txHash = keccak256(signedTransaction).
  *   RPC (CHAIN_EXECUTION=rpc)  sends the calls RWAXI may sign (mintSubscription · MINTER_ROLE) to
- *                         RPC_URL_<NETWORK>. Registry calls belong to the tenant's compliance officer:
- *                         they sign with their own wallet and the hash is registered afterwards
- *                         (confirmExternalTransaction), never signed by RWAXI.
+ *                         RPC_URL_<NETWORK>. Registry calls belong to the tenant's compliance officer and
+ *                         the token's Data Room and distribution roots to the issuer: they sign with their
+ *                         own wallet, never with RWAXI's key —
+ *                           · in the backoffice, through their browser wallet (EIP-1193): prepareWalletCall()
+ *                             hands out the exact call, confirmWalletCall() accepts only that transaction
+ *                             (signer, contract, calldata) once its receipt succeeded;
+ *                           · or from any wallet (multisig included), registering the hash afterwards
+ *                             (confirmExternalTransaction: the receipt must carry the queued event).
  */
 /** Expected execution failures (blocked, reverted, misconfigured): shown to the user in their language. */
 export class ExecutionError extends LocalizedError {}
@@ -55,19 +72,29 @@ export interface Execution {
   signedTransaction: Hex | null;
   /** contract created by the call (deployTenantRegistry → the tenant's RwaxiComplianceRegistry) */
   created: Address | null;
+  /** who sent it: RWAXI's operator, the signer's browser wallet (EIP-1193) or a wallet whose hash was registered */
+  via: "operator" | "wallet" | "registered";
 }
+
+/** Sent, but the node has no receipt yet: the row stays claimed by its hash until one arrives. */
+export class ReceiptPendingError extends ExecutionError {}
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 };
 const RECEIPT_TIMEOUT_MS = 60_000;
+/** A browser-signed call is confirmed within one request (serverless limits): later, «Verificar recibo». */
+const WALLET_RECEIPT_TIMEOUT_MS = 25_000;
 const GWEI = 1_000_000_000n;
 const GAS: Record<string, bigint> = {
   approveInvestor: 120_000n,
   revokeInvestor: 80_000n,
   setFrozen: 80_000n,
   mintSubscription: 220_000n,
+  updateDataRoomMerkleRoot: 60_000n,
   anchorDistributionRoot: 90_000n,
   deployTenantRegistry: 2_500_000n,
 };
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
 
 function operator(): PrivateKeyAccount {
   const key = process.env.OPERATOR_PRIVATE_KEY;
@@ -192,6 +219,7 @@ async function finalize(db: Prisma.TransactionClient, tx: ChainTransaction, ex: 
         txHash: ex.txHash,
         mode: ex.mode,
         signer: ex.signer,
+        via: ex.via,
         nonce: ex.nonce,
         blockNumber: ex.blockNumber?.toString() ?? null,
         created: ex.created,
@@ -282,6 +310,7 @@ async function simulate(
         nonce,
         signedTransaction,
         created,
+        via: "operator",
       };
       await finalize(db, tx, ex, actor, meta);
       return ex;
@@ -292,7 +321,61 @@ async function simulate(
 
 type PublicRpc = ReturnType<typeof rpcClients>["publicClient"];
 
-/** Receipt of a broadcast row → CONFIRMED, or REVERTED. Without a receipt yet the row stays claimed. */
+/** Did the receipt carry the event of the queued call, emitted by the queued contract with the queued arguments? */
+function emitsQueuedEvent(tx: ChainTransaction, logs: Log[]): boolean {
+  const args = argsOf(tx.args);
+  const fromQueued = (address: string) => lower(address) === lower(tx.contractAddress);
+  const registry = rwaxiComplianceRegistryAbi;
+  const token = rwaxiPropertyTokenAbi;
+  switch (tx.kind) {
+    case "INVESTOR_WHITELISTED":
+      return parseEventLogs({ abi: registry, logs, eventName: "InvestorWhitelisted" }).some(
+        (e) =>
+          fromQueued(e.address) &&
+          lower(e.args.wallet) === lower(args.wallet) &&
+          e.args.countryCode === Number(args.countryCode) &&
+          lower(e.args.kycDossierHash) === lower(args.kycDossierHash),
+      );
+    case "INVESTOR_REVOKED":
+      return parseEventLogs({ abi: registry, logs, eventName: "InvestorRevoked" }).some(
+        (e) => fromQueued(e.address) && lower(e.args.wallet) === lower(args.wallet),
+      );
+    case "INVESTOR_FREEZE_UPDATED":
+      return parseEventLogs({ abi: registry, logs, eventName: "InvestorFreezeUpdated" }).some(
+        (e) => fromQueued(e.address) && lower(e.args.wallet) === lower(args.wallet) && e.args.isFrozen === (args.frozen === true),
+      );
+    case "SUBSCRIPTION_MINTED":
+      return parseEventLogs({ abi: token, logs, eventName: "SubscriptionTokensMinted" }).some(
+        (e) =>
+          fromQueued(e.address) &&
+          lower(e.args.subscriptionId) === lower(args.subscriptionId) &&
+          lower(e.args.investor) === lower(args.investor) &&
+          e.args.amount === BigInt(String(args.amount)) &&
+          lower(e.args.paymentEvidenceRef) === lower(args.paymentEvidenceRef),
+      );
+    case "DATA_ROOM_ROOT_ANCHORED":
+      return parseEventLogs({ abi: token, logs, eventName: "DataRoomMerkleRootAnchored" }).some(
+        (e) => fromQueued(e.address) && lower(e.args.newRoot) === lower(args.newRoot),
+      );
+    case "DISTRIBUTION_ROOT_ANCHORED":
+      return parseEventLogs({ abi: token, logs, eventName: "DistributionRootAnchored" }).some(
+        (e) =>
+          fromQueued(e.address) &&
+          lower(e.args.distributionId) === lower(args.distributionId) &&
+          lower(e.args.merkleRoot) === lower(args.merkleRoot) &&
+          e.args.totalAmountCents === BigInt(String(args.totalAmountCents)) &&
+          e.args.snapshotSupply === BigInt(String(args.snapshotSupply)),
+      );
+    default:
+      return false;
+  }
+}
+
+/**
+ * Receipt of a broadcast row → CONFIRMED. A revert marks an operator send REVERTED; a call signed in the
+ * tenant's browser wallet is released instead (the queued call is still valid: sign it again). Without a
+ * receipt yet the row stays claimed by its hash (ReceiptPendingError).
+ */
 async function settle(
   organizationId: string,
   tx: ChainTransaction,
@@ -302,12 +385,26 @@ async function settle(
   meta: RequestMeta,
   publicClient: PublicRpc,
   wait: boolean,
+  claim: "operator" | "wallet" = "operator",
 ): Promise<Execution> {
+  const timeout = claim === "wallet" ? WALLET_RECEIPT_TIMEOUT_MS : RECEIPT_TIMEOUT_MS;
   const receipt = await (
-    wait ? publicClient.waitForTransactionReceipt({ hash, timeout: RECEIPT_TIMEOUT_MS }) : publicClient.getTransactionReceipt({ hash })
+    wait ? publicClient.waitForTransactionReceipt({ hash, timeout }) : publicClient.getTransactionReceipt({ hash })
   ).catch(() => null);
-  if (!receipt) throw new ExecutionError("Envío RPC en curso ({hash}): aún sin recibo; «Procesar cola en orden» lo concilia.", { hash });
+  if (!receipt) throw new ReceiptPendingError("Envío RPC en curso ({hash}): aún sin recibo; «Procesar cola en orden» lo concilia.", { hash });
   if (receipt.status !== "success") {
+    if (claim === "wallet") {
+      await withTenant(organizationId, (db) =>
+        db.chainTransaction.updateMany({
+          where: { id: tx.id, status: "PENDING", txHash: hash },
+          data: { executionMode: null, signerAddress: null, txHash: null, error: `wallet tx ${hash} reverted on-chain (block ${receipt.blockNumber})` },
+        }),
+      );
+      throw new ExecutionError(
+        "La transacción de tu wallet revirtió en la red ({hash}): no se confirmó nada y la operación sigue en cola para firmarla de nuevo.",
+        { hash },
+      );
+    }
     await withTenant(organizationId, (db) =>
       db.chainTransaction.updateMany({
         where: { id: tx.id, status: "PENDING" },
@@ -317,6 +414,21 @@ async function settle(
     throw new ExecutionError("La transacción revirtió en la red ({hash}).", { hash });
   }
   const sent = await publicClient.getTransaction({ hash });
+  // Whoever sent it, only the queued call to the queued contract confirms the row.
+  if (lower(sent.to) !== lower(tx.contractAddress) || lower(sent.input) !== lower(calldataOf(tx)?.calldata)) {
+    throw new ExecutionError("La transacción {hash} no corresponde a la operación en cola (contrato o calldata distintos).", { hash });
+  }
+  if (claim === "wallet") {
+    if (lower(sent.from) !== lower(tx.signerAddress)) {
+      throw new ExecutionError("La transacción la firmó {from}, no tu wallet autorizada {expected}: no se registró nada.", {
+        from: sent.from,
+        expected: tx.signerAddress ?? "—",
+      });
+    }
+    if (!emitsQueuedEvent(tx, receipt.logs)) {
+      throw new ExecutionError("La transacción no emitió {event} con los argumentos en cola.", { event: eventOf(tx.kind) ?? fn });
+    }
+  }
   const deployed =
     tx.kind === "TENANT_REGISTRY_DEPLOYED"
       ? parseEventLogs({ abi: rwaxiTenantFactoryAbi, logs: receipt.logs, eventName: "TenantRegistryDeployed" }).find(
@@ -334,6 +446,7 @@ async function settle(
     nonce: sent.nonce,
     signedTransaction: null,
     created: deployed ? getAddress(deployed.args.registry) : null,
+    via: claim,
   };
   await withTenant(organizationId, (db) => finalize(db, tx, ex, actor, meta), TX_OPTIONS);
   return ex;
@@ -349,10 +462,12 @@ async function broadcast(
 ) {
   const row = await withTenant(organizationId, (db) => db.chainTransaction.findUnique({ where: { id: chainTxId } }));
   if (!row) throw new ExecutionError("Transacción no encontrada en este tenant.");
-  // Sent earlier but its receipt was not awaited: reconcile it, never send it again.
+  // Sent earlier but its receipt was not awaited: reconcile it, never send it again. A hash claimed by a
+  // tenant's browser wallet (not RWAXI's operator) is held to that wallet.
   if (row.status === "PENDING" && row.executionMode === "RPC" && row.txHash) {
     const { publicClient } = rpcClients(row.network);
-    return settle(organizationId, row, row.txHash as Hex, calldataOf(row)?.fn ?? row.method, actor, meta, publicClient, false);
+    const claim = lower(row.signerAddress) === lower(account.address) ? "operator" : "wallet";
+    return settle(organizationId, row, row.txHash as Hex, calldataOf(row)?.fn ?? row.method, actor, meta, publicClient, false, claim);
   }
 
   // Claim the row (executionMode set while PENDING) so a concurrent run cannot send it twice.
@@ -436,48 +551,15 @@ export async function confirmExternalTransaction(
   const { publicClient } = rpcClients(tx.network);
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
   if (receipt.status !== "success") throw new ExecutionError("Esa transacción no fue exitosa en la red.");
-  const args = argsOf(tx.args);
-  const fromQueued = (address: string) => lower(address) === lower(tx.contractAddress);
-  const match =
-    tx.kind === "INVESTOR_WHITELISTED"
-      ? parseEventLogs({ abi: rwaxiComplianceRegistryAbi, logs: receipt.logs, eventName: "InvestorWhitelisted" }).some(
-          (e) =>
-            fromQueued(e.address) &&
-            lower(e.args.wallet) === lower(args.wallet) &&
-            e.args.countryCode === Number(args.countryCode) &&
-            lower(e.args.kycDossierHash) === lower(args.kycDossierHash),
-        )
-      : tx.kind === "DATA_ROOM_ROOT_ANCHORED"
-        ? parseEventLogs({ abi: rwaxiPropertyTokenAbi, logs: receipt.logs, eventName: "DataRoomMerkleRootAnchored" }).some(
-            (e) => fromQueued(e.address) && lower(e.args.newRoot) === lower(args.newRoot),
-          )
-        : parseEventLogs({ abi: rwaxiPropertyTokenAbi, logs: receipt.logs, eventName: "DistributionRootAnchored" }).some(
-            (e) =>
-              fromQueued(e.address) &&
-              lower(e.args.distributionId) === lower(args.distributionId) &&
-              lower(e.args.merkleRoot) === lower(args.merkleRoot) &&
-              e.args.totalAmountCents === BigInt(String(args.totalAmountCents)) &&
-              e.args.snapshotSupply === BigInt(String(args.snapshotSupply)),
-          );
-  if (!match) {
-    const eventName =
-      tx.kind === "INVESTOR_WHITELISTED"
-        ? "InvestorWhitelisted"
-        : tx.kind === "DATA_ROOM_ROOT_ANCHORED"
-          ? "DataRoomMerkleRootAnchored"
-          : "DistributionRootAnchored";
-    throw new ExecutionError("La transacción no emitió {event} con los argumentos en cola.", { event: eventName });
+  // The event, not the calldata: a multisig or smart-contract wallet calls the contract from its own code.
+  if (!emitsQueuedEvent(tx, receipt.logs)) {
+    throw new ExecutionError("La transacción no emitió {event} con los argumentos en cola.", { event: eventOf(tx.kind) ?? tx.method });
   }
   const sent = await publicClient.getTransaction({ hash: txHash as Hex });
   const ex: Execution = {
     id: tx.id,
     kind: tx.kind,
-    fn:
-      tx.kind === "INVESTOR_WHITELISTED"
-        ? "approveInvestor"
-        : tx.kind === "DATA_ROOM_ROOT_ANCHORED"
-          ? "updateDataRoomMerkleRoot"
-          : "anchorDistributionRoot",
+    fn: calldataOf(tx)?.fn ?? tx.method,
     txHash: txHash as Hex,
     blockNumber: receipt.blockNumber,
     mode: "RPC",
@@ -485,9 +567,162 @@ export async function confirmExternalTransaction(
     nonce: sent.nonce,
     signedTransaction: null,
     created: null,
+    via: "registered",
   };
   await withTenant(organizationId, (db) => finalize(db, tx, ex, actor, meta), TX_OPTIONS);
   return ex;
+}
+
+// ───────────────────────────────────────────────────────── EIP-1193: the tenant's own browser wallet
+
+const shortError = (e: unknown) =>
+  (e && typeof e === "object" && "shortMessage" in e && typeof e.shortMessage === "string" ? e.shortMessage : e instanceof Error ? e.message : String(e))
+    .split("\n")[0]!
+    .slice(0, 240);
+
+/** The signer's registered wallet as stored (lowercase), or an error naming why there is none. */
+function signerWallet(wallet: string | null | undefined): Address {
+  if (!wallet || !ADDRESS.test(wallet)) {
+    throw new ExecutionError("Tu usuario no tiene una wallet registrada en este tenant: no hay una cuenta autorizada para firmar.");
+  }
+  return getAddress(wallet);
+}
+
+/**
+ * The exact call the signer's browser wallet must sign for one PENDING row (RPC mode): the queued calldata
+ * (compiled ABIs of @rwaxi/blockchain-sdk) to the tenant's contract on the expected chain, from the signer's
+ * registered wallet — which must hold the contract role on-chain and pass a dry run of the call. The server
+ * never sees a private key: it only hands out what to sign and, later, checks what was signed.
+ */
+export async function prepareWalletCall(organizationId: string, chainTxId: string, wallet: string | null): Promise<WalletCall> {
+  if (executionMode() !== "RPC") {
+    throw new ExecutionError("La firma con wallet requiere modo RPC (CHAIN_EXECUTION=rpc): en simulación la cola la firma la clave de demostración.");
+  }
+  const { tx, encoded } = await withTenant(organizationId, (db) => prepare(db, chainTxId), TX_OPTIONS);
+  const role = WALLET_SIGNER_ROLE[tx.kind];
+  if (!role) throw new ExecutionError("Esta operación no se firma con wallet desde el backoffice.");
+  const from = signerWallet(wallet);
+  const { chain, publicClient } = rpcClients(tx.network);
+  const to = getAddress(tx.contractAddress);
+  const code = await publicClient.getCode({ address: to });
+  if (!code || code === "0x") throw new ExecutionError("Modo RPC: no hay contrato desplegado en esa dirección de la red configurada.");
+  const abi = (REGISTRY_KINDS.has(tx.kind) ? rwaxiComplianceRegistryAbi : rwaxiPropertyTokenAbi) as Abi;
+  const roleId = keccak256(toHex(role));
+  const holds = await publicClient.readContract({ address: to, abi, functionName: "hasRole", args: [roleId, from] });
+  if (holds !== true) {
+    throw tx.kind === "SUBSCRIPTION_MINTED"
+      ? new ExecutionError(
+          "Tu wallet {wallet} no tiene MINTER_ROLE en el token: el mint lo envía el operador RWAXI («Firmar y ejecutar»), salvo que el emisor otorgue MINTER_ROLE a su propia wallet.",
+          { wallet: from },
+        )
+      : new ExecutionError("Tu wallet registrada {wallet} no tiene {role} en {contract}: no puede firmar esta operación.", { wallet: from, role, contract: to });
+  }
+  // Dry run from the signer: a call the network would revert is never offered for signature.
+  const dry = await publicClient.call({ account: from, to, data: encoded.calldata }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+  if (dry) throw new ExecutionError("La red rechazaría la llamada desde tu wallet ({detail}): no se pidió ninguna firma.", { detail: shortError(dry) });
+  return {
+    chainTxId: tx.id,
+    kind: tx.kind,
+    fn: encoded.fn,
+    network: tx.network,
+    chainId: chain.id,
+    chainName: chain.name,
+    to,
+    data: encoded.calldata,
+    from,
+    role,
+    roleCall: { to, data: encodeFunctionData({ abi, functionName: "hasRole", args: [roleId, from] }) },
+  };
+}
+
+export type WalletOutcome = { state: "confirmed"; execution: Execution } | { state: "pending"; hash: Hex };
+
+/**
+ * The hash a browser wallet returned for one PENDING row. Nothing is recorded unless the node shows that very
+ * transaction on the expected chain, sent by the signer's registered wallet to the queued contract with the
+ * queued calldata and no value; the row is then claimed by the hash (RWAXI's operator can no longer send it and
+ * a reload still reconciles it) and confirmed only by a successful receipt carrying the queued event — the
+ * CHAIN_TX_CONFIRMED AuditEvent records that real txHash. A revert releases the row to be signed again.
+ */
+export async function confirmWalletCall(
+  organizationId: string,
+  chainTxId: string,
+  txHash: string,
+  wallet: string | null,
+  actor: Actor,
+  meta: RequestMeta,
+): Promise<WalletOutcome> {
+  if (executionMode() !== "RPC") throw new ExecutionError("La firma con wallet requiere modo RPC (CHAIN_EXECUTION=rpc).");
+  if (!TX_HASH.test(txHash)) throw new ExecutionError("Tx hash inválido.");
+  const hash = txHash.toLowerCase() as Hex;
+  const row = await withTenant(organizationId, (db) => db.chainTransaction.findUnique({ where: { id: chainTxId } }));
+  if (!row) throw new ExecutionError("Transacción no encontrada en este tenant.");
+  if (!WALLET_SIGNER_ROLE[row.kind]) throw new ExecutionError("Esta operación no se firma con wallet desde el backoffice.");
+  const from = signerWallet(wallet);
+  const fn = calldataOf(row)?.fn ?? row.method;
+  // Asked again for a hash already confirmed (e.g. «Procesar cola en orden» reconciled it first).
+  if (row.status === "CONFIRMED" && lower(row.txHash) === hash) {
+    return {
+      state: "confirmed",
+      execution: {
+        id: row.id,
+        kind: row.kind,
+        fn,
+        txHash: hash,
+        blockNumber: row.blockNumber,
+        mode: "RPC",
+        signer: row.signerAddress ?? from,
+        nonce: row.nonce ?? 0,
+        signedTransaction: null,
+        created: null,
+        via: "wallet",
+      },
+    };
+  }
+  const { chain, publicClient } = rpcClients(row.network);
+  const reconcile = async (claimed: ChainTransaction): Promise<WalletOutcome> => {
+    try {
+      return { state: "confirmed", execution: await settle(organizationId, claimed, hash, fn, actor, meta, publicClient, true, "wallet") };
+    } catch (e) {
+      if (e instanceof ReceiptPendingError) return { state: "pending", hash };
+      throw e;
+    }
+  };
+  // Claimed by this very hash earlier, receipt not seen then: reconcile it.
+  if (row.status === "PENDING" && row.executionMode === "RPC" && lower(row.txHash) === hash) {
+    if (lower(row.signerAddress) !== lower(from)) throw new ExecutionError("Ese envío lo hizo otra wallet: lo concilia «Procesar cola en orden».");
+    return reconcile(row);
+  }
+  // A new signature: the row must still be executable (precedence and the contracts' invariants).
+  const { tx, encoded } = await withTenant(organizationId, (db) => prepare(db, chainTxId), TX_OPTIONS);
+  const sent = await publicClient.getTransaction({ hash }).catch(() => null);
+  if (!sent) {
+    throw new ExecutionError("La red {network} no conoce la transacción {hash}: revisa que tu wallet la haya enviado a {chain}.", {
+      network: tx.network,
+      hash,
+      chain: chain.name,
+    });
+  }
+  const mismatch = walletTxMismatch(sent, {
+    from,
+    to: getAddress(tx.contractAddress),
+    data: encoded.calldata,
+    chainId: chain.id,
+    chainName: chain.name,
+    fn: encoded.fn,
+  });
+  if (mismatch) throw new ExecutionError(mismatch.source, mismatch.vars);
+  const claimed = await withTenant(organizationId, (db) =>
+    db.chainTransaction.updateMany({
+      where: { id: tx.id, status: "PENDING", executionMode: null },
+      data: { executionMode: "RPC", txHash: hash, signerAddress: getAddress(sent.from), error: null },
+    }),
+  );
+  if (claimed.count !== 1) throw new ExecutionError("Otra ejecución tomó esta transacción.");
+  return reconcile({ ...tx, executionMode: "RPC", txHash: hash, signerAddress: getAddress(sent.from), error: null });
 }
 
 /** Runs the tenant's PENDING rows oldest first; blocked rows are reported and skipped. */

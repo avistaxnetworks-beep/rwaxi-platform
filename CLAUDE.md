@@ -19,13 +19,16 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
     actions.ts           onboarding persistido del inversionista: signNda(), submitKyc(), subscribe()
     _lib/journey.ts      journey del visitante leído de PostgreSQL (sesión por cookie firmada), con sus distribuciones
     _lib/tenant-view.ts  tenants dados de alta en la BD (no del prototipo): vista leída bajo RLS para el estado demo
-    backoffice/          actions.ts (KYC) · payment-actions.ts (confirmPayment) · chain-actions.ts (ejecutar la cola)
-                         distribution-actions.ts (declareDistribution) · _lib/queries.ts (bandeja de cumplimiento)
-                         _lib/subscriptions-desk.ts (Suscripciones y Pagos) · _lib/distributions-desk.ts (Distribuciones)
+    backoffice/          actions.ts (KYC) · payment-actions.ts (confirmPayment) · chain-actions.ts (ejecutar la cola y
+                         firmar con wallet EIP-1193) · distribution-actions.ts (declareDistribution) · _lib/queries.ts
+                         (bandeja de cumplimiento) · _lib/subscriptions-desk.ts (Suscripciones y Pagos)
+                         _lib/distributions-desk.ts (Distribuciones) · _components/wallet-sign.tsx (firma en el navegador)
   app/_lib/server/       tenant-context, staff-auth (contraseña + TOTP, sesiones), staff-invitations + staff-activation
                          (cuentas del alta B2B), investor-session (HMAC), investor-recovery (código por correo) +
-                         mail-outbox, vault + vault-access (bóveda documental), chain-queue (calldata viem, puro),
-                         chain-invariants (prelación + reverts de los contratos, puro), chain-executor (firma y confirma)
+                         mail-outbox (MailDispatcher, redacción), vault + vault-access + vault-uploads (bóveda documental:
+                         quién sube qué, subida directa prefirmada), rate-limit (límites en PostgreSQL), chain-queue
+                         (calldata viem, puro), chain-invariants (prelación + reverts de los contratos + cotejo de la tx
+                         de una wallet, puro), chain-executor (firma, confirma y verifica las firmas de wallet)
   app/_components/auth/  login del personal (contraseña → TOTP o enrolamiento) y cuenta en la cabecera
   app/_lib/referral.ts   tokens de referido firmados (HMAC-SHA256, Web Crypto: middleware y Server Actions)
   app/_i18n/             i18n: config (idiomas, cookies), provider (useI18n), server (requestTranslate, render),
@@ -33,16 +36,20 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
   app/superadmin/_lib/   métricas consolidadas con platformPrisma() (rol BYPASSRLS, sólo host admin)
   app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
   app/api/inspector/sources   fuente .sol de los contratos, sólo con sesión de backoffice/consola (inspector-access.ts)
-  app/api/vault/         upload (KYC, staging del alta, Data Room) · kyc/[caso]/[lado] · data-room/[id] (bóveda documental)
+  app/api/vault/         upload (KYC, staging del alta, Data Room; + upload/presign y upload/confirm: subida directa al
+                         bucket) · kyc/[caso]/[lado] · data-room/[id] (bóveda documental)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
-packages/database        Prisma 6 · esquema multi-tenant (22 entidades) · RLS · cliente con tenant · seed
+packages/database        Prisma 6 · esquema multi-tenant (23 entidades) · RLS · cliente con tenant · seed
                          credentials.ts (scrypt, TOTP RFC 6238, AES-256-GCM, tokens y códigos de un solo uso)
-  scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente)
+  scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente) · vault-gc.ts (pnpm vault:gc)
 packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · distribution.ts (prorrata en centavos + árbol de asignaciones)
                          canonical.ts (evidenceHash) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
 packages/document-vault  DocumentVault: políticas (tipo por magic bytes, tamaño, SHA-256), claves por contenido y
-                         tenant, drivers local (disco privado) y s3 (S3/R2 con SigV4) · sample.ts (PDF deterministas)
+                         tenant, drivers local (disco privado) y s3 (S3/R2 con SigV4; URLs prefirmadas PUT/GET con
+                         presignV4, ListObjectsV2) · gc.ts (purgeUnreferencedBlobs) · sample.ts (PDF deterministas)
+packages/mail            MailDispatcher (entrega y redacción de mail_outbox) · drivers Resend, Postmark, webhook firmado
+                         y desarrollo (log) · scripts/dispatch.ts (pnpm mail:dispatch)
 contracts                Hardhat 2 · solc 0.8.24 · @openzeppelin/contracts 5.6.1 (versión exacta: bytecode determinista)
 ```
 
@@ -69,8 +76,10 @@ Reglas:
    Subdominios reservados: ver `RESERVED_SUBDOMAINS`. Las únicas lecturas sin contexto de tenant son funciones
    SECURITY DEFINER acotadas: `rwaxi_resolve_tenant` (enrutado), `rwaxi_public_offerings()` (vitrina: campos de
    marketing y sus traducciones, progreso y pausa de captación de ofertas publicadas de desarrolladores publicados,
-   sin datos de inversionistas), `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global) y
-   `rwaxi_factory_creations` (contratos que la factory ya creó en simulación: el nonce de su próximo `CREATE`).
+   sin datos de inversionistas), `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global),
+   `rwaxi_factory_creations` (contratos que la factory ya creó en simulación: el nonce de su próximo `CREATE`),
+   `rwaxi_rate_limit_hit` (límites de tasa de la plataforma: `rate_limit_hits` no es accesible de otro modo, RLS sin
+   política y sin privilegios) y `rwaxi_redact_expired_mail` (sólo borra cuerpos de correo cuyo código o enlace venció).
    Un slug que no es de los desarrolladores demo del prototipo se sirve desde la BD: el layout del tenant lo resuelve
    con `resolveTenant`, lee su vista bajo RLS (`_lib/tenant-view.ts`) y la registra en el estado demo
    (`registerDbTenant`); sin organización u oferta, 404.
@@ -85,7 +94,8 @@ Reglas:
    para los roles de la app (sin políticas UPDATE/DELETE + privilegios revocados). Las operaciones on-chain se encolan
    como `ChainTransaction` `PENDING` (outbox) y sólo `chain-executor.ts` las pasa a `CONFIRMED`, en orden de creación
    y tras `blockerFor()` (prelación: ningún `mintSubscription` mientras el `approveInvestor` de su wallet siga
-   `PENDING`; y los reverts de los contratos sobre el historial confirmado: whitelist/freeze, pausa,
+   `PENDING`, las llamadas al registro de una wallet en orden, los `updateDataRoomMerkleRoot` de un token en orden; y
+   los reverts de los contratos sobre el historial confirmado: whitelist/freeze, `InvestorNotApproved`, pausa,
    `SubscriptionAlreadyProcessed`, `SupplyCapExceeded`). `executionMode` dice cómo: `RPC` (recibo de la red) o
    `SIMULATION` (`CHAIN_EXECUTION` por defecto: tx EIP-1559 firmada con `OPERATOR_PRIVATE_KEY`, nonce global
    secuencial, **nunca difundida**; `txHash = keccak256(signedTransaction)`). Toda vista que muestre un hash debe
@@ -126,8 +136,20 @@ Reglas:
    registrado en el tenant **nunca** se asocia a un navegador nuevo por el NDA; «Recuperar mi sesión» envía un código
    de 6 dígitos (en `investor_otps` sólo su HMAC; 10 min; 5 intentos descontados atómicamente antes de comparar; un
    solo uso; uno nuevo reemplaza al anterior; 3 por 15 min y 10 por día por inversionista, 10 por hora por IP) con la
-   misma respuesta exista o no el correo. Sin SMTP todavía, el correo queda en `mail_outbox` (y en la consola del
-   servidor de desarrollo); recuperar escribe `INVESTOR_SESSION_RECOVERED`, agotar un código `INVESTOR_OTP_FAILED`.
+   misma respuesta exista o no el correo; recuperar escribe `INVESTOR_SESSION_RECOVERED`, agotar un código
+   `INVESTOR_OTP_FAILED`. **Correo** (`mail-outbox.ts` + `@rwaxi/mail`): `queueMail()` lo deja en `mail_outbox` en la
+   transacción del cambio (con `body_sha256`, la fila que lleva —`related_id`: el OTP o la invitación— y su
+   vencimiento) y el `MailDispatcher` lo entrega **después de responder** (`after()`: el tiempo de respuesta no
+   revela si salió un correo), un intento a la vez (arrendamiento de 2 min), hasta 5, con el id de la fila como
+   clave de idempotencia. Driver (`MAIL_DRIVER` o el proveedor cuya clave exista; `MAIL_FROM` obligatorio): `resend`
+   (`RESEND_API_KEY`), `postmark` (`POSTMARK_SERVER_TOKEN`), `webhook` (`MAIL_WEBHOOK_URL` + `MAIL_WEBHOOK_SECRET`,
+   HMAC sobre `timestamp.body`) o `dev` (por defecto fuera de producción: el log del servidor, prohibido en
+   producción; sin proveedor en producción no se entrega nada). **Redacción**: el cuerpo (código o enlace en claro)
+   se borra al enviarse (`SENT`), al fallar (`FAILED`), al usarse (`CONSUMED`), al reemplazarlo otro (`SUPERSEDED`) o
+   al vencer (`EXPIRED`, `rwaxi_redact_expired_mail()`: en cada entrega y en `pnpm mail:dispatch`, que además
+   reintenta los pendientes); quedan destinatario, asunto, hash, proveedor, id del mensaje y fechas (CHECKs
+   `mail_outbox_*`). Con el driver `dev` el correo queda `CAPTURED` y legible hasta usarse o vencer: así lo leen el
+   desarrollo local y las suites E2E; `pnpm e2e:strict` entrega por un proveedor HTTP de prueba y lee su copia.
    **Atribución firmada:** la vitrina emite en servidor (`app/vitrina/actions.ts`, sólo host `www`, sólo portales
    ACTIVE) `ref_rwx_<nonce>.<slug>.<emitidoMs>.<HMAC-SHA256(REFERRAL_SECRET)>` (`app/_lib/referral.ts`, Web Crypto,
    Edge y Node). El middleware guarda en `rwaxi_ref` sólo un token válido para el tenant del host (primer contacto) y
@@ -139,12 +161,24 @@ Reglas:
    `MINTER_ROLE`; pausa, Data Room, raíces de distribución (`DISTRIBUTION_ROLE`) y recuperación forzosa son del
    emisor; la whitelist es del oficial de cumplimiento del tenant. No añadir roles a RWAXI sin revisión legal. En modo
    `RPC` el operador sólo envía `mintSubscription` y, desde la consola Super-Admin, `deployTenantRegistry` (el registro
-   creado queda con el admin y el oficial del tenant); `approveInvestor` lo firma el oficial y `anchorDistributionRoot`
-   el emisor, igual que `updateDataRoomMerkleRoot`, cada uno con su propia wallet, y se registra su hash
-   (`registerOfficerTransaction`, que exige recibo exitoso y el evento `InvestorWhitelisted` /
-   `DistributionRootAnchored` / `DataRoomMerkleRootAnchored` con los argumentos en cola). En `SIMULATION`
-   la clave del operador firma todo, sólo como demostración. Los controles de gobierno de la consola (suspender un portal,
-   pausar la captación de una oferta, retirar de la vitrina) son **off-chain**: nunca pausan el token del emisor.
+   creado queda con el admin y el oficial del tenant); `approveInvestor`/`revokeInvestor`/`setFrozen` los firma el
+   oficial y `anchorDistributionRoot` el emisor, igual que `updateDataRoomMerkleRoot`, cada uno con su propia wallet:
+   - **en el navegador (EIP-1193, «Firmar con mi wallet»** en la cola on-chain y en la mesa de distribuciones):
+     `prepareWalletTransaction` devuelve la llamada exacta (`to` = contrato del tenant, `data` = calldata de los ABI
+     del SDK, `chainId`, cuenta autorizada = wallet registrada del usuario, que el servidor comprueba on-chain con
+     `hasRole` y una ejecución en seco); el navegador comprueba con la propia wallet la cuenta conectada, la red
+     (`wallet_switchEthereumChain`) y el rol (`eth_call hasRole`) antes de `eth_sendTransaction`; y
+     `confirmWalletTransaction` sólo acepta la tx que el nodo muestre firmada por esa wallet, dirigida a ese contrato,
+     con ese calldata, sin valor y en esa cadena (`walletTxMismatch`), la reclama por su hash (el operador ya no puede
+     enviarla; «Verificar recibo» o «Procesar cola» la concilian) y la confirma con recibo exitoso y el evento en cola
+     (`CHAIN_TX_CONFIRMED` con `via: "wallet"`). Una tx revertida libera la fila para firmarla de nuevo. El mint por
+     wallet exige que el emisor otorgue `MINTER_ROLE` a su propia wallet; si no, lo envía el operador RWAXI;
+   - **o desde cualquier wallet (multisig incluida)**, registrando después su hash (`registerOfficerTransaction`:
+     recibo exitoso y el evento `InvestorWhitelisted` / `DistributionRootAnchored` / `DataRoomMerkleRootAnchored` con
+     los argumentos en cola).
+   En `SIMULATION` la clave del operador firma todo, sólo como demostración (sin firma por wallet). Los controles de
+   gobierno de la consola (suspender un portal, pausar la captación de una oferta, retirar de la vitrina) son
+   **off-chain**: nunca pausan el token del emisor.
 7. **Integridad documental.** Cada documento del Data Room se hashea (SHA-256) en el navegador; la raíz se calcula con
    `@rwaxi/blockchain-sdk/merkle` y se ancla con `updateDataRoomMerkleRoot`. NDA y suscripción citan esa raíz.
    El expediente KYC lo hashea **el servidor**: `KycCase.dossierHash = evidenceHash(KycCase.evidence)` (JSON canónico,
@@ -153,10 +187,17 @@ Reglas:
    `app/_lib/sha256.ts` (Web Crypto, falla si no puede); nunca el `sha256Hex()` del prototipo, que inventa un hash.
    **Bóveda documental** (`@rwaxi/document-vault`, `app/_lib/server/vault.ts`): los archivos detrás de esos hashes
    (KYC y Data Room) se guardan direccionados por contenido y aislados por tenant (`tenants/{organización}/sha256/
-   {hex}`; `staging/sha256/{hex}` antes de que exista el tenant). Los bytes entran sólo por `POST /api/vault/upload`,
-   que lee el tipo de los bytes (PDF, PNG, JPG, WebP; en el Data Room también DOCX/XLSX), aplica el tamaño máximo
-   (KYC 10 MB, Data Room 20 MB) y recalcula el SHA-256: si no es exactamente el que declaró el navegador, no se
-   escribe nada. KYC (sesión del inversionista con NDA) y alta B2B (consola, a staging) devuelven un recibo HMAC que
+   {hex}`; `staging/sha256/{hex}` antes de que exista el tenant; `incoming/{nonce}` en cuarentena). Quién sube qué
+   está en `vault-uploads.ts`. Los bytes entran por `POST /api/vault/upload` (multipart, bóveda local) o, con S3/R2,
+   **directo al bucket**: `upload/presign` revisa lo declarado (tamaño, tipo, SHA-256) y entrega un PUT prefirmado de
+   15 min que firma `content-length`, `content-type`, `x-amz-content-sha256` y `x-amz-meta-sha256` (el bucket
+   rechaza otros bytes, otro tamaño u otro tipo) hacia `incoming/` con un ticket HMAC (clave distinta a la de los
+   recibos); `upload/confirm` vuelve a autorizar, exige el ticket del mismo sujeto y relee el objeto. En ambos casos
+   el servidor lee el tipo de los bytes (PDF, PNG, JPG, WebP; en el Data Room también DOCX/XLSX), aplica el tamaño
+   máximo (KYC 10 MB, Data Room 20 MB) y recalcula el SHA-256: si no es exactamente el declarado, no se guarda nada
+   (la cuarentena se borra). Límites (`rwaxi_rate_limit_hit`, compartidos entre instancias): 120 cargas por IP y 20
+   por sesión cada 10 min (`VAULT_UPLOADS_PER_IP`, `VAULT_UPLOADS_PER_SESSION`; 429 + `Retry-After`). KYC (sesión
+   del inversionista con NDA) y alta B2B (consola, a staging) devuelven un recibo HMAC que
    `submitKyc()` / `onboardDeveloper()` exigen; el alta copia los archivos a la bóveda del tenant antes de crearlo. El
    Data Room del backoffice (sólo `TENANT_ADMIN`) crea el `DataRoomDocument`, recalcula la raíz y, con el token
    desplegado, deja un único `updateDataRoomMerkleRoot` `PENDING` (`DATA_ROOM_DOCUMENT_ADDED`). `vault_objects`
@@ -164,11 +205,17 @@ Reglas:
    re-hasheadas (si no coinciden: 409 y `VAULT_INTEGRITY_FAILED`) y auditadas: `GET /api/vault/kyc/{caso}/{front|back}`
    sólo para el Oficial y el Administrador del tenant (`KYC_DOCUMENT_VIEWED`); `GET /api/vault/data-room/{id}` para el
    inversionista con NDA de esa oferta (los restringidos, además, AccessGrant vigente) o con `?as=backoffice` para el
-   personal (`DATA_ROOM_DOCUMENT_DOWNLOADED`); el portal vuelve a hashear la copia en el navegador. Driver
+   personal (`DATA_ROOM_DOCUMENT_DOWNLOADED`); el portal vuelve a hashear la copia en el navegador. Con S3/R2 un
+   archivo mayor que `DOCUMENT_VAULT_INLINE_MAX_BYTES` (4 MB: el cuerpo de una función de Vercel llega a 4,5 MB) sale
+   por un 302 a un GET prefirmado de 60 s (nombre y tipo firmados) tras cotejar su `x-amz-meta-sha256` con el
+   registro (`delivery: "presigned"` en la auditoría; los menores, `inline`, re-hasheados). Driver
    `DOCUMENT_VAULT_DRIVER`: `local` (por defecto fuera de producción, `<repo>/.vault`, ignorado por git; el seed lo
    reinicia y escribe PDF deterministas de los Data Room demo) o `s3` (S3/Cloudflare R2/MinIO con SigV4 propio y
-   payload firmado; obligatorio en producción, que sin configuración falla cerrada). En Vercel el cuerpo máximo de una
-   petición es 4,5 MB: archivos mayores requerirán subida directa prefirmada al bucket (pendiente).
+   payload firmado; obligatorio en producción, que sin configuración falla cerrada; el bucket necesita CORS para los
+   orígenes de los portales: `PUT`/`GET` con las cabeceras `content-type`, `x-amz-content-sha256`, `x-amz-meta-sha256`
+   y exponer `content-disposition`). **GC** (`pnpm vault:gc`, para un cron): borra los objetos que ninguna fila
+   referencia (`vault_objects`, `data_room_documents`) pasada su ventana de gracia (24 h; nunca menos de 6 h, lo que
+   vive un recibo): cuarentenas sin confirmar, staging de altas abandonadas o ya copiadas, recibos nunca usados.
 8. **Dominios propios**: mapa `DEFAULT_CUSTOM_DOMAINS` + `RWAXI_CUSTOM_DOMAINS` en `hosts.ts`
    (pendiente: Edge Config alimentado desde `Organization.customDomain`).
 
@@ -242,6 +289,8 @@ pnpm db:seed                                   # resetea y siembra Andes Urbano,
 pnpm db:provision-app-role                     # crea/actualiza rwaxi_app (sin BYPASSRLS) y reaplica permisos
 pnpm db:provision-app-role --rotate --write-env packages/database/.env --write-env apps/web/.env.local
 pnpm -s db:provision-app-role --rotate --print-url | vercel env add DATABASE_URL production   # staging/prod
+pnpm vault:gc [-- --dry-run --grace-hours 24]  # GC de la bóveda configurada (owner): objetos sin referencia vencidos
+pnpm mail:dispatch                             # reintenta los correos PENDING y redacta los vencidos (para un cron)
 
 pnpm contracts:compile                         # hardhat compile + exporta ABIs a blockchain-sdk/src/abi
 pnpm contracts:test                            # tests de cumplimiento (whitelist, freeze, clawback, roles)
@@ -250,17 +299,25 @@ pnpm e2e                                       # suites E2E (Chrome headless) co
 pnpm e2e portal onboarding                     # sólo esas (backoffice, portal, referrals-subscriptions, payments-queue,
                                                #   superadmin-ops, onboarding, distributions, i18n, auth, activation, vault)
 pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local (registry, token y factory) + next dev con
-                                               #   CHAIN_EXECUTION=rpc y RWAXI_FACTORY_ADDRESS
+                                               #   CHAIN_EXECUTION=rpc y RWAXI_FACTORY_ADDRESS; suites rpc (operador y
+                                               #   hashes registrados) y wallet (EIP-1193 inyectado: `pnpm e2e:rpc wallet`)
 pnpm e2e:strict                                # auth, activation y vault contra un next dev propio con RWAXI_DEMO_AUTH=0
-                                               #   (puerto 3000 libre): ninguna petición puede caer en la sesión demo
+                                               #   (puerto 3000 libre): ninguna petición puede caer en la sesión demo; el
+                                               #   correo sale por un proveedor HTTP de prueba (puerto 4010)
+pnpm e2e:s3                                    # vault-s3: bóveda en un bucket S3 de prueba que verifica SigV4 (puerto
+                                               #   9000): subida directa prefirmada, GET prefirmado y pnpm vault:gc
 ```
 
 E2E (`scripts/e2e`, paquete `@rwaxi/e2e`): cada suite verifica la UI y, por separado, las filas en la BD con
 `DIRECT_URL` (recalcula hashes, firmas y nonces; `ownerDb()` repite sus lecturas tras un corte transitorio de Neon,
-nunca sus escrituras). Requieren `pnpm dev` corriendo (salvo `e2e:rpc`, que exige el
-puerto 3000 libre y levanta sus propios servicios), contratos compilados y Chrome/Edge (`CHROME_PATH` para otro).
+nunca sus escrituras). Requieren `pnpm dev` corriendo (salvo `e2e:rpc`, `e2e:strict` y `e2e:s3`, que exigen el
+puerto 3000 libre y levantan sus propios servicios), contratos compilados y Chrome/Edge (`CHROME_PATH` para otro).
 Los secretos se leen en tiempo de ejecución de `packages/database/.env` y `apps/web/.env.local`; las cuentas de
 Hardhat salen de su mnemónico público. Capturas en `scripts/e2e/.artifacts/` (ignorado por git). Reseedean la BD.
+Dobles de prueba propios: `fake-s3.cjs` (bucket S3 que verifica SigV4 por su cuenta, CORS, ListObjectsV2) y
+`fake-mail.cjs` (API de Resend); `wallet.cjs` inyecta `window.ethereum` y firma en Node con una cuenta de Hardhat
+(la clave nunca llega a la página ni al servidor), y puede portarse mal (otra red, otra cuenta, otro calldata u otro
+contrato, otro firmante, una tx revertida o sin minar) para probar que nada se confirma.
 
 Entornos en local (Chrome/Edge resuelven `*.localhost` a 127.0.0.1):
 `http://localhost:3000` (vitrina) · `http://admin.localhost:3000` · `http://avista.localhost:3000` ·
@@ -268,7 +325,9 @@ Entornos en local (Chrome/Edge resuelven `*.localhost` a 127.0.0.1):
 Variables: copiar `.env.example` a `.env`, `packages/database/.env` y `apps/web/.env.local`. La cola on-chain usa
 `OPERATOR_PRIVATE_KEY` (0x + 64 hex) y `CHAIN_EXECUTION` (`simulation` por defecto; `rpc` exige `RPC_URL_<NETWORK>`)
 en `apps/web/.env.local`; el alta B2B usa `RWAXI_FACTORY_ADDRESS` (vacía: la factory ya registrada en esa red).
-Requiere Node ≥ 22.9 (`--env-file-if-exists`).
+Correo: `MAIL_DRIVER`, `MAIL_FROM` y la clave del proveedor (`RESEND_API_KEY`, `POSTMARK_SERVER_TOKEN` o
+`MAIL_WEBHOOK_URL` + `MAIL_WEBHOOK_SECRET`); bóveda: `DOCUMENT_VAULT_*`, `S3_*`, `VAULT_UPLOADS_PER_*` (ver
+`.env.example`). Requiere Node ≥ 22.9 (`--env-file-if-exists`).
 Windows: con `pnpm dev` corriendo, `prisma generate` (y por tanto `pnpm build`/`pnpm typecheck`) falla con `EPERM`
 porque el servidor tiene cargado el motor de Prisma. Detener el dev server antes.
 
@@ -303,8 +362,9 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
      `mintSubscription(subscriptionId, investor, amount, paymentEvidenceRef)` (el contrato no tiene
      `mint(wallet, amount)`) + `FeeLedgerEntry INFRASTRUCTURE_USAGE` (`feeUsagePct`, ACCRUED) + `PAYMENT_CONFIRMED`.
   3. Ejecución de la cola (`chain-actions.ts`, desde backoffice o inspector): registro → `COMPLIANCE_OFFICER`, mint →
-     `TENANT_ADMIN`. Al confirmar: `CHAIN_TX_CONFIRMED`; whitelist → `KycCase.whitelistTxHash`; mint → `MINTED` +
-     `mintTxHash` + `SUBSCRIPTION_MINTED`.
+     `TENANT_ADMIN` (en modo RPC también con su propia wallet, regla 6). Al confirmar: `CHAIN_TX_CONFIRMED`;
+     whitelist → `KycCase.whitelistTxHash`; mint → `MINTED` + `mintTxHash` + `SUBSCRIPTION_MINTED`. Todavía no hay
+     una decisión de cumplimiento que encole `revokeInvestor`/`setFrozen`: la cola los ejecuta y firma si existen.
 - **Gobierno de plataforma** (`app/superadmin/actions.ts`, motivo obligatorio para lo restrictivo, 10–300 caracteres):
   `SUSPENDED` → aviso institucional en el portal y `signNda`/`submitKyc`/`subscribe` rechazados (`activeTenant`);
   `REVIEW` → la vitrina muestra el proyecto sin enlace; `Offering.capturePausedAt` → la vitrina muestra «Captación

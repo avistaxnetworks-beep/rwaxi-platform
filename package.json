@@ -18,12 +18,15 @@
     "db:deploy": "pnpm --filter @rwaxi/database db:deploy",
     "db:seed": "pnpm --filter @rwaxi/database db:seed",
     "db:provision-app-role": "pnpm --filter @rwaxi/database db:provision-app-role",
+    "vault:gc": "pnpm --filter @rwaxi/database vault:gc",
+    "mail:dispatch": "pnpm --filter @rwaxi/mail dispatch",
     "contracts:compile": "pnpm --filter @rwaxi/contracts compile",
     "contracts:test": "pnpm --filter @rwaxi/contracts test",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
     "e2e": "pnpm --filter @rwaxi/e2e e2e",
     "e2e:rpc": "pnpm --filter @rwaxi/e2e e2e:rpc",
-    "e2e:strict": "pnpm --filter @rwaxi/e2e e2e:strict"
+    "e2e:strict": "pnpm --filter @rwaxi/e2e e2e:strict",
+    "e2e:s3": "pnpm --filter @rwaxi/e2e e2e:s3"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

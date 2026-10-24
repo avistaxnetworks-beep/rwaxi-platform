@@ -27,12 +27,9 @@ const until = async (fn, timeout = 30000) => {
   return false;
 };
 const STRONG = "Fiducia-Bocagrande#2026";
-const linkOf = (mail) => /(https?:\/\/\S+\/backoffice\/activate#token=([\w-]+))/.exec(mail?.body ?? "");
-const mailsTo = (email) =>
-  db.mailOutbox.findMany({
-    where: { toEmail: email, purpose: "STAFF_INVITATION" },
-    orderBy: { createdAt: "asc" },
-  });
+const linkOf = (mail) => /(https?:\/\/\S+\/backoffice\/activate#token=([\w-]+))/.exec(mail?.text ?? "");
+// Each row with the text it carried (its body, or once redacted the provider's copy).
+const mailsTo = (email) => lib.mailsWithText(db, { toEmail: email, purpose: "STAFF_INVITATION" });
 
 async function freshPage(browser, label, hosts) {
   const page = await (await browser.createBrowserContext()).newPage();
@@ -253,6 +250,12 @@ async function activate(page, link, password = STRONG) {
         !!(await lastAudit({ organizationId: org.id, action: "MFA_ENROLLED", actorUserId: admin.id })) &&
         !!(await lastAudit({ organizationId: org.id, action: "LOGIN_SUCCEEDED", actorUserId: admin.id })),
     );
+    const spent = await lib.waitMail(db, adminMail.id, (m) => m.body === null);
+    ok(
+      "el enlace usado: su correo queda sin cuerpo en mail_outbox (CONSUMED; con proveedor, ya al enviarse: SENT), con SHA-256, destinatario y fechas",
+      spent?.relatedId === invAdmin.id && lib.mailRedacted(spent, adminMail.text, "CONSUMED"),
+      `${spent?.status} · ${spent?.redactionReason}`,
+    );
 
     const again = await freshPage(browser, "reuse", [slug]);
     await again.goto(adminLink[1], { waitUntil: "domcontentloaded", timeout: 180000 });
@@ -371,6 +374,12 @@ async function activate(page, link, password = STRONG) {
         resent.subjectHash === auditHash(resent),
       await toastText(s),
     );
+    const replaced = await lib.waitMail(db, officerMail.id, (m) => m.body === null);
+    ok(
+      "el correo del enlace reemplazado queda sin cuerpo (SUPERSEDED; con proveedor, ya SENT); el nuevo apunta a la nueva invitación",
+      lib.mailRedacted(replaced, officerMail.text, "SUPERSEDED") && officerMails.at(-1).relatedId === officerInvs[1].id,
+      `${replaced?.status} · ${replaced?.redactionReason}`,
+    );
     const resendId = Object.entries(actions).find(([body]) => body.includes(officer.id))?.[1];
     const twice = resendId ? await lib.replayAction(s, resendId, [officer.id]) : "";
     ok("reenviar mientras la invitación sigue vigente → rechazado", /sigue vigente/.test(twice));
@@ -404,6 +413,12 @@ async function activate(page, link, password = STRONG) {
         .click(),
     );
     await o.waitForFunction(() => document.body.innerText.includes("sesión:"), { timeout: 60000 });
+    const spentNew = await lib.waitMail(db, officerMails.at(-1).id, (m) => m.body === null);
+    ok(
+      "activado con el enlace reenviado: su correo también queda sin cuerpo (CONSUMED; con proveedor, ya SENT)",
+      lib.mailRedacted(spentNew, officerMails.at(-1).text, "CONSUMED"),
+      `${spentNew?.status} · ${spentNew?.redactionReason}`,
+    );
     ok(
       "el oficial activa su cuenta con el enlace reenviado y opera su bandeja con su rol real",
       badge.includes("Oficial de Cumplimiento") &&

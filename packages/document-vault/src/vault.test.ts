@@ -81,11 +81,9 @@ test("the local store writes, reads, copies and removes by key, and refuses path
     assert.equal(await store.get(staged), null);
     assert.equal(await store.head(staged), null);
     await store.put(staged, pdf, { sizeBytes: pdf.byteLength, mimeType: MIME.pdf, sha256: hash });
-    assert.deepEqual(await store.head(staged), {
-      sizeBytes: pdf.byteLength,
-      mimeType: MIME.pdf,
-      sha256: hash,
-    });
+    const { lastModified, ...meta } = (await store.head(staged))!;
+    assert.deepEqual(meta, { sizeBytes: pdf.byteLength, mimeType: MIME.pdf, sha256: hash });
+    assert.ok(lastModified instanceof Date && Date.now() - lastModified.getTime() < 60_000);
     await store.copy(staged, tenant);
     assert.equal(sha256Hex((await store.get(tenant))!), hash);
     await store.remove(staged);

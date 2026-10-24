@@ -25,8 +25,8 @@ const STATUS: Record<ChainQueueItem["status"], [string, string]> = {
 };
 
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
-/** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: distribution roots). */
-const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED"]);
+/** RPC mode: calls the tenant signs with its own wallet (officer: registry; issuer: Data Room and distribution roots). */
+const TENANT_SIGNED_KINDS = new Set([...REGISTRY_KINDS, "DISTRIBUTION_ROOT_ANCHORED", "DATA_ROOM_ROOT_ANCHORED"]);
 
 type Run = (
   busyId: string,

@@ -83,6 +83,8 @@ async function readDesk(session: BackofficeSession, tr: Translate): Promise<Dist
                     status: anchor.status,
                     mode: anchor.executionMode,
                     blockedReason: blocker ? render(tr, blocker) : null,
+                    txHash: anchor.status === "PENDING" ? anchor.txHash : null,
+                    signer: anchor.status === "PENDING" ? anchor.signerAddress : null,
                   }
                 : null,
               allocations: d.allocations.map((a) => ({

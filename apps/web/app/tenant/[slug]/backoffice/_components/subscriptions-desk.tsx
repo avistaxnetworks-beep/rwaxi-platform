@@ -7,12 +7,13 @@ import { fieldCls } from "@/app/_components/ui/form";
 import { money, onColor, shortHash } from "@/app/_lib/format";
 import { msg } from "@/app/_i18n/marks";
 import { useI18n } from "@/app/_i18n/provider";
-import type { ChainQueueItem } from "@/app/_lib/chain-queue-types";
+import { WALLET_SIGNER_ROLE, type ChainQueueItem } from "@/app/_lib/chain-queue-types";
 import { executeChainTransaction, processChainQueue, registerOfficerTransaction } from "../chain-actions";
 import { confirmPayment } from "../payment-actions";
 import type { DeskSession, SubscriptionRow, SubscriptionsDeskData, SubscriptionsDeskResult } from "../_lib/types";
 import { AuditTrail, utc } from "./audit-trail";
 import { DeskAccess, SessionLine, useCanAct } from "./desk-access";
+import { WalletSign } from "./wallet-sign";
 
 type Currency = "COP" | "USD";
 type Toast = (message: string) => void;
@@ -270,6 +271,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
         onExecute={execute}
         onRegister={registerHash}
         onProcess={processAll}
+        onWalletDone={toast}
       />
 
       <AuditTrail entries={data.audit} empty={tr("Aún no hay suscripciones, pagos ni emisiones registradas.")} />
@@ -349,6 +351,7 @@ function QueuePanel({
   onExecute,
   onRegister,
   onProcess,
+  onWalletDone,
 }: {
   /** the queue is shared by both roles: each row is executed by the role that signs it, whatever this desk's role */
   session: DeskSession;
@@ -360,10 +363,16 @@ function QueuePanel({
   onExecute: (chainTxId: string) => void;
   onRegister: (chainTxId: string, txHash: string) => void;
   onProcess: () => void;
+  onWalletDone: (message: string) => void;
 }) {
   const { tr } = useI18n();
   // RPC mode: RWAXI never signs the tenant's calls; the officer or the issuer signs them and their hash is registered here.
   const officerSigned = (q: ChainQueueItem) => execution.mode === "RPC" && TENANT_SIGNED_KINDS.has(q.kind);
+  // RPC mode: the role that signs a call may do it in its browser wallet (EIP-1193); a row its wallet already sent
+  // (claimed by that hash, not by RWAXI's operator) waits for its receipt.
+  const walletSigned = (q: ChainQueueItem) => execution.mode === "RPC" && !!WALLET_SIGNER_ROLE[q.kind];
+  const walletClaim = (q: ChainQueueItem) =>
+    q.execution?.mode === "RPC" && q.txHash && q.execution.signer?.toLowerCase() !== execution.operator?.toLowerCase() ? q.txHash : null;
   // The demo session holds both roles; a signed-in user runs only the rows of their own role.
   const canRun = (q: ChainQueueItem) => session.demo || session.role === SIGNER_ROLE(q.kind);
   const ready = queue.filter((q) => !q.blockedReason && !officerSigned(q) && canRun(q)).length;
@@ -426,27 +435,37 @@ function QueuePanel({
                     <p className="text-[11px] text-aquaInk mt-0.5">{tr("Lista para ejecutar: precedencia e invariantes verificadas.")}</p>
                   )}
                 </div>
-                {officerSigned(q) ? (
-                  <OfficerHashForm
-                    id={q.id}
-                    signer={REGISTRY_KINDS.has(q.kind) ? "Oficial" : "emisor"}
-                    disabled={!!busy || !canRun(q) || !!q.blockedReason}
-                    onSubmit={(txHash) => onRegister(q.id, txHash)}
-                  />
-                ) : (
-                  <button
-                    disabled={!!busy || !canRun(q) || !!q.blockedReason}
-                    onClick={() => onExecute(q.id)}
-                    className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring disabled:opacity-40"
-                  >
-                    <Icon
-                      name={busy?.id === q.id ? "Loader2" : "Play"}
-                      size={13}
-                      className={busy?.id === q.id ? "spin" : ""}
+                <div className="flex flex-col items-end gap-2">
+                  {walletSigned(q) && (
+                    <WalletSign
+                      chainTxId={q.id}
+                      pendingHash={walletClaim(q)}
+                      disabled={!!busy || !canRun(q) || (!walletClaim(q) && !!q.blockedReason)}
+                      onDone={onWalletDone}
                     />
-                    {tr("Firmar y ejecutar")}
-                  </button>
-                )}
+                  )}
+                  {officerSigned(q) ? (
+                    <OfficerHashForm
+                      id={q.id}
+                      signer={REGISTRY_KINDS.has(q.kind) ? "Oficial" : "emisor"}
+                      disabled={!!busy || !canRun(q) || !!q.blockedReason}
+                      onSubmit={(txHash) => onRegister(q.id, txHash)}
+                    />
+                  ) : (
+                    <button
+                      disabled={!!busy || !canRun(q) || !!q.blockedReason}
+                      onClick={() => onExecute(q.id)}
+                      className="border border-line px-2.5 py-1.5 text-[11.5px] font-semibold text-rxBlue inline-flex items-center gap-1.5 focus-ring disabled:opacity-40"
+                    >
+                      <Icon
+                        name={busy?.id === q.id ? "Loader2" : "Play"}
+                        size={13}
+                        className={busy?.id === q.id ? "spin" : ""}
+                      />
+                      {walletSigned(q) ? tr("Firmar y ejecutar (operador RWAXI)") : tr("Firmar y ejecutar")}
+                    </button>
+                  )}
+                </div>
               </li>
             );
           })}

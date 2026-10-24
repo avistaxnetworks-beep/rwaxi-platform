@@ -1,5 +1,5 @@
 // View models shared by the backoffice server code and its client components (no runtime imports).
-import type { ChainQueueItem } from "@/app/_lib/chain-queue-types";
+import type { ChainQueueItem, WalletCall } from "@/app/_lib/chain-queue-types";
 
 /** KYC status keys used by the prototype UI (KYC_LABEL). */
 export type KycView = "no_iniciado" | "pendiente" | "aprobado" | "rechazado";
@@ -97,6 +97,11 @@ export type ComplianceInboxResult = { ok: true; data: ComplianceInboxData } | { 
 
 export type ActionResult = { ok: true; message: string } | { ok: false; error: string };
 
+/** EIP-1193: the call the browser wallet must sign (prepareWalletTransaction). */
+export type WalletPrepareResult = { ok: true; call: WalletCall } | { ok: false; error: string };
+/** EIP-1193: the outcome of the hash the wallet returned; `pending` = sent, no receipt yet. */
+export type WalletConfirmResult = { ok: true; message: string; pending: boolean; txHash: string } | { ok: false; error: string };
+
 export type QueueRunResult =
   | { ok: true; message: string; executed: number; skipped: { id: string; kind: string; reason: string }[] }
   | { ok: false; error: string };
@@ -188,7 +193,15 @@ export interface DistributionRow {
   declaredAt: string;
   declaredBy: string | null;
   /** the queued anchorDistributionRoot() and how it was (or can be) executed */
-  anchor: { chainTxId: string; status: "PENDING" | "CONFIRMED" | "REVERTED"; mode: "SIMULATION" | "RPC" | null; blockedReason: string | null } | null;
+  anchor: {
+    chainTxId: string;
+    status: "PENDING" | "CONFIRMED" | "REVERTED";
+    mode: "SIMULATION" | "RPC" | null;
+    blockedReason: string | null;
+    /** sent and awaiting its receipt (RPC): the hash and the wallet that sent it */
+    txHash: string | null;
+    signer: string | null;
+  } | null;
   allocations: DistributionAllocationRow[];
 }
 

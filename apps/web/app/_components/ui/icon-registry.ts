@@ -61,6 +61,7 @@ import {
   Video,
   Volume2,
   VolumeX,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -125,5 +126,6 @@ export const L = {
   Video,
   Volume2,
   VolumeX,
+  Wallet,
   X,
 };

@@ -72,3 +72,21 @@ export function inspectUpload(
   if (sha256 !== expected) return { ok: false, code: "mismatch", sha256 };
   return { ok: true, sha256, mimeType, sizeBytes: bytes.byteLength };
 }
+
+/**
+ * What a browser declares before uploading directly to the bucket (presigned PUT): size, type and SHA-256, checked
+ * against the policy before any URL is issued. The bytes themselves are checked with inspectUpload() afterwards.
+ */
+export function inspectDeclared(
+  declared: { sizeBytes: unknown; type: unknown; sha256: unknown },
+  policy: UploadPolicy,
+): UploadCheck {
+  const size = declared.sizeBytes;
+  if (typeof size !== "number" || !Number.isSafeInteger(size) || size <= 0) return { ok: false, code: "empty" };
+  if (size > policy.maxBytes) return { ok: false, code: "too_large" };
+  const sha256 = normalizeSha256(declared.sha256);
+  if (!sha256) return { ok: false, code: "hash_format" };
+  const mimeType = typeof declared.type === "string" ? declared.type.trim().toLowerCase() : "";
+  if (!policy.types.includes(mimeType)) return { ok: false, code: "type" };
+  return { ok: true, sha256, mimeType, sizeBytes: size };
+}

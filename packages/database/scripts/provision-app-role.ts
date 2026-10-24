@@ -132,16 +132,32 @@ async function main() {
       SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${opts.role}) AS exists`;
     const exists = existsRow?.exists ?? false;
     const [obj] = await owner.$queryRaw<
-      { migrations: boolean; audit: boolean; allocations: boolean; vault: boolean; curOrg: boolean; resolve: boolean; catalog: boolean; nonce: boolean; factory: boolean }[]
+      {
+        migrations: boolean;
+        audit: boolean;
+        allocations: boolean;
+        vault: boolean;
+        rateLimits: boolean;
+        curOrg: boolean;
+        resolve: boolean;
+        catalog: boolean;
+        nonce: boolean;
+        factory: boolean;
+        rateLimitHit: boolean;
+        redactMail: boolean;
+      }[]
     >`SELECT to_regclass('public._prisma_migrations') IS NOT NULL AS migrations,
              to_regclass('public.audit_events') IS NOT NULL AS audit,
              to_regclass('public.distribution_allocations') IS NOT NULL AS allocations,
              to_regclass('public.vault_objects') IS NOT NULL AS vault,
+             to_regclass('public.rate_limit_hits') IS NOT NULL AS "rateLimits",
              to_regprocedure('public.rwaxi_current_org()') IS NOT NULL AS "curOrg",
              to_regprocedure('public.rwaxi_resolve_tenant(text)') IS NOT NULL AS resolve,
              to_regprocedure('public.rwaxi_public_offerings()') IS NOT NULL AS catalog,
              to_regprocedure('public.rwaxi_next_simulated_nonce("ChainNetwork",text)') IS NOT NULL AS nonce,
-             to_regprocedure('public.rwaxi_factory_creations("ChainNetwork",text)') IS NOT NULL AS factory`;
+             to_regprocedure('public.rwaxi_factory_creations("ChainNetwork",text)') IS NOT NULL AS factory,
+             to_regprocedure('public.rwaxi_rate_limit_hit(text,integer,integer)') IS NOT NULL AS "rateLimitHit",
+             to_regprocedure('public.rwaxi_redact_expired_mail()') IS NOT NULL AS "redactMail"`;
 
     if (!exists || opts.rotate) password = newPassword();
     const role = q(opts.role);
@@ -174,12 +190,18 @@ async function main() {
       ...(obj?.catalog ? [`GRANT EXECUTE ON FUNCTION rwaxi_public_offerings() TO ${role}`] : []),
       ...(obj?.nonce ? [`GRANT EXECUTE ON FUNCTION rwaxi_next_simulated_nonce("ChainNetwork", text) TO ${role}`] : []),
       ...(obj?.factory ? [`GRANT EXECUTE ON FUNCTION rwaxi_factory_creations("ChainNetwork", text) TO ${role}`] : []),
+      ...(obj?.rateLimitHit ? [`GRANT EXECUTE ON FUNCTION rwaxi_rate_limit_hit(text, integer, integer) TO ${role}`] : []),
+      ...(obj?.redactMail ? [`GRANT EXECUTE ON FUNCTION rwaxi_redact_expired_mail() TO ${role}`] : []),
       // the app never touches the migration history; the audit trail, distribution allocations and vault
-      // objects are append-only
+      // objects are append-only;
       ...(obj?.migrations ? [`REVOKE ALL ON TABLE _prisma_migrations FROM ${role}`] : []),
       ...(obj?.audit ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE audit_events FROM ${role}`] : []),
       ...(obj?.allocations ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE distribution_allocations FROM ${role}`] : []),
       ...(obj?.vault ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE vault_objects FROM ${role}`] : []),
+      // rate-limit hits are only reachable through rwaxi_rate_limit_hit()
+      ...(obj?.rateLimits
+        ? [`REVOKE ALL ON TABLE rate_limit_hits FROM ${role}`, `REVOKE ALL ON SEQUENCE rate_limit_hits_id_seq FROM ${role}`]
+        : []),
     ];
 
     if (opts.dryRun) {

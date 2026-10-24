@@ -2,7 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { newToken, tokenHash, type Prisma } from "@rwaxi/database";
 import { ROOT_DOMAIN } from "@/app/_lib/hosts";
-import { queueMail } from "./mail-outbox";
+import { queueMail, redactMailFor } from "./mail-outbox";
 
 /**
  * Activation links of the staff accounts the B2B onboarding creates without a password (user_invitations).
@@ -29,8 +29,8 @@ const utc = (d: Date) => `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`
 
 /**
  * A fresh activation link for a staff account without a password, in the caller's transaction: earlier unused
- * invitations of the user are revoked, the new token is stored only as its SHA-256 and the email (Spanish, as
- * the console) goes to mail_outbox.
+ * invitations of the user are revoked (their emails cleared), the new token is stored only as its SHA-256 and the
+ * email (Spanish, as the console) goes to mail_outbox.
  */
 export async function issueInvitation(
   tx: Prisma.TransactionClient,
@@ -41,10 +41,14 @@ export async function issueInvitation(
   },
 ): Promise<{ invitationId: string; expiresAt: Date; revoked: number }> {
   const now = new Date();
-  const { count: revoked } = await tx.userInvitation.updateMany({
-    where: { userId: input.user.id, consumedAt: null, revokedAt: null },
-    data: { revokedAt: now },
-  });
+  const open = { userId: input.user.id, consumedAt: null, revokedAt: null };
+  const previous = await tx.userInvitation.findMany({ where: open, select: { id: true } });
+  const { count: revoked } = await tx.userInvitation.updateMany({ where: open, data: { revokedAt: now } });
+  await redactMailFor(
+    tx,
+    previous.map((i) => i.id),
+    "SUPERSEDED",
+  );
   const token = newToken();
   const expiresAt = new Date(now.getTime() + INVITATION_TTL_H * 3600_000);
   const invitation = await tx.userInvitation.create({
@@ -59,6 +63,8 @@ export async function issueInvitation(
   await queueMail(tx, {
     organizationId: input.organizationId,
     purpose: "STAFF_INVITATION",
+    relatedId: invitation.id,
+    expiresAt,
     to: input.user.email,
     subject: `Activa tu acceso al backoffice de ${input.tenant.displayName}`,
     body: [

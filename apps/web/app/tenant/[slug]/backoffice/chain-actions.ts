@@ -6,7 +6,8 @@
  * Who authorises each call mirrors the contracts' roles: registry operations (approveInvestor…)
  * the compliance officer, mintSubscription the administrator who reconciled the payment. The
  * executor enforces precedence and the contract invariants (see chain-executor.ts): SIMULATION
- * signs with OPERATOR_PRIVATE_KEY and never broadcasts; RPC only sends what RWAXI may sign.
+ * signs with OPERATOR_PRIVATE_KEY and never broadcasts; RPC only sends what RWAXI may sign, and
+ * the tenant's staff sign theirs in their browser wallet (EIP-1193, prepare → sign → confirm).
  */
 import { revalidatePath } from "next/cache";
 import { forTenant, isUniqueViolation } from "@rwaxi/database";
@@ -16,13 +17,15 @@ import type { Translate } from "@/app/_i18n/translate";
 import {
   ExecutionError,
   confirmExternalTransaction,
+  confirmWalletCall,
   executeChainTx,
+  prepareWalletCall,
   processQueue,
   type Execution,
 } from "@/app/_lib/server/chain-executor";
 import { TenantAccessError, requestMeta, requireHostTenant } from "@/app/_lib/server/tenant-context";
-import { ROLE_LABEL, requireBackofficeSession, type BackofficeRole } from "./_lib/session";
-import type { ActionResult, QueueRunResult } from "./_lib/types";
+import { ROLE_LABEL, requireBackofficeSession, type BackofficeRole, type BackofficeSession } from "./_lib/session";
+import type { ActionResult, QueueRunResult, WalletConfirmResult, WalletPrepareResult } from "./_lib/types";
 
 const CUID = /^[a-z0-9]{20,40}$/i;
 const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
@@ -46,9 +49,23 @@ const refresh = () => {
 const done = (ex: Execution, tr: Translate) =>
   tr("{fn}() confirmada · {mode} · tx {hash}", {
     fn: ex.fn,
-    mode: ex.mode === "SIMULATION" ? tr("simulación firmada, nonce {nonce}", { nonce: ex.nonce }) : tr("en red"),
+    mode:
+      ex.mode === "SIMULATION"
+        ? tr("simulación firmada, nonce {nonce}", { nonce: ex.nonce })
+        : ex.via === "wallet"
+          ? tr("en red, firmada con tu wallet")
+          : tr("en red"),
     hash: `${ex.txHash.slice(0, 10)}…${ex.txHash.slice(-6)}`,
   });
+
+/** The registered wallet of the signed-in staff member (or of the demo session's user for that role). */
+async function walletOfSigner(session: BackofficeSession): Promise<string | null> {
+  const user = await forTenant(session.tenant.id).user.findUnique({
+    where: { id: session.reviewer.id },
+    select: { walletAddress: true },
+  });
+  return user?.walletAddress ?? null;
+}
 
 async function kindOf(chainTxId: string): Promise<string> {
   if (typeof chainTxId !== "string" || !CUID.test(chainTxId)) throw new ExecutionError("Transacción inválida.");
@@ -122,6 +139,53 @@ export async function registerOfficerTransaction(chainTxId: string, txHash: stri
     const ex = await confirmExternalTransaction(session.tenant.id, chainTxId, String(txHash).trim(), session.reviewer, await requestMeta());
     refresh();
     return { ok: true, message: done(ex, tr) };
+  } catch (e) {
+    return failure(e, tr);
+  }
+}
+
+/**
+ * EIP-1193, step 1: the exact call the role that signs this row must send from its browser wallet (to, data,
+ * chainId, expected account). The server checks the account's role on-chain; it never handles a private key.
+ */
+export async function prepareWalletTransaction(chainTxId: string): Promise<WalletPrepareResult> {
+  const tr = await requestTranslate("tenant");
+  try {
+    const session = await requireBackofficeSession(roleFor(await kindOf(chainTxId)));
+    return { ok: true, call: await prepareWalletCall(session.tenant.id, chainTxId, await walletOfSigner(session)) };
+  } catch (e) {
+    return failure(e, tr);
+  }
+}
+
+/**
+ * EIP-1193, step 2: the tx hash the browser wallet returned. Confirmed only once the node shows that exact
+ * transaction (signer, contract, calldata) with a successful receipt; until a receipt exists it stays claimed.
+ */
+export async function confirmWalletTransaction(chainTxId: string, txHash: string): Promise<WalletConfirmResult> {
+  const tr = await requestTranslate("tenant");
+  try {
+    const session = await requireBackofficeSession(roleFor(await kindOf(chainTxId)));
+    const outcome = await confirmWalletCall(
+      session.tenant.id,
+      chainTxId,
+      String(txHash).trim(),
+      await walletOfSigner(session),
+      session.reviewer,
+      await requestMeta(),
+    );
+    refresh();
+    if (outcome.state === "pending") {
+      return {
+        ok: true,
+        pending: true,
+        txHash: outcome.hash,
+        message: tr("Transacción enviada ({hash}): aún sin recibo en la red; verifícala en unos segundos.", {
+          hash: `${outcome.hash.slice(0, 10)}…${outcome.hash.slice(-6)}`,
+        }),
+      };
+    }
+    return { ok: true, pending: false, txHash: outcome.execution.txHash, message: done(outcome.execution, tr) };
   } catch (e) {
     return failure(e, tr);
   }

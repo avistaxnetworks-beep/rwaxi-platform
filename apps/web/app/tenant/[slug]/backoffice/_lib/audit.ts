@@ -37,6 +37,9 @@ interface AuditPayload {
   by?: "investor" | "staff";
   dataRoomRoot?: string;
   anchorChainTransactionId?: string | null;
+  // chain confirmations: who sent the transaction
+  via?: "operator" | "wallet" | "registered";
+  signer?: string;
 }
 
 const AUTH_ACTIONS = new Set<AuditEvent["action"]>([
@@ -86,6 +89,7 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate):
       return [
         p.method?.split("(")[0] ? `${p.method.split("(")[0]}()` : null,
         p.mode === "SIMULATION" ? tr("simulación firmada (sin difundir)") : p.mode === "RPC" ? tr("confirmada en red") : null,
+        p.via === "wallet" && p.signer ? tr("firmada en el navegador por {wallet}", { wallet: `${p.signer.slice(0, 8)}…${p.signer.slice(-6)}` }) : null,
         typeof p.nonce === "number" ? `nonce ${p.nonce}` : null,
       ]
         .filter(Boolean)

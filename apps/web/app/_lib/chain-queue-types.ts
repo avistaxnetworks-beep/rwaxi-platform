@@ -2,6 +2,40 @@
 
 export type RwaxiContract = "RwaxiTenantFactory" | "RwaxiComplianceRegistry" | "RwaxiPropertyToken";
 
+/**
+ * Calls the tenant's own staff may sign in their browser wallet (EIP-1193, RPC mode), with the contract role that
+ * wallet must hold: the compliance officer the registry, the issuer's administrator the token. RWAXI never holds them
+ * (MINTER_ROLE is RWAXI's adapter unless the issuer grants it to its own wallet).
+ */
+export const WALLET_SIGNER_ROLE: Readonly<Record<string, string>> = {
+  INVESTOR_WHITELISTED: "COMPLIANCE_OFFICER_ROLE",
+  INVESTOR_REVOKED: "COMPLIANCE_OFFICER_ROLE",
+  INVESTOR_FREEZE_UPDATED: "COMPLIANCE_OFFICER_ROLE",
+  SUBSCRIPTION_MINTED: "MINTER_ROLE",
+  DATA_ROOM_ROOT_ANCHORED: "DATA_ROOM_ROLE",
+  DISTRIBUTION_ROOT_ANCHORED: "DISTRIBUTION_ROLE",
+};
+
+/** What the server prepared for one queued call: the browser wallet must sign exactly this. */
+export interface WalletCall {
+  chainTxId: string;
+  kind: string;
+  /** e.g. approveInvestor */
+  fn: string;
+  network: string;
+  chainId: number;
+  chainName: string;
+  /** the tenant's contract (checksummed) */
+  to: string;
+  /** ABI calldata of the queued arguments (@rwaxi/blockchain-sdk ABIs) */
+  data: string;
+  /** the signer's registered wallet, which holds `role` on `to` (checked on-chain by the server) */
+  from: string;
+  role: string;
+  /** hasRole(role, from) on `to`: the browser runs it through the wallet's own node before asking to sign */
+  roleCall: { to: string; data: string };
+}
+
 export interface ChainQueueItem {
   id: string;
   kind: string;

@@ -7,12 +7,14 @@ import { calldataOf, walletOf } from "./chain-queue";
  * Queue precedence and the contracts' revert conditions, replayed over the confirmed history of
  * a tenant's ChainTransaction outbox (pure: no I/O besides loadChainState's reads).
  *
- *   RwaxiComplianceRegistry  approveInvestor → InvalidWallet / EmptyDossierHash; the entry of a
- *                            wallet is the fold of its confirmed approve/revoke/setFrozen calls
- *                            (approve also clears the freeze).
+ *   RwaxiComplianceRegistry  approveInvestor → InvalidWallet / EmptyDossierHash; revokeInvestor →
+ *                            InvestorNotApproved; the entry of a wallet is the fold of its confirmed
+ *                            approve/revoke/setFrozen calls (approve also clears the freeze), each one
+ *                            after the earlier registry calls of that wallet.
  *   RwaxiPropertyToken       mintSubscription → SubscriptionAlreadyProcessed, SupplyCapExceeded,
  *                            EnforcedPause and, in _update, the receiver's isEligible();
- *                            anchorDistributionRoot → EmptyDistributionRoot, DistributionAlreadyAnchored.
+ *                            anchorDistributionRoot → EmptyDistributionRoot, DistributionAlreadyAnchored;
+ *                            updateDataRoomMerkleRoot → in creation order per token.
  *   RwaxiTenantFactory       deployTenantRegistry → TenantAlreadyRegistered (platform console only).
  */
 export const REGISTRY_KINDS = new Set(["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"]);
@@ -71,6 +73,50 @@ export function registryEntry(state: ChainState, wallet: string): { approved: bo
   return entry;
 }
 
+/** A transaction as the node reports it (eth_getTransactionByHash); `chainId` is absent on legacy transactions. */
+export interface SentTransaction {
+  from: string;
+  to: string | null;
+  input: string;
+  value: bigint;
+  chainId?: number;
+}
+
+/** The call a browser wallet had to send for a queued row (prepareWalletCall). */
+export interface ExpectedWalletCall {
+  from: string;
+  to: string;
+  data: string;
+  chainId: number;
+  chainName: string;
+  fn: string;
+}
+
+/**
+ * Why `sent` is not exactly the queued call — on the expected chain, from the signer's registered wallet, to the
+ * tenant's contract, with the queued calldata and no value — or null when it is (the receipt is checked after).
+ */
+export function walletTxMismatch(sent: SentTransaction, expected: ExpectedWalletCall): Reason | null {
+  if (sent.chainId !== undefined && sent.chainId !== expected.chainId) {
+    return reason("La transacción se firmó para la cadena {actual}, no para {chain} ({expected}): no se registró nada.", {
+      actual: sent.chainId,
+      chain: expected.chainName,
+      expected: expected.chainId,
+    });
+  }
+  if (lower(sent.from) !== lower(expected.from)) {
+    return reason("La transacción la firmó {from}, no tu wallet autorizada {expected}: no se registró nada.", { from: sent.from, expected: expected.from });
+  }
+  if (lower(sent.to) !== lower(expected.to)) {
+    return reason("La transacción se dirigió a {to}, no al contrato del tenant {expected}: no se registró nada.", { to: sent.to ?? "—", expected: expected.to });
+  }
+  if (lower(sent.input) !== lower(expected.data)) {
+    return reason("El calldata firmado no coincide con la operación en cola ({fn}): no se registró nada.", { fn: expected.fn });
+  }
+  if (sent.value !== 0n) return reason("La transacción transfirió valor junto con la llamada: no se registró nada.");
+  return null;
+}
+
 /** Why `tx` cannot run now, in Spanish (logs, errors, tests); see blockerReason() for other languages. */
 export function blockerFor(tx: ChainTransaction, state: ChainState, origin: ExecutionOrigin = "tenant"): string | null {
   const r = blockerReason(tx, state, origin);
@@ -100,6 +146,32 @@ export function blockerReason(tx: ChainTransaction, state: ChainState, origin: E
         return reason("Prelación: hay una operación anterior del registro pendiente para esta wallet.");
       }
       return null;
+
+    case "INVESTOR_REVOKED":
+    case "INVESTOR_FREEZE_UPDATED":
+      if (!wallet) return reason("La wallet de la operación no es una dirección válida.");
+      if (pendingForWallet.some((t) => t.createdAt < tx.createdAt)) {
+        return reason("Prelación: hay una operación anterior del registro pendiente para esta wallet.");
+      }
+      if (tx.kind === "INVESTOR_REVOKED" && !registryEntry(state, wallet).approved) {
+        return reason("Revertiría: InvestorNotApproved(wallet) — la wallet no está aprobada en el registro.");
+      }
+      return null;
+
+    case "DATA_ROOM_ROOT_ANCHORED": {
+      const token = state.tokens.find((k) => lower(k.contractAddress) === lower(tx.contractAddress));
+      if (!token || token.status === "NOT_DEPLOYED" || token.status === "DEPLOYING") return reason("El token destino no está desplegado.");
+      const earlier = state.txs.some(
+        (t) =>
+          t.kind === "DATA_ROOM_ROOT_ANCHORED" &&
+          t.status === "PENDING" &&
+          t.id !== tx.id &&
+          lower(t.contractAddress) === lower(tx.contractAddress) &&
+          t.createdAt < tx.createdAt,
+      );
+      if (earlier) return reason("Prelación: hay un updateDataRoomMerkleRoot() anterior pendiente para este token.");
+      return null;
+    }
 
     case "SUBSCRIPTION_MINTED": {
       if (!wallet) return reason("El receptor del mint no es una dirección válida.");

@@ -14,6 +14,7 @@
     "@rwaxi/blockchain-sdk": "workspace:*",
     "@rwaxi/database": "workspace:*",
     "@rwaxi/document-vault": "workspace:*",
+    "@rwaxi/mail": "workspace:*",
     "lucide-react": "^0.577.0",
     "next": "15.5.28",
     "react": "19.1.1",

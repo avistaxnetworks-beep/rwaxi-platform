@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { assertKey, type StoredObject, type VaultStore } from "./store";
+import { KEY_PATTERN, assertKey, type ListedObject, type StoredObject, type VaultStore } from "./store";
 
 const missing = (e: unknown) => (e as NodeJS.ErrnoException)?.code === "ENOENT";
 
@@ -36,11 +36,11 @@ export class LocalDiskStore implements VaultStore {
     }
   }
 
-  async head(key: string): Promise<StoredObject | null> {
+  async head(key: string): Promise<(StoredObject & { lastModified: Date }) | null> {
     try {
       const meta = JSON.parse(await readFile(`${this.file(key)}.json`, "utf8")) as StoredObject;
-      await stat(this.file(key)); // the bytes too, not only their metadata
-      return meta;
+      const info = await stat(this.file(key)); // the bytes too, not only their metadata
+      return { ...meta, lastModified: info.mtime };
     } catch (e) {
       if (missing(e)) return null;
       throw e;
@@ -58,5 +58,25 @@ export class LocalDiskStore implements VaultStore {
     const file = this.file(key);
     await rm(file, { force: true });
     await rm(`${file}.json`, { force: true });
+  }
+
+  async *list(prefix: string): AsyncIterable<ListedObject> {
+    let entries: string[];
+    try {
+      entries = await readdir(this.root, { recursive: true });
+    } catch (e) {
+      if (missing(e)) return;
+      throw e;
+    }
+    for (const entry of entries) {
+      const key = entry.split(path.sep).join("/");
+      // the object itself: not its .json metadata nor a .tmp write in progress
+      if (!key.startsWith(prefix) || !KEY_PATTERN.test(key)) continue;
+      const info = await stat(path.join(this.root, entry)).catch((e: unknown) => {
+        if (missing(e)) return null; // removed meanwhile
+        throw e;
+      });
+      if (info?.isFile()) yield { key, sizeBytes: info.size, lastModified: info.mtime };
+    }
   }
 }

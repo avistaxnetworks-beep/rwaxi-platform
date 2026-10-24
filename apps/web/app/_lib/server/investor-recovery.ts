@@ -4,7 +4,7 @@ import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
 import { forTenant, newNumericCode, withTenant, type Prisma, type ResolvedTenant } from "@rwaxi/database";
 import type { Translate } from "@/app/_i18n/translate";
 import { recoveryCodeKey, startInvestorSession } from "./investor-session";
-import { queueMail } from "./mail-outbox";
+import { queueMail, redactMailFor } from "./mail-outbox";
 import { TenantAccessError, requestMeta } from "./tenant-context";
 
 /**
@@ -16,7 +16,8 @@ import { TenantAccessError, requestMeta } from "./tenant-context";
  *     never share one; a new request supersedes the previous code;
  *   · at most PER_15_MIN codes per 15 minutes and PER_DAY per day for an investor, and PER_IP requests per hour
  *     from an address — silently: the answer is the same whether or not the email exists;
- *   · the email goes to mail_outbox; recovering writes INVESTOR_SESSION_RECOVERED, a burnt code INVESTOR_OTP_FAILED.
+ *   · the email goes to mail_outbox; recovering writes INVESTOR_SESSION_RECOVERED, a burnt code INVESTOR_OTP_FAILED;
+ *     the mail of a code that is used, burnt or replaced loses its body at once (redactMailFor).
  */
 const TTL_MIN = 10;
 const MAX_ATTEMPTS = 5;
@@ -90,12 +91,16 @@ export async function requestRecoveryCode(
   const code = newNumericCode();
   const vars = { name: investor.fullName, code, portal: tenant.displayName };
   await withTenant(tenant.id, async (tx) => {
-    // A new code supersedes any previous one still valid.
-    await tx.investorOtp.updateMany({
-      where: { investorId: investor.id, consumedAt: null, expiresAt: { gt: new Date(now) } },
-      data: { expiresAt: new Date(now) },
-    });
-    await tx.investorOtp.create({
+    // A new code supersedes any previous one still valid (and its mail is cleared).
+    const live = { investorId: investor.id, consumedAt: null, expiresAt: { gt: new Date(now) } };
+    const superseded = await tx.investorOtp.findMany({ where: live, select: { id: true } });
+    await tx.investorOtp.updateMany({ where: live, data: { expiresAt: new Date(now) } });
+    await redactMailFor(
+      tx,
+      superseded.map((o) => o.id),
+      "SUPERSEDED",
+    );
+    const otp = await tx.investorOtp.create({
       data: {
         organizationId: tenant.id,
         investorId: investor.id,
@@ -107,6 +112,8 @@ export async function requestRecoveryCode(
     await queueMail(tx, {
       organizationId: tenant.id,
       purpose: "INVESTOR_OTP",
+      relatedId: otp.id,
+      expiresAt: otp.expiresAt,
       to: investor.email!,
       subject: tr("Tu código para recuperar tu sesión en {portal}", vars),
       body: [
@@ -149,8 +156,9 @@ export async function verifyRecoveryCode(
     const received = Buffer.from(hashOf(tenant.id, investor.id, code));
     if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
       if (otp.attempts >= MAX_ATTEMPTS) {
-        // Burnt: it also reads as expired.
+        // Burnt: it also reads as expired, and its mail is cleared.
         await tx.investorOtp.update({ where: { id: otp.id }, data: { expiresAt: new Date() } });
+        await redactMailFor(tx, [otp.id], "EXPIRED");
         await auditRecovery(tx, tenant, subject, "INVESTOR_OTP_FAILED", {
           otpId: otp.id,
           attempts: otp.attempts,
@@ -159,6 +167,7 @@ export async function verifyRecoveryCode(
       return false;
     }
     await tx.investorOtp.update({ where: { id: otp.id }, data: { consumedAt: new Date() } });
+    await redactMailFor(tx, [otp.id], "CONSUMED");
     await auditRecovery(tx, tenant, subject, "INVESTOR_SESSION_RECOVERED", { otpId: otp.id });
     return true;
   });

@@ -33,12 +33,12 @@ const DAY = 86_400_000;
 
 async function reset() {
   await db.$executeRawUnsafe(`
-    TRUNCATE TABLE "vault_objects", "user_invitations", "user_sessions", "investor_otps", "mail_outbox", "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
+    TRUNCATE TABLE "rate_limit_hits", "vault_objects", "user_invitations", "user_sessions", "investor_otps", "mail_outbox", "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
       "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments",
       "offerings", "users", "organizations" CASCADE`);
   // The database starts over, so do the local vault's files (a cloud bucket is never wiped from here).
   if (vault instanceof LocalDiskStore) {
-    for (const area of ["tenants", "staging"]) await rm(path.join(vault.root, area), { recursive: true, force: true });
+    for (const area of ["tenants", "staging", "incoming"]) await rm(path.join(vault.root, area), { recursive: true, force: true });
   }
 }
 

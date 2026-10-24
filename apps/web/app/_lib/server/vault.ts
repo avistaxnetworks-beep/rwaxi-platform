@@ -3,11 +3,15 @@ import crypto from "node:crypto";
 import {
   MIME,
   POLICIES,
+  canPresign,
+  incomingKey,
+  inspectDeclared,
   inspectUpload,
   normalizeSha256,
   objectKey,
   sha256Hex,
   vaultFromEnv,
+  type PresignedRequest,
   type UploadRejection,
   type VaultPurpose,
   type VaultScope,
@@ -22,7 +26,11 @@ import { vaultReceiptKey } from "./investor-session";
  *     one the browser computed) and only then written, content-addressed under the tenant (or staging);
  *   · readVerified(): every read is re-hashed — bytes that no longer match their SHA-256 are never served;
  *   · receipts: proof that this server verified those bytes from that session, for the operation that later
- *     references them by hash (submitKyc, onboardDeveloper).
+ *     references them by hash (submitKyc, onboardDeveloper);
+ *   · direct uploads (S3/R2): presignUpload() lets the browser PUT one declared file — size, type and SHA-256
+ *     signed into the URL — under a quarantine key, with a ticket; storeIncoming() then checks those bytes exactly
+ *     like an upload received here and moves them to their content key. Large downloads go out the same way
+ *     (presigned GET), so no file crosses a serverless function's body limit.
  */
 let store: VaultStore | null = null;
 export const vault = (): VaultStore => (store ??= vaultFromEnv());
@@ -30,8 +38,14 @@ export const vault = (): VaultStore => (store ??= vaultFromEnv());
 /** A refused upload or download, shown in the person's language, with its HTTP status. */
 export class VaultError extends LocalizedError {
   status = 400;
+  /** seconds a rate-limited caller must wait (Retry-After) */
+  retryAfter: number | null = null;
   withStatus(status: number) {
     this.status = status;
+    return this;
+  }
+  withRetryAfter(seconds: number) {
+    this.retryAfter = seconds;
     return this;
   }
 }
@@ -130,22 +144,26 @@ export const downloadName = (name: string, mimeType: string): string => {
   return ext && !name.toLowerCase().endsWith(ext) ? `${name}${ext}` : name;
 };
 
+/** Content-Disposition of a vault file: Office documents always download; PDFs and images may open in place. */
+export function contentDisposition(file: { name: string; mimeType: string }, download: boolean): string {
+  const inline = !download && (file.mimeType === MIME.pdf || file.mimeType.startsWith("image/"));
+  const name = downloadName(file.name, file.mimeType);
+  const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  return `${inline ? "inline" : "attachment"}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
 /** How a verified file goes back to the browser: exact type, never cached, never sniffed. */
 export function fileResponse(
   bytes: Uint8Array,
   file: { name: string; mimeType: string; sha256: string },
   download: boolean,
 ): Response {
-  // Office documents always download; PDFs and images may open in the browser.
-  const inline = !download && (file.mimeType === MIME.pdf || file.mimeType.startsWith("image/"));
-  const name = downloadName(file.name, file.mimeType);
-  const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
   return new Response(bytes as BodyInit, {
     status: 200,
     headers: {
       "Content-Type": file.mimeType,
       "Content-Length": String(bytes.byteLength),
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      "Content-Disposition": contentDisposition(file, download),
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
       "X-Rwaxi-Sha256": file.sha256,
@@ -197,3 +215,101 @@ export function verifyReceipt(
     return null;
   }
 }
+
+// ── direct uploads (presigned PUT) ─────────────────────────────────────────────
+/** What the browser declared and was allowed to PUT under `key` (a quarantine key), for whom and where. */
+export interface UploadTicket {
+  key: string;
+  /** "tenant:{organizationId}" | "staging" */
+  scope: string;
+  /** "inv:{investorId}" | "usr:{userId}" */
+  subject: string;
+  purpose: VaultPurpose;
+  /** 64 lowercase hex characters */
+  sha256: string;
+  sizeBytes: number;
+  mimeType: string;
+  issuedAt: number;
+}
+/** The presigned URL lives 15 minutes; its ticket a little longer, to confirm a slow upload. */
+const TICKET_TTL_MS = 30 * 60 * 1000;
+// Another key than receipts': a ticket (bytes not checked yet) can never pass for a receipt (bytes checked).
+const ticketKey = () => crypto.createHmac("sha256", vaultReceiptKey()).update("rwaxi.vault-upload-ticket.v1").digest();
+const ticketMac = (payload: string) => crypto.createHmac("sha256", ticketKey()).update(payload).digest("base64url");
+
+/** Whether the browser uploads straight to the bucket (S3/R2) rather than through the app (local disk). */
+export const directUploads = (): boolean => canPresign(vault());
+
+/**
+ * A browser's direct upload to the bucket (S3/R2): the declared file is checked against the policy, then a PUT URL
+ * valid for that exact file under a fresh quarantine key, and its ticket. Null with the local disk.
+ */
+export function presignUpload(
+  scope: string,
+  subject: string,
+  declared: { sizeBytes: unknown; type: unknown; sha256: unknown },
+  purpose: VaultPurpose,
+): { upload: PresignedRequest; ticket: string } | null {
+  const store = vault();
+  if (!canPresign(store)) return null;
+  const check = inspectDeclared(declared, POLICIES[purpose]);
+  if (!check.ok) throw rejection(check.code, purpose);
+  const key = incomingKey();
+  const upload = store.presignPut(key, { sizeBytes: check.sizeBytes, mimeType: check.mimeType, sha256: check.sha256 });
+  const claims: UploadTicket = {
+    key,
+    scope,
+    subject,
+    purpose,
+    sha256: check.sha256,
+    sizeBytes: check.sizeBytes,
+    mimeType: check.mimeType,
+    issuedAt: Date.now(),
+  };
+  const payload = Buffer.from(JSON.stringify({ v: 1, ...claims })).toString("base64url");
+  return { upload, ticket: `${payload}.${ticketMac(payload)}` };
+}
+
+/** The claims of a ticket this server issued, for this scope, subject and purpose, still fresh — or null. */
+export function verifyTicket(
+  token: unknown,
+  expected: { scope: string; subject: string; purpose: VaultPurpose },
+): UploadTicket | null {
+  if (typeof token !== "string" || token.length > 2000) return null;
+  const [payload, signature] = token.split(".");
+  if (!payload || !signature) return null;
+  const a = Buffer.from(ticketMac(payload));
+  const b = Buffer.from(signature);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const t = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as UploadTicket & { v: number };
+    if (t.v !== 1 || t.scope !== expected.scope || t.subject !== expected.subject || t.purpose !== expected.purpose)
+      return null;
+    if (!Number.isFinite(t.issuedAt) || Date.now() - t.issuedAt > TICKET_TTL_MS) return null;
+    return t;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The bytes the browser PUT under a ticket: checked like an upload received here (type from the bytes, size,
+ * SHA-256), then copied to their content key; the quarantine copy is dropped either way (or by the GC).
+ */
+export async function storeIncoming(scope: VaultScope, ticket: UploadTicket): Promise<StoredUpload> {
+  const store = vault();
+  const bytes = await store.get(ticket.key);
+  if (!bytes) throw new VaultError("No se encontró el archivo subido: vuelve a cargarlo.").withStatus(409);
+  const check = inspectUpload(bytes, { type: ticket.mimeType, sha256: ticket.sha256 }, POLICIES[ticket.purpose]);
+  if (!check.ok || check.sizeBytes !== ticket.sizeBytes) {
+    await store.remove(ticket.key).catch(() => undefined);
+    throw rejection(check.ok ? "mismatch" : check.code, ticket.purpose);
+  }
+  const storageKey = objectKey(scope, check.sha256);
+  await store.copy(ticket.key, storageKey);
+  await store.remove(ticket.key).catch(() => undefined);
+  return { sha256: `0x${check.sha256}`, mimeType: check.mimeType, sizeBytes: check.sizeBytes, storageKey };
+}
+
+/** Above this size a file is downloaded straight from the bucket (presigned GET), not through the app (4 MB). */
+export const inlineMaxBytes = (): number => Number(process.env.DOCUMENT_VAULT_INLINE_MAX_BYTES) || 4 * 1024 * 1024;

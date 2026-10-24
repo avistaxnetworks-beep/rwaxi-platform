@@ -7,7 +7,8 @@
   "scripts": {
     "e2e": "node run.cjs",
     "e2e:rpc": "node run-rpc.cjs",
-    "e2e:strict": "node run-strict.cjs"
+    "e2e:strict": "node run-strict.cjs",
+    "e2e:s3": "node run-s3.cjs"
   },
   "devDependencies": {
     "puppeteer-core": "^24.43.1"

@@ -18,7 +18,8 @@
     "db:provision-app-role": "tsx --env-file-if-exists=.env scripts/provision-app-role.ts",
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "vault:gc": "tsx --env-file-if-exists=.env scripts/vault-gc.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

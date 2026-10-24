@@ -190,6 +190,24 @@ enum DistributionStatus {
   ANCHORED // root confirmed on the token (RwaxiPropertyToken.distributionRoots)
 }
 
+/// Delivery of a mail_outbox row (MailDispatcher).
+enum MailStatus {
+  PENDING // queued: the body is in the row until it is delivered
+  SENT // accepted by the mail provider: body redacted
+  CAPTURED // delivered to the development sink (server log): readable until what it carries is used or expires
+  FAILED // refused by the provider on every attempt: body redacted
+  CANCELLED // what it carried stopped being valid before it was delivered: body redacted
+}
+
+/// Why a mail_outbox body (an OTP code, an activation link) was cleared; delivery metadata stays.
+enum MailRedaction {
+  SENT // the provider holds the copy
+  FAILED // undeliverable
+  CONSUMED // the code or link it carried was used
+  SUPERSEDED // a newer code or link replaced it
+  EXPIRED // what it carried expired
+}
+
 // ─────────────────────────────────────────────────────────────── 1. tenant
 
 model Organization {
@@ -776,24 +794,57 @@ model InvestorOtp {
   @@map("investor_otps")
 }
 
-/// Outgoing email. Without an SMTP provider it stays here: local development and the E2E suites read it, and
-/// a delivery worker would send it and set sent_at.
+/// Outgoing email, delivered by the MailDispatcher (@rwaxi/mail: Resend, Postmark or a webhook; in development the
+/// server log). The body carries a secret (an OTP code, an activation link): it is cleared as soon as it is no
+/// longer needed — sent, undeliverable, used, superseded or expired — keeping only what audits the delivery.
 model MailOutbox {
-  id             String    @id @default(cuid())
-  organizationId String?   @map("organization_id")
+  id                String         @id @default(cuid())
+  organizationId    String?        @map("organization_id")
   /// INVESTOR_OTP | STAFF_INVITATION
-  purpose        String
-  toEmail        String    @map("to_email")
-  subject        String
-  body           String
-  createdAt      DateTime  @default(now()) @map("created_at")
-  sentAt         DateTime? @map("sent_at")
+  purpose           String
+  toEmail           String         @map("to_email")
+  subject           String
+  /// the message as queued; NULL once redacted
+  body              String?
+  /// SHA-256 (hex) of the body as queued: what was sent stays provable after the body is gone
+  bodySha256        String         @map("body_sha256")
+  status            MailStatus     @default(PENDING)
+  /// INVESTOR_OTP → investor_otps.id · STAFF_INVITATION → user_invitations.id
+  relatedId         String?        @map("related_id")
+  /// when the code or link it carries stops working
+  expiresAt         DateTime?      @map("expires_at")
+  /// resend | postmark | webhook | dev
+  provider          String?
+  providerMessageId String?        @map("provider_message_id")
+  attempts          Int            @default(0)
+  lastAttemptAt     DateTime?      @map("last_attempt_at")
+  lastError         String?        @map("last_error")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  /// accepted by the provider (SENT) or written to the development sink (CAPTURED)
+  sentAt            DateTime?      @map("sent_at")
+  redactedAt        DateTime?      @map("redacted_at")
+  redactionReason   MailRedaction? @map("redaction_reason")
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([toEmail, createdAt])
   @@index([organizationId, createdAt])
+  @@index([status, lastAttemptAt])
+  @@index([relatedId])
+  @@index([expiresAt])
   @@map("mail_outbox")
+}
+
+/// Hits of the platform's rate limits (e.g. DocumentVault uploads per session and per IP address). Not tenant
+/// data — buckets are hashed addresses and session subjects — and never read by the app: only the SECURITY
+/// DEFINER function rwaxi_rate_limit_hit() records and counts them.
+model RateLimitHit {
+  id     BigInt   @id @default(autoincrement())
+  bucket String
+  hitAt  DateTime @default(now()) @map("hit_at") @db.Timestamptz(3)
+
+  @@index([bucket, hitAt])
+  @@map("rate_limit_hits")
 }
 
 /// Activation of a staff account created by the B2B onboarding (no password yet): a single-use link sent by

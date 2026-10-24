@@ -296,9 +296,11 @@ const catalog: Catalog = {
   "comprobante {reference}": "comprovante {reference}",
   "con el pago ya conciliado": "com o pagamento já conciliado",
   "Con NDA": "Com NDA",
+  "Conectando tu wallet…": "Conectando sua wallet…",
   "Configura tu verificación en dos pasos": "Configure sua verificação em duas etapas",
   "Configuración White Label": "Configuração White Label",
   "Confirma la contraseña": "Confirme a senha",
+  "Confirma la transacción en tu wallet…": "Confirme a transação na sua wallet…",
   "Confirma que leíste el acuerdo.": "Confirme que você leu o acordo.",
   "confirmada en red": "confirmada na rede",
   "Confirmar Pago Fiduciario": "Confirmar Pagamento Fiduciário",
@@ -372,6 +374,8 @@ const catalog: Catalog = {
   "Define primero tu contraseña.": "Defina primeiro sua senha.",
   "Define tu contraseña y tu verificación en dos pasos para entrar al backoffice de {name}.":
     "Defina sua senha e sua verificação em duas etapas para entrar no backoffice de {name}.",
+  "Demasiadas cargas en poco tiempo: espera {seconds} s y vuelve a intentarlo.":
+    "Envios demais em pouco tempo: aguarde {seconds} s e tente novamente.",
   "Demasiados códigos incorrectos. Vuelve a escribir tu contraseña.":
     "Muitos códigos incorretos. Digite sua senha novamente.",
   "Demasiados intentos fallidos desde esta red. Espera unos minutos.":
@@ -460,6 +464,8 @@ const catalog: Catalog = {
   "El archivo supera el tamaño máximo de {max} MB.": "O arquivo excede o tamanho máximo de {max} MB.",
   "El Backoffice ahora usa {regime}. El valor on-chain es inmutable: requiere desplegar un nuevo registro y migrar la whitelist.":
     "O Backoffice agora usa {regime}. O valor on-chain é imutável: é preciso implantar um novo registro e migrar a whitelist.",
+  "El calldata firmado no coincide con la operación en cola ({fn}): no se registró nada.":
+    "O calldata assinado não coincide com a operação na fila ({fn}): nada foi registrado.",
   "El correo, el documento o la wallet ya están registrados por otro inversionista de este portal.":
     "O e-mail, o documento ou a wallet já estão registrados por outro investidor deste portal.",
   "El dominio no corresponde a ningún desarrollador activo en la red RWAXI.":
@@ -541,6 +547,7 @@ const catalog: Catalog = {
   "En producción el portal incrusta el reproductor del proveedor. En esta vista previa los reproductores externos están bloqueados: el portal muestra la vista interactiva y un enlace al video.":
     "Em produção, o portal incorpora o player do provedor. Nesta pré-visualização, os players externos estão bloqueados: o portal mostra a visualização interativa e um link para o vídeo.",
   "en red": "na rede",
+  "en red, firmada con tu wallet": "na rede, assinada com sua wallet",
   "En revisión": "Em análise",
   "EN REVISIÓN": "EM ANÁLISE",
   "En revisión del Oficial de Cumplimiento": "Em análise pelo Oficial de Compliance",
@@ -590,12 +597,16 @@ const catalog: Catalog = {
   "Ese documento ya está registrado por otro inversionista de este portal.":
     "Esse documento já está registrado por outro investidor deste portal.",
   España: "Espanha",
+  "Ese envío lo hizo otra wallet: lo concilia «Procesar cola en orden».":
+    "Esse envio foi feito por outra wallet: “Processar fila em ordem” o concilia.",
   "Esta acción requiere el rol {role}.": "Esta ação exige o perfil {role}.",
   "Esta dirección no corresponde a un tenant.": "Este endereço não corresponde a um tenant.",
   "Esta oferta aún no tiene distribuciones.": "Esta oferta ainda não tem distribuições.",
   "Esta operación no se ejecuta desde la cola del backoffice.":
     "Esta operação não é executada pela fila do backoffice.",
   Estado: "Status",
+  "Esta operación no se firma con wallet desde el backoffice.":
+    "Esta operação não é assinada com wallet a partir do backoffice.",
   "Estado on-chain": "Status on-chain",
   "Estados Unidos": "Estados Unidos",
   Estándar: "Padrão",
@@ -650,11 +661,14 @@ const catalog: Catalog = {
   "firma:": "signatário:",
   Firmado: "Assinado",
   Firmante: "Signatário",
+  "firmada en el navegador por {wallet}": "assinada no navegador por {wallet}",
+  "Firmar con mi wallet": "Assinar com minha wallet",
   "Firmar contrato del vehículo y suscribir": "Assinar contrato do veículo e subscrever",
   "Firmar contrato y reservar unidades": "Assinar contrato e reservar unidades",
   "Firmar NDA con un clic": "Assinar NDA com um clique",
   "Firmar y confirmar": "Assinar e confirmar",
   "Firmar y ejecutar": "Assinar e executar",
+  "Firmar y ejecutar (operador RWAXI)": "Assinar e executar (operador RWAXI)",
   "Firmar y ejecutar mint": "Assinar e executar mint",
   "Flujo de Caja y Rentabilidad": "Fluxo de Caixa e Rentabilidade",
   "Flujo mensual estimado": "Fluxo mensal estimado",
@@ -746,6 +760,8 @@ const catalog: Catalog = {
   "KYC rechazado": "KYC rejeitado",
   "KYC/{sys} aprobado": "KYC/{sys} aprovado",
   "KYC/AML + {regime}": "KYC/AML + {regime}",
+  "La autorización de carga no es válida o venció: vuelve a cargar el archivo.":
+    "A autorização de envio é inválida ou venceu: envie o arquivo novamente.",
   "La captación de esta oferta está pausada temporalmente por la plataforma: no se reciben nuevas suscripciones.":
     "A captação desta oferta está temporariamente pausada pela plataforma: não são aceitas novas subscrições.",
   "La captación de esta oferta está pausada temporalmente por la plataforma: no se reciben nuevas suscripciones. Las ya firmadas siguen su curso.":
@@ -771,6 +787,10 @@ const catalog: Catalog = {
     "A execução é autorizada pelo Backoffice do tenant.",
   "La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma; sin registro el tenant no puede aprobar inversionistas.":
     "Quem executa é o operador RWAXI (RWAXI_OPERATOR_ROLE), no console da plataforma; sem registro, o tenant não pode aprovar investidores.",
+  "La firma con wallet requiere modo RPC (CHAIN_EXECUTION=rpc): en simulación la cola la firma la clave de demostración.":
+    "A assinatura com wallet requer o modo RPC (CHAIN_EXECUTION=rpc): em simulação a fila é assinada pela chave de demonstração.",
+  "La firma con wallet requiere modo RPC (CHAIN_EXECUTION=rpc).":
+    "A assinatura com wallet requer o modo RPC (CHAIN_EXECUTION=rpc).",
   "La firma el rol {role}: inicia sesión con ese rol para ejecutarla.":
     "Quem assina é o perfil {role}: faça login com esse perfil para executá-la.",
   "La firma genera un ConsentRecord con hash SHA-256 del texto aceptado, con validez probatoria según la Ley 527 de 1999.":
@@ -784,6 +804,10 @@ const catalog: Catalog = {
   "La pantalla completa no está disponible en esta vista":
     "A tela cheia não está disponível nesta visualização",
   "La raíz de esta distribución ya está anclada.": "A raiz desta distribuição já está ancorada.",
+  "La red {network} no conoce la transacción {hash}: revisa que tu wallet la haya enviado a {chain}.":
+    "A rede {network} não conhece a transação {hash}: verifique se sua wallet a enviou para {chain}.",
+  "La red rechazaría la llamada desde tu wallet ({detail}): no se pidió ninguna firma.":
+    "A rede rejeitaria a chamada a partir da sua wallet ({detail}): nenhuma assinatura foi solicitada.",
   "La solicitud supera el tamaño máximo permitido.": "A solicitação excede o tamanho máximo permitido.",
   "La suscripción está {status}; recarga la bandeja.":
     "A subscrição está {status}; recarregue a caixa de entrada.",
@@ -794,10 +818,23 @@ const catalog: Catalog = {
   "La suscripción se habilita cuando el desarrollador emite tu AccessGrant (NDA + KYC/{sys} aprobado).":
     "A subscrição é habilitada quando a incorporadora emite seu AccessGrant (NDA + KYC/{sys} aprovado).",
   "La suscripción ya no está MINT_PENDING.": "A subscrição não está mais MINT_PENDING.",
+  "La transacción {hash} no corresponde a la operación en cola (contrato o calldata distintos).":
+    "A transação {hash} não corresponde à operação na fila (contrato ou calldata diferentes).",
+  "La transacción de tu wallet revirtió en la red ({hash}): no se confirmó nada y la operación sigue en cola para firmarla de nuevo.":
+    "A transação da sua wallet reverteu na rede ({hash}): nada foi confirmado e a operação continua na fila para ser assinada de novo.",
+  "La transacción la firmó {from}, no tu wallet autorizada {expected}: no se registró nada.":
+    "A transação foi assinada por {from}, não pela sua wallet autorizada {expected}: nada foi registrado.",
   "La transacción no emitió {event} con los argumentos en cola.":
     "A transação não emitiu {event} com os argumentos enfileirados.",
   "La transacción revirtió en la red ({hash}).": "A transação reverteu na rede ({hash}).",
+  "La transacción se dirigió a {to}, no al contrato del tenant {expected}: no se registró nada.":
+    "A transação foi dirigida a {to}, não ao contrato do tenant {expected}: nada foi registrado.",
+  "La transacción se firmó para la cadena {actual}, no para {chain} ({expected}): no se registró nada.":
+    "A transação foi assinada para a cadeia {actual}, não para {chain} ({expected}): nada foi registrado.",
+  "La transacción transfirió valor junto con la llamada: no se registró nada.":
+    "A transação transferiu valor junto com a chamada: nada foi registrado.",
   "La transacción ya no está PENDING.": "A transação não está mais PENDING.",
+  "La wallet de la operación no es una dirección válida.": "A wallet da operação não é um endereço válido.",
   "La wallet EVM no es válida.": "A wallet EVM não é válida.",
   "Las contraseñas no coinciden.": "As senhas não coincidem.",
   "Las unidades reservadas se entregan en tu wallet cuando el desarrollador emite los tokens.":
@@ -898,6 +935,9 @@ const catalog: Catalog = {
   "No hay transacciones pendientes para este tenant.": "Não há transações pendentes para este tenant.",
   "No hay unidades suficientes: quedan {n}.": "Não há unidades suficientes: restam {n}.",
   "No iniciado": "Não iniciado",
+  "No se detectó una wallet EIP-1193 en este navegador (MetaMask, Rabby, Frame…).":
+    "Nenhuma wallet EIP-1193 foi detectada neste navegador (MetaMask, Rabby, Frame…).",
+  "No se encontró el archivo subido: vuelve a cargarlo.": "O arquivo enviado não foi encontrado: envie-o novamente.",
   "No se pudo abrir el documento. Inténtalo de nuevo.":
     "Não foi possível abrir o documento. Tente novamente.",
   "No se pudo activar la cuenta. Inténtalo de nuevo.": "Não foi possível ativar a conta. Tente novamente.",
@@ -980,6 +1020,7 @@ const catalog: Catalog = {
   "Otra ejecución RPC tomó esta transacción.": "Outra execução RPC assumiu esta transação.",
   "Otra ejecución tomó ese nonce o tx hash primero; vuelve a intentarlo.":
     "Outra execução usou esse nonce ou tx hash primeiro; tente novamente.",
+  "Otra ejecución tomó esta transacción.": "Outra execução assumiu esta transação.",
   "Otro país": "Outro país",
   "Otro revisor ya resolvió este expediente; recarga la bandeja.":
     "Outro revisor já resolveu este dossiê; recarregue a caixa de entrada.",
@@ -1095,10 +1136,13 @@ const catalog: Catalog = {
   "Precio por unidad (USD)": "Preço por unidade (USD)",
   "Prelación: el approveInvestor() de esta wallet sigue PENDING; ejecútalo primero.":
     "Precedência: o approveInvestor() desta wallet continua PENDING; execute-o primeiro.",
+  "Prelación: hay un updateDataRoomMerkleRoot() anterior pendiente para este token.":
+    "Precedência: há um updateDataRoomMerkleRoot() anterior pendente para este token.",
   "Prelación: hay una operación anterior del registro pendiente para esta wallet.":
     "Precedência: há uma operação anterior do registro pendente para esta wallet.",
   "Prelación: hay una operación del registro pendiente para esta wallet.":
     "Precedência: há uma operação do registro pendente para esta wallet.",
+  "Preparando la operación…": "Preparando a operação…",
   "Presentación del desarrollador": "Apresentação da incorporadora",
   "Presentación oficial · {asset}": "Apresentação oficial · {asset}",
   "PRESENTACIÓN OFICIAL DEL DESARROLLADOR · 03:00 MIN": "APRESENTAÇÃO OFICIAL DA INCORPORADORA · 03:00 MIN",
@@ -1134,6 +1178,10 @@ const catalog: Catalog = {
   rechazado: "rejeitado",
   Rechazado: "Rejeitado",
   "Rechazar con motivo": "Rejeitar com motivo",
+  "Rechazaste el cambio de red: esta operación se firma en {chain} (chainId {id}).":
+    "Você recusou a troca de rede: esta operação é assinada em {chain} (chainId {id}).",
+  "Rechazaste la firma en tu wallet: no se envió ninguna transacción.":
+    "Você recusou a assinatura na sua wallet: nenhuma transação foi enviada.",
   "RECONOCIMIENTO DE LAS 4 CAPAS ESTRUCTURALES Y DE LA RECUPERACIÓN JUDICIAL O ADMINISTRATIVA\n\nAl suscribir declaro que entiendo y acepto que mi inversión se organiza en cuatro capas independientes:\n\nCapa 1 · Activo real. El activo subyacente es {{ASSET_NAME}}. Las unidades digitales no me otorgan propiedad directa sobre el inmueble.\n\nCapa 2 · Vehículo jurídico. El activo y sus flujos están aislados en {{LEGAL_ENTITY_NAME}}, estructurado como {{LEGAL_WRAPPER_TYPE}}, cuyo oferente y responsable es {{ORGANIZATION_LEGAL_NAME}}, NIT {{ORGANIZATION_TAX_ID}}. Mis derechos y obligaciones se rigen por el contrato de suscripción y los documentos constitutivos de ese vehículo.\n\nCapa 3 · Derecho económico. Adquiero una participación en los flujos de renta y en la valorización estimada del activo, en la proporción de mis unidades. Las cifras proyectadas son escenarios estimados y no promesas de rentabilidad; mi capital está sujeto a riesgo.\n\nCapa 4 · Infraestructura digital. Mis unidades se representan con el token {{TOKEN_SYMBOL}} en la red {{NETWORK}}, sobre contratos OpenZeppelin con whitelist de inversionistas aprobados por el desarrollador. La versión del Data Room que revisé corresponde al Merkle Root SHA-256 {{DATAROOM_MERKLE_ROOT}}. RWAXI provee esta infraestructura como Encargado Tecnológico y no es parte del vehículo.\n\nRecuperación judicial o administrativa (forcedTransfer). Acepto que, solo por orden judicial, decisión de autoridad administrativa competente o acto jurídico que lo justifique (por ejemplo, sucesión, embargo o pérdida acreditada de mis llaves privadas), el titular del LEGAL_ENFORCEMENT_ROLE de {{ORGANIZATION_LEGAL_NAME}} podrá transferir mis unidades a una wallet verificada mediante la función forcedTransfer. Cada ejecución registra on-chain el hash SHA-256 del acto que la soporta (legalActHash) y emite el evento ForcedRecoveryExecuted, verificable por cualquier interesado. RWAXI no puede ejecutar esta función.\n\nTransferencias. Entiendo que mis unidades solo pueden transferirse a wallets aprobadas en la whitelist del desarrollador; cualquier transferencia a una wallet no verificada será rechazada por el contrato.":
     "RECONHECIMENTO DAS 4 CAMADAS ESTRUTURAIS E DA RECUPERAÇÃO JUDICIAL OU ADMINISTRATIVA\n\nAo subscrever, declaro que entendo e aceito que meu investimento está organizado em quatro camadas independentes:\n\nCamada 1 · Ativo real. O ativo subjacente é {{ASSET_NAME}}. As unidades digitais não me conferem propriedade direta sobre o imóvel.\n\nCamada 2 · Veículo jurídico. O ativo e seus fluxos estão segregados em {{LEGAL_ENTITY_NAME}}, estruturado como {{LEGAL_WRAPPER_TYPE}}, cujo ofertante e responsável é {{ORGANIZATION_LEGAL_NAME}}, NIT {{ORGANIZATION_TAX_ID}}. Meus direitos e obrigações são regidos pelo contrato de subscrição e pelos documentos constitutivos desse veículo.\n\nCamada 3 · Direito econômico. Adquiro uma participação nos fluxos de renda e na valorização estimada do ativo, na proporção das minhas unidades. Os números projetados são cenários estimados, e não promessas de rentabilidade; meu capital está sujeito a risco.\n\nCamada 4 · Infraestrutura digital. Minhas unidades são representadas pelo token {{TOKEN_SYMBOL}} na rede {{NETWORK}}, em contratos OpenZeppelin com whitelist de investidores aprovados pela incorporadora. A versão do Data Room que revisei corresponde ao Merkle Root SHA-256 {{DATAROOM_MERKLE_ROOT}}. A RWAXI fornece esta infraestrutura como Operador Tecnológico e não é parte do veículo.\n\nRecuperação judicial ou administrativa (forcedTransfer). Aceito que, somente por ordem judicial, decisão de autoridade administrativa competente ou ato jurídico que o justifique (por exemplo, sucessão, penhora ou perda comprovada das minhas chaves privadas), o titular do LEGAL_ENFORCEMENT_ROLE de {{ORGANIZATION_LEGAL_NAME}} poderá transferir minhas unidades para uma wallet verificada por meio da função forcedTransfer. Cada execução registra on-chain o hash SHA-256 do ato que a respalda (legalActHash) e emite o evento ForcedRecoveryExecuted, verificável por qualquer interessado. A RWAXI não pode executar esta função.\n\nTransferências. Entendo que minhas unidades só podem ser transferidas para wallets aprovadas na whitelist da incorporadora; qualquer transferência para uma wallet não verificada será rejeitada pelo contrato.",
   "Reconozco expresamente las 4 Capas Estructurales de esta inversión y la función de recuperación judicial o administrativa (forcedTransfer) descritas arriba.":
@@ -1218,6 +1266,8 @@ const catalog: Catalog = {
     "Reverteria: EnforcedPause() — o emissor pausou o token.",
   "Revertiría: InvalidWallet() — la wallet es address(0).":
     "Reverteria: InvalidWallet() — a wallet é address(0).",
+  "Revertiría: InvestorNotApproved(wallet) — la wallet no está aprobada en el registro.":
+    "Reverteria: InvestorNotApproved(wallet) — a wallet não está aprovada no registro.",
   "Revertiría: la wallet está congelada (isEligible = false).":
     "Reverteria: a wallet está congelada (isEligible = false).",
   "Revertiría: RWAXI Compliance: Receiver wallet is not approved in Tenant Whitelist.":
@@ -1261,6 +1311,8 @@ const catalog: Catalog = {
       other:
         "Serão distribuídos {amount} entre {holders} titulares, na proporção de seus tokens (centavos exatos, método dos maiores restos). Cada alocação será uma folha da árvore de Merkle (SHA-256) e a raiz será ancorada com anchorDistributionRoot().",
     },
+  "Según tu wallet, la cuenta {account} no tiene {role} en el contrato {contract}: no se pidió ninguna firma.":
+    "Segundo sua wallet, a conta {account} não tem {role} no contrato {contract}: nenhuma assinatura foi solicitada.",
   "Seguridad Jurídica": "Segurança Jurídica",
   "Selecciona el texto para copiarlo": "Selecione o texto para copiá-lo",
   "Selecciona la actividad económica principal.": "Selecione a atividade econômica principal.",
@@ -1335,6 +1387,7 @@ const catalog: Catalog = {
   },
   "Snapshot de tenedores · {n} tokens MINTED": "Snapshot de titulares · {n} tokens MINTED",
   "Solicitud de {name} rechazada con motivo": "Solicitação de {name} rejeitada com motivo",
+  "Solicitud inválida.": "Solicitação inválida.",
   "Sólo approveInvestor(), anchorDistributionRoot() y updateDataRoomMerkleRoot() se registran por hash.":
     "Somente approveInvestor(), anchorDistributionRoot() e updateDataRoomMerkleRoot() são registrados por hash.",
   "Solo el ISSUER_ADMIN_ROLE o el COMPLIANCE_OFFICER_ROLE de {name} pueden pausar el token. RWAXI no tiene esta facultad.":
@@ -1405,6 +1458,8 @@ const catalog: Catalog = {
   "Tokenización y Salida": "Tokenização e Saída",
   "Tokens emitidos": "Tokens emitidos",
   "Transacción de whitelist:": "Transação de whitelist:",
+  "Transacción enviada ({hash}): aún sin recibo en la red; verifícala en unos segundos.":
+    "Transação enviada ({hash}): ainda sem recibo na rede; verifique-a em alguns segundos.",
   "Transacción exitosa": "Transação bem-sucedida",
   "Transacción inválida.": "Transação inválida.",
   "Transacción no encontrada en este tenant.": "Transação não encontrada neste tenant.",
@@ -1430,6 +1485,22 @@ const catalog: Catalog = {
   "Tu sesión no es válida; firma de nuevo el NDA.": "Sua sessão não é válida; assine o NDA novamente.",
   "Tu sesión ya no es válida; firma de nuevo el NDA.":
     "Sua sessão não é mais válida; assine o NDA novamente.",
+  "Tu usuario no tiene una wallet registrada en este tenant: no hay una cuenta autorizada para firmar.":
+    "Seu usuário não tem uma wallet registrada neste tenant: não há conta autorizada para assinar.",
+  "Tu wallet {wallet} no tiene MINTER_ROLE en el token: el mint lo envía el operador RWAXI («Firmar y ejecutar»), salvo que el emisor otorgue MINTER_ROLE a su propia wallet.":
+    "Sua wallet {wallet} não tem MINTER_ROLE no token: o mint é enviado pelo operador RWAXI (“Assinar e executar”), a menos que o emissor conceda MINTER_ROLE à sua própria wallet.",
+  "Tu wallet está en la red {actual}; cambia a {chain} (chainId {id}) para firmar.":
+    "Sua wallet está na rede {actual}; mude para {chain} (chainId {id}) para assinar.",
+  "Tu wallet no compartió ninguna cuenta: conéctala y vuelve a intentarlo.":
+    "Sua wallet não compartilhou nenhuma conta: conecte-a e tente novamente.",
+  "Tu wallet no devolvió un tx hash válido.": "Sua wallet não devolveu um tx hash válido.",
+  "Tu wallet no tiene la red {chain} (chainId {id}): añádela y vuelve a intentarlo.":
+    "Sua wallet não tem a rede {chain} (chainId {id}): adicione-a e tente novamente.",
+  "Tu wallet registrada {wallet} no tiene {role} en {contract}: no puede firmar esta operación.":
+    "Sua wallet registrada {wallet} não tem {role} em {contract}: não pode assinar esta operação.",
+  "Tu wallet respondió con un error: {detail}": "Sua wallet respondeu com um erro: {detail}",
+  "Tu wallet tiene seleccionada la cuenta {account}; esta operación la firma {expected}. Cámbiala en tu wallet y vuelve a intentarlo.":
+    "Sua wallet está com a conta {account} selecionada; esta operação é assinada por {expected}. Troque-a na sua wallet e tente novamente.",
   "Tus datos se encuentran en revisión por el Oficial de Cumplimiento de {name} (Auditoría estimada: 15 minutos).":
     "Seus dados estão em análise pelo Oficial de Compliance de {name} (auditoria estimada: 15 minutos).",
   "Tx de emisión": "Tx de emissão",
@@ -1493,10 +1564,14 @@ const catalog: Catalog = {
   "Verificación de vida completada con éxito ✓": "Verificação de vida concluída com sucesso ✓",
   "Verificado · SSL activo": "Verificado · SSL ativo",
   "Verificando el enlace de activación…": "Verificando o link de ativação…",
+  "Verificando el rol on-chain…": "Verificando o papel on-chain…",
+  "Verificando en la red…": "Verificando na rede…",
+  "Verificando la red…": "Verificando a rede…",
   "Verificando SHA-256 en el servidor…": "Verificando SHA-256 no servidor…",
   "Verificar DNS": "Verificar DNS",
   "Verificar e ingresar": "Verificar e entrar",
   "Verificar prueba de Merkle": "Verificar prova de Merkle",
+  "Verificar recibo": "Verificar recibo",
   "Verificar y continuar": "Verificar e continuar",
   "Video cargado: {name}": "Vídeo carregado: {name}",
   "Video Explicativo (3 min)": "Vídeo explicativo (3 min)",
