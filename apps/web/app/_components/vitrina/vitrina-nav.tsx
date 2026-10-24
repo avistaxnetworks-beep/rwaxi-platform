@@ -41,7 +41,7 @@ export function VitrinaNav() {
         </div>
       </div>
       <div className="bg-white border-b border-line">
-        <div className="gutter max-w-[1240px] mx-auto flex flex-wrap items-center gap-x-8 gap-y-2 py-3">
+        <div className="gutter max-w-[1240px] mx-auto flex flex-wrap items-center gap-x-8 gap-y-2 py-3 md:py-[13px]">
           <div className="me-auto lg:me-0">
             <Logo
               onClick={() =>

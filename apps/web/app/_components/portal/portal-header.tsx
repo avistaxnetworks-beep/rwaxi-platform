@@ -36,9 +36,9 @@ export function PortalHeader({ t: e, journey: a, go: t }: { t: PortalTenant; jou
         borderTop: `4px solid ${e.color}`,
       }}
     >
-      <div className="gutter max-w-[1240px] mx-auto flex flex-wrap items-center gap-x-6 gap-y-3 py-3">
+      <div className="gutter max-w-[1240px] mx-auto flex flex-wrap items-center gap-x-6 gap-y-3 py-3 md:py-[13px]">
         <div className="flex items-center gap-3 min-w-0">
-          <TenantLogo t={e} />
+          <TenantLogo t={e} size={40} mdSize={44} />
           <div className="min-w-0">
             <p
               className="font-sans font-bold text-[16px] leading-tight"

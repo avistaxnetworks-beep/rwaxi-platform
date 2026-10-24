@@ -25,6 +25,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .hero-x { position: absolute; right: -2%; top: -12%; font: italic 500 min(46vw, 560px)/1 var(--font-display); color: rgba(196,181,253,.06); pointer-events: none; user-select: none; }
 .logo-x { font-style: italic; background: linear-gradient(135deg, #24B8D7 0%, #1453A0 38%, #F28A22 68%, #7A00AE 100%); -webkit-background-clip: text; background-clip: text; color: transparent; padding: 0 .04em; }
 .brand-logo { min-height: 44px; justify-content: center; }
+@media (min-width: 768px) { .brand-logo { min-height: 48px; } }
 :root { --tc: #2F145F; --tc-on: #FFFFFF; }
 .tc-btn { background: var(--tc); color: var(--tc-on); transition: filter .15s; }
 .tc-btn:hover:not(:disabled) { filter: brightness(1.15); }

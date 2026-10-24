@@ -396,7 +396,8 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   inversionista y bóveda documental (Data Room del backoffice y del portal, documentos KYC). Siguen en estado demo:
   configuración White Label, emisión del token (minting) del backoffice y pestañas 1–3 del inspector. Tipados ya:
   los paneles del portal (`portal`, `funnel-stepper`, `portal-header`, `nda-panel`, `kyc-panel`, `subscription-panel`,
-  `data-room-panel`, `signed-doc-modal`, tipos en `_components/portal/portal-types.ts`), `backoffice/config-tab` y
+  `data-room-panel`, `signed-doc-modal`, `tenant-brand`, tipos en `_components/portal/portal-types.ts`), `ui/logo`,
+  `backoffice/config-tab` y
   `backoffice/data-mint-tab`,
   `ui/primitives`, `ui/form`, `vitrina-nav` y `_lib/data/legal`.
 - **Embudo del inversionista** (portal): 1 NDA → 2 Data Room (el NDA abre todos sus documentos) → 3 KYC/AML (requisito

@@ -1,28 +1,43 @@
-// @ts-nocheck — ported verbatim from rwaxi-prototype-reference.tsx.html; type progressively.
 "use client";
+import type { CSSProperties } from "react";
 import { useI18n } from "@/app/_i18n/provider";
 import { initials, onColor } from "@/app/_lib/format";
 
-export function TenantLogo({ t: e, size: a = 40 }) {
+export function TenantLogo({
+  t: e,
+  size: a = 40,
+  mdSize: m,
+}: {
+  t: { logo?: string | null; displayName: string; color: string };
+  size?: number;
+  /** size from 768 px up (md:), for a header that grows on desktop; phones keep `size` */
+  mdSize?: number;
+}) {
+  // Inline sizes ignore breakpoints: with mdSize the box reads CSS variables that the md: utilities switch.
+  const v = m ? ({ "--logo": `${a}px`, "--logo-md": `${m}px` } as CSSProperties) : null;
   return e.logo ? (
     <img
       src={e.logo}
       alt={e.displayName}
-      style={{
-        height: a,
-        maxWidth: a * 3.2,
-      }}
-      className="object-contain"
+      style={
+        v ?? {
+          height: a,
+          maxWidth: a * 3.2,
+        }
+      }
+      className={`object-contain${v ? " h-[var(--logo)] max-w-[calc(var(--logo)*3.2)] md:h-[var(--logo-md)] md:max-w-[calc(var(--logo-md)*3.2)]" : ""}`}
     />
   ) : (
     <span
-      className="grid place-items-center font-display italic font-semibold shrink-0"
+      className={`grid place-items-center font-display italic font-semibold shrink-0${v ? " w-[var(--logo)] h-[var(--logo)] text-[length:calc(var(--logo)*0.48)] md:w-[var(--logo-md)] md:h-[var(--logo-md)] md:text-[length:calc(var(--logo-md)*0.48)]" : ""}`}
       style={{
-        width: a,
-        height: a,
+        ...(v ?? {
+          width: a,
+          height: a,
+          fontSize: a * 0.48,
+        }),
         background: e.color,
         color: onColor(e.color),
-        fontSize: a * 0.48,
       }}
       aria-hidden="true"
     >
@@ -31,7 +46,7 @@ export function TenantLogo({ t: e, size: a = 40 }) {
   );
 }
 
-export function PoweredSeal({ dark: e }) {
+export function PoweredSeal({ dark: e }: { dark?: boolean }) {
   const { tr } = useI18n();
   return (
     <span
