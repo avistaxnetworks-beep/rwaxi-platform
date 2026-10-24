@@ -1,5 +1,15 @@
+import prismaMonorepo from "@prisma/nextjs-monorepo-workaround-plugin";
+
+const { PrismaPlugin } = prismaMonorepo;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // In a pnpm monorepo the Prisma query engine (rhel-openssl-3.0.x on Vercel, see schema.prisma binaryTargets)
+  // lives outside the app, so the server bundle does not trace it: the plugin copies it next to the server output.
+  webpack: (config, { isServer }) => {
+    if (isServer) config.plugins.push(new PrismaPlugin());
+    return config;
+  },
   // The ported prototype runs effects and timers that assume a single mount (as in the
   // original artifact). Re-enable once screens move to server data.
   reactStrictMode: false,

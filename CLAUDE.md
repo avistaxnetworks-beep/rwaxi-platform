@@ -378,6 +378,10 @@ mantenimiento por HTTP: `CRON_SECRET` (≥ 32 caracteres; la suite `maintenance`
 `NEXT_PUBLIC_PLATFORM_DOMAIN=rwaxirealestate.com`, `S3_BUCKET=rwaxi-vault-prod`, `S3_REGION=auto` (R2) y
 `MAIL_FROM="RWAXI Real Estate <no-reply@notifications.rwaxirealestate.com>"`. Requiere Node ≥ 22.9
 (`--env-file-if-exists`).
+Vercel: `schema.prisma` genera también el motor `rhel-openssl-3.0.x` (`binaryTargets`), `@rwaxi/database` corre
+`prisma generate` en `postinstall` y `next.config.mjs` inyecta `@prisma/nextjs-monorepo-workaround-plugin` (misma versión
+que Prisma) en el bundle de servidor, que copia el motor a `.next/server/chunks`: sin eso, en el monorepo pnpm el
+cliente no encuentra su Query Engine en producción. Al actualizar Prisma, actualizar el plugin a la misma versión.
 Windows: con `pnpm dev` corriendo, `prisma generate` (y por tanto `pnpm build`/`pnpm typecheck`) falla con `EPERM`
 porque el servidor tiene cargado el motor de Prisma. Detener el dev server antes.
 
