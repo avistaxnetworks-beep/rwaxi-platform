@@ -480,10 +480,12 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
 - **Alta B2B** (`onboardDeveloper()`, una transacción `platformPrisma()`; el servidor revalida todo con
   `parseOnboarding`): `Organization` en `REVIEW` y fuera de la vitrina (NIT con dígito de verificación DIAN, slug
   único fuera de `RESERVED_SLUGS`, color con contraste AA, tarifas pactadas), su `TENANT_ADMIN` y su
-  `COMPLIANCE_OFFICER` (correo y wallet distintos), la primera oferta (`PRESALE` o `STRUCTURING`, código único en la
-  plataforma) con su token `NOT_DEPLOYED` y su Data Room base (SHA-256 en el navegador, raíz recalculada con el SDK),
-  el asiento `ONBOARDING_SETUP` `ACCRUED`, `deployTenantRegistry()` `PENDING` (factory: `RWAXI_FACTORY_ADDRESS` o la
-  ya usada en la red) y `ORGANIZATION_ONBOARDED`. «Desplegar registro» (módulo A) lo ejecuta el operador RWAXI
+  `COMPLIANCE_OFFICER` (correos distintos; wallets opcionales en el alta y, si se dan, válidas y distintas), la primera
+  oferta (`PRESALE` o `STRUCTURING`, código único en la plataforma; `Offering.status` nace `STRUCTURING`) con su token
+  `NOT_DEPLOYED` y su Data Room base (SHA-256 en el navegador, raíz recalculada con el SDK), el asiento
+  `ONBOARDING_SETUP` `ACCRUED`, `deployTenantRegistry()` `PENDING` sólo si ambas wallets están declaradas (si no, se
+  difiere: `registryDeferred` en la auditoría; factory: `RWAXI_FACTORY_ADDRESS` o la ya usada en la red) y
+  `ORGANIZATION_ONBOARDED`. «Desplegar registro» (módulo A) lo ejecuta el operador RWAXI
   (`origin: "platform"`; desde el tenant está bloqueado); en `SIMULATION` la dirección es
   `CREATE(factory, 1 + rwaxi_factory_creations)`. Hasta entonces el oficial no puede aprobar KYC.
 - **Distribuciones** (`declareDistribution()`, backoffice, `TENANT_ADMIN`): snapshot de tokens `MINTED` por

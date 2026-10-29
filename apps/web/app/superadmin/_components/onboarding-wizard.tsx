@@ -17,6 +17,7 @@ import {
   NETWORK_LABEL,
   OFFERING_STAGES,
   RENDER_KINDS,
+  WALLET_RULE,
   WRAPPERS,
   brandContrast,
   nitCheckDigit,
@@ -168,6 +169,7 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
 
   const raise = Number(form.offering.unitPriceUsd) * Number(form.offering.totalUnits);
   const root = useMemo(() => (form.documents.length ? computeDataRoomRoot(form.documents) : null), [form.documents]);
+  const walletsDeclared = Boolean(form.team.admin.wallet.trim() && form.team.officer.wallet.trim());
   const contrast = /^#[0-9a-fA-F]{6}$/.test(c.brandColor) ? brandContrast(c.brandColor) : 0;
 
   const stepError = (): string | null => {
@@ -178,8 +180,10 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
       if (!slugState.available) return `Subdominio: ${slugState.reason}`;
       if (contrast < 4.5) return "El color de marca no alcanza contraste AA (4,5:1).";
     }
-    if (step === 1 && [form.team.admin, form.team.officer].some((p) => !p.fullName || !p.email || !p.wallet)) {
-      return "Completa nombre, correo y wallet de ambos usuarios.";
+    if (step === 1) {
+      const team = [form.team.admin, form.team.officer];
+      if (team.some((p) => !p.fullName || !p.email)) return "Completa nombre y correo de ambos usuarios.";
+      if (team.some((p) => p.wallet.trim() && !WALLET_RULE.test(p.wallet.trim()))) return "Wallet EVM inválida (0x + 40 hex): déjala vacía para declararla después.";
     }
     if (step === 2 && (!form.offering.assetName || !form.offering.assetValueUsd || !form.offering.tokenSymbol)) return "Completa los datos de la oferta.";
     if (step === 3 && !form.documents.length) return "Adjunta al menos un documento base del Data Room.";
@@ -263,7 +267,9 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
         <div className="flex flex-col gap-4" data-onboarded-slug={created}>
           <p className="text-[13px] text-inkBody leading-relaxed">
             {`${c.displayName || c.legalName} quedó creado en PostgreSQL en estado REVIEW y fuera de la vitrina. Se causó el Setup Fee y `}
-            {"el despliegue de su RwaxiComplianceRegistry quedó en cola para el operador RWAXI. "}
+            {walletsDeclared
+              ? "el despliegue de su RwaxiComplianceRegistry quedó en cola para el operador RWAXI. "
+              : "el despliegue de su RwaxiComplianceRegistry queda diferido hasta que el administrador y el oficial declaren sus wallets. "}
             {`${form.team.admin.email} y ${form.team.officer.email} recibieron su enlace de activación (contraseña + TOTP), válido 72 horas.`}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -352,11 +358,12 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
                   <legend className="px-1 text-[12px] font-semibold text-inkBody">{title}</legend>
                   <Text id={`ob-${who}-name`} title="Nombre completo" value={form.team[who].fullName} onChange={(v) => setPerson(who, { fullName: v })} />
                   <Text id={`ob-${who}-email`} title="Correo" value={form.team[who].email} onChange={(v) => setPerson(who, { email: v })} />
-                  <Text id={`ob-${who}-wallet`} title="Wallet EVM" value={form.team[who].wallet} onChange={(v) => setPerson(who, { wallet: v })} mono placeholder="0x…" />
+                  <Text id={`ob-${who}-wallet`} title="Wallet EVM (opcional)" value={form.team[who].wallet} onChange={(v) => setPerson(who, { wallet: v })} mono placeholder="0x…" />
                 </fieldset>
               ))}
               <p className="sm:col-span-2 text-[11.5px] text-muted">
-                Las wallets reciben los roles del registro de cumplimiento del tenant (administrador y oficial). RWAXI no custodia ninguno.
+                Las wallets reciben los roles del registro de cumplimiento del tenant (administrador y oficial). RWAXI no custodia ninguno. Son
+                opcionales en el alta: sin ambas, el despliegue del registro se difiere y el oficial no puede aprobar KYC hasta entonces.
               </p>
             </div>
           )}
@@ -482,7 +489,10 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
               </dl>
               <p className="text-[11.5px] text-muted">
                 El tenant se crea en estado REVIEW y sin publicación en vitrina. Se causa el Setup Fee al firmar; la suscripción SaaS empieza al
-                activar el portal. El despliegue de su RwaxiComplianceRegistry queda en cola para el operador RWAXI.
+                activar el portal.{" "}
+                {walletsDeclared
+                  ? "El despliegue de su RwaxiComplianceRegistry queda en cola para el operador RWAXI."
+                  : "Sin las dos wallets, el despliegue de su RwaxiComplianceRegistry queda diferido."}
               </p>
             </div>
           )}

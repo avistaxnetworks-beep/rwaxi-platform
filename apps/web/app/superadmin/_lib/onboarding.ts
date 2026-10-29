@@ -30,8 +30,9 @@ export const onboardingNetworks = (): ChainNetwork[] => [
 
 export interface OnboardingPlan {
   company: { legalName: string; displayName: string; taxId: string; slug: string; regime: ComplianceRegime; brandColor: string };
-  admin: { fullName: string; email: string; wallet: string };
-  officer: { fullName: string; email: string; wallet: string };
+  /** `wallet`: null when not declared yet; the registry is queued only once both wallets exist */
+  admin: { fullName: string; email: string; wallet: string | null };
+  officer: { fullName: string; email: string; wallet: string | null };
   offering: {
     code: string;
     assetName: string;
@@ -88,9 +89,10 @@ function integer(v: unknown, label: string, min: number, max: number): number {
 function person(raw: unknown, label: string) {
   const p = (raw ?? {}) as Record<string, unknown>;
   const email = clean(p.email).toLowerCase();
-  const wallet = clean(p.wallet).toLowerCase();
+  // Optional at onboarding: an empty wallet is "not declared yet"; one that is given must be valid.
+  const wallet = clean(p.wallet).toLowerCase() || null;
   if (!EMAIL_RULE.test(email) || email.length > 254) throw new Invalid(`${label}: correo inválido.`);
-  if (!WALLET_RULE.test(wallet)) throw new Invalid(`${label}: wallet EVM inválida (0x + 40 hex).`);
+  if (wallet !== null && !WALLET_RULE.test(wallet)) throw new Invalid(`${label}: wallet EVM inválida (0x + 40 hex).`);
   return { fullName: text(p.fullName, `${label}: nombre`, 5, 120), email, wallet };
 }
 
@@ -117,7 +119,7 @@ export function parseOnboarding(raw: unknown): { ok: true; plan: OnboardingPlan 
     const admin = person(input.team?.admin, "Administrador");
     const officer = person(input.team?.officer, "Oficial de Cumplimiento");
     if (admin.email === officer.email) throw new Invalid("El administrador y el oficial de cumplimiento deben tener correos distintos.");
-    if (admin.wallet === officer.wallet) throw new Invalid("El administrador y el oficial de cumplimiento deben tener wallets distintas.");
+    if (admin.wallet !== null && admin.wallet === officer.wallet) throw new Invalid("El administrador y el oficial de cumplimiento deben tener wallets distintas.");
 
     const code = clean(o.code).toUpperCase();
     if (!OFFERING_CODE.test(code)) throw new Invalid("Código de la oferta: formato P-04.");

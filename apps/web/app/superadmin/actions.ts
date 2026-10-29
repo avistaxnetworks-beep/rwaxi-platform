@@ -464,7 +464,9 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
         if (await tx.offering.findFirst({ where: { code: o.code }, select: { id: true } })) {
           throw new PlatformError(`El código ${o.code} ya se usa en la plataforma: elige otro.`);
         }
-        const factory = await factoryFor(tx, o.network);
+        // deployTenantRegistry() hands the registry to both staff wallets: without them it is deferred, not queued.
+        const wallets = admin.wallet && officer.wallet ? { tenantAdmin: admin.wallet, complianceOfficer: officer.wallet } : null;
+        const factory = wallets ? await factoryFor(tx, o.network) : null;
         const now = new Date();
         const regimeKey = c.regime === "SARLAFT" ? "sarlaft" : "sagrilaft";
         const org = await tx.organization.create({
@@ -575,24 +577,26 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
               },
             })
           : null;
-        const registryTx = await tx.chainTransaction.create({
-          data: {
-            organizationId: org.id,
-            offeringId: offering.id,
-            network: o.network,
-            kind: "TENANT_REGISTRY_DEPLOYED",
-            contractAddress: factory,
-            method: DEPLOY_REGISTRY,
-            args: {
-              organizationId: onchainId,
-              organizationTaxId: c.taxId,
-              complianceRegime: c.regime,
-              tenantAdmin: admin.wallet,
-              complianceOfficer: officer.wallet,
-            },
-            status: "PENDING",
-          },
-        });
+        const registryTx =
+          wallets && factory
+            ? await tx.chainTransaction.create({
+                data: {
+                  organizationId: org.id,
+                  offeringId: offering.id,
+                  network: o.network,
+                  kind: "TENANT_REGISTRY_DEPLOYED",
+                  contractAddress: factory,
+                  method: DEPLOY_REGISTRY,
+                  args: {
+                    organizationId: onchainId,
+                    organizationTaxId: c.taxId,
+                    complianceRegime: c.regime,
+                    ...wallets,
+                  },
+                  status: "PENDING",
+                },
+              })
+            : null;
         await audit(tx, session, meta, {
           organizationId: org.id,
           action: "ORGANIZATION_ONBOARDED",
@@ -615,7 +619,8 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
             vault: files.map((f) => ({ sha256: f.sha256, mimeType: f.mimeType, sizeBytes: f.sizeBytes })),
             fees,
             setupFeeEntryId: fee?.id ?? null,
-            registryChainTransactionId: registryTx.id,
+            registryChainTransactionId: registryTx?.id ?? null,
+            registryDeferred: registryTx === null,
           },
         });
         for (const user of team) {
@@ -638,7 +643,8 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
             },
           });
         }
-        return `${c.displayName} dado de alta · ${c.slug}.rwaxirealestate.com en revisión · registro on-chain en cola · invitaciones de activación enviadas`;
+        const registry = registryTx ? "registro on-chain en cola" : "registro on-chain diferido hasta declarar las wallets";
+        return `${c.displayName} dado de alta · ${c.slug}.rwaxirealestate.com en revisión · ${registry} · invitaciones de activación enviadas`;
       },
       { maxWait: 10_000, timeout: 30_000 },
     );

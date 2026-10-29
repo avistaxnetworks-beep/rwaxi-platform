@@ -59,6 +59,13 @@ enum OfferingStage {
   OPERATING // En operación / rentando
 }
 
+/// Lifecycle of the investment vehicle: compliance and issuer wallets are not required while STRUCTURING
+enum ProjectStatus {
+  STRUCTURING // En estructuración: wallets de cumplimiento y del emisor aún sin declarar
+  ACTIVE // Captando
+  FUNDED // Meta de captación alcanzada
+}
+
 enum LegalWrapperType {
   SAS_SPV // SPV Sociedad por Acciones Simplificada
   FIDUCIARY_TRUST // Patrimonio Autónomo / Encargo Fiduciario
@@ -275,28 +282,31 @@ model Organization {
 // ─────────────────────────────────────────────────────────────── 2. identity
 
 model User {
-  id               String    @id @default(cuid())
+  id                     String    @id @default(cuid())
   /// null for RWAXI staff (SUPER_ADMIN / RWAXI_OPERATOR)
-  organizationId   String?   @map("organization_id")
-  email            String    @unique
-  fullName         String    @map("full_name")
-  role             UserRole
-  walletAddress    String?   @map("wallet_address")
-  active           Boolean   @default(true)
+  organizationId         String?   @map("organization_id")
+  email                  String    @unique
+  fullName               String    @map("full_name")
+  role                   UserRole
+  walletAddress          String?   @map("wallet_address")
+  active                 Boolean   @default(true)
   /// scrypt hash `scrypt$N$r$p$salt$hash` (credentials.ts); null until the account has a password
-  passwordHash     String?   @map("password_hash")
+  passwordHash           String?   @map("password_hash")
   /// TOTP secret (RFC 6238) sealed with AES-256-GCM (AUTH_ENCRYPTION_KEY), bound to this user's id
-  totpSecretEnc    String?   @map("totp_secret_enc")
+  totpSecretEnc          String?   @map("totp_secret_enc")
   /// MFA enrolment confirmed with a valid code; until then the next login enrols a new secret
-  mfaEnrolledAt    DateTime? @map("mfa_enrolled_at")
+  mfaEnrolledAt          DateTime? @map("mfa_enrolled_at")
   /// last accepted TOTP time step: a code is never accepted twice
-  totpLastStep     Int?      @map("totp_last_step")
+  totpLastStep           Int?      @map("totp_last_step")
   /// consecutive failed password or TOTP attempts; enough of them lock the account for a while
-  failedLoginCount Int       @default(0) @map("failed_login_count")
-  lockedUntil      DateTime? @map("locked_until")
-  lastLoginAt      DateTime? @map("last_login_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  failedLoginCount       Int       @default(0) @map("failed_login_count")
+  lockedUntil            DateTime? @map("locked_until")
+  lastLoginAt            DateTime? @map("last_login_at")
+  /// platform legal wall: acceptance of RWAXI's liability terms (technology provider, never the issuer)
+  acceptedRwaxiLiability Boolean   @default(false) @map("accepted_rwaxi_liability")
+  rwaxiAcceptanceDate    DateTime? @map("rwaxi_acceptance_date")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
   organization          Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sessions              UserSession[]
@@ -322,6 +332,7 @@ model Offering {
   region               String
   assetType            String           @map("asset_type")
   stage                OfferingStage
+  status               ProjectStatus    @default(STRUCTURING)
   renderKind           String           @map("render_kind") // tower | suites | resort
   legalEntityName      String           @map("legal_entity_name")
   legalWrapperType     LegalWrapperType @map("legal_wrapper_type")
@@ -399,17 +410,20 @@ model TokenDeployment {
 /// Created when the visitor signs the NDA (name + email); identity document and wallet
 /// arrive with the KYC submission, hence optional.
 model Investor {
-  id             String   @id @default(cuid())
-  organizationId String   @map("organization_id")
-  fullName       String   @map("full_name")
-  email          String?
-  docType        String?  @map("doc_type") // CC | CE | PA | NIT
-  docNumber      String?  @map("doc_number")
-  countryCode    Int      @default(170) @map("country_code") // ISO 3166-1 numérico
+  id                String    @id @default(cuid())
+  organizationId    String    @map("organization_id")
+  fullName          String    @map("full_name")
+  email             String?
+  docType           String?   @map("doc_type") // CC | CE | PA | NIT
+  docNumber         String?   @map("doc_number")
+  countryCode       Int       @default(170) @map("country_code") // ISO 3166-1 numérico
   /// EVM wallet declared in the KYC wizard; whitelisted on approval
-  walletAddress  String?  @map("wallet_address")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  walletAddress     String?   @map("wallet_address")
+  /// tenant legal wall: the developer's NDA (the tenant's own, binding document), accepted in its portal
+  tenantNdaAccepted Boolean   @default(false) @map("tenant_nda_accepted")
+  tenantNdaDate     DateTime? @map("tenant_nda_date")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   organization  Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   leads         Lead[]
