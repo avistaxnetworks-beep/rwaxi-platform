@@ -57,7 +57,7 @@ function chromePath() {
  * A valid cookie of the vitrina's legal wall (app/_lib/server/vitrina-access.ts), signed as the server signs it:
  * key = HMAC(INVESTOR_SESSION_SECRET, "rwaxi.vitrina-access.v1"). The suites test the vitrina behind the wall.
  */
-const VITRINA_ACCESS_TERMS_VERSION = "2026-10-30";
+const VITRINA_ACCESS_TERMS_VERSION = "2026-10-31";
 function vitrinaAccessCookie() {
   const key = crypto.createHmac("sha256", webEnv("INVESTOR_SESSION_SECRET")).update("rwaxi.vitrina-access.v1").digest();
   const payload = `v1.${crypto.randomUUID()}.${VITRINA_ACCESS_TERMS_VERSION}.${Date.now()}`;
