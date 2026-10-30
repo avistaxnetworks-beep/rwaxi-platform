@@ -12,7 +12,7 @@ import { vitrinaAccessKey } from "./investor-session";
  */
 export const VITRINA_ACCESS_COOKIE = "rwaxi_vitrina_access";
 /** Version of the accepted text: bump it when the text or the documents it cites change. */
-export const VITRINA_ACCESS_TERMS_VERSION = "2026-10-31";
+export const VITRINA_ACCESS_TERMS_VERSION = "2026-11-01";
 const MAX_AGE_S = 365 * 24 * 3600;
 const ID = /^[0-9a-f-]{36}$/;
 
