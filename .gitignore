@@ -31,3 +31,5 @@ Thumbs.db
 !.vscode/extensions.json
 # copy of CLAUDE.md that editor agents regenerate: CLAUDE.md is the only instructions file
 AGENTS.md
+
+.vercel
