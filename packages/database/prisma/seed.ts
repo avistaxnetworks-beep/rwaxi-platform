@@ -33,8 +33,8 @@ const DAY = 86_400_000;
 
 async function reset() {
   await db.$executeRawUnsafe(`
-    TRUNCATE TABLE "rate_limit_hits", "vault_objects", "user_invitations", "user_sessions", "investor_otps", "mail_outbox", "audit_events", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
-      "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments",
+    TRUNCATE TABLE "rate_limit_hits", "vault_objects", "user_invitations", "user_sessions", "investor_otps", "mail_outbox", "audit_events", "distribution_payouts", "distribution_payout_batches", "distribution_allocations", "distributions", "fee_ledger_entries", "fee_invoices", "chain_transactions", "subscriptions", "data_room_access_grants",
+      "data_room_documents", "kyc_cases", "nda_acceptances", "leads", "investors", "token_deployments", "commercial_agreements",
       "offerings", "users", "organizations" CASCADE`);
   // The database starts over, so do the local vault's files (a cloud bucket is never wiped from here).
   if (vault instanceof LocalDiskStore) {
@@ -68,7 +68,7 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       complianceRegistry: demoAddress(`registry-${orgId}`),
       feeSetupUsd: dev.fees.setup,
       feeMonthlyUsd: dev.fees.monthly,
-      feeUsagePct: dev.fees.usagePct,
+      platformFeeBps: dev.fees.platformFeeBps,
       onboardedAt: new Date(dev.onboardedAt),
     },
   });
@@ -105,6 +105,22 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
   for (const f of files) {
     await vault.put(f.storageKey, f.bytes, { sizeBytes: f.bytes.byteLength, mimeType: MIME.pdf, sha256: f.sha256.slice(2) });
   }
+
+  // 9b · The commercial agreement signed with RWAXI (illustrative PDF in the tenant's vault): the platform fee of
+  // the organization and of its token come from it (Super-Admin, module A).
+  const agreementBytes = samplePdf([
+    `Acuerdo comercial RWAXI - ${dev.displayName}`,
+    dev.legalName,
+    `Comision de plataforma pactada: ${dev.fees.platformFeeBps} puntos basicos (${(dev.fees.platformFeeBps / 100).toFixed(2)} %)`,
+    "Documento ilustrativo de demostracion: no constituye contrato.",
+  ]);
+  const agreementSha256 = sha256Document(agreementBytes);
+  const agreementKey = objectKey({ organizationId: orgId }, agreementSha256);
+  await vault.put(agreementKey, agreementBytes, {
+    sizeBytes: agreementBytes.byteLength,
+    mimeType: MIME.pdf,
+    sha256: agreementSha256.slice(2),
+  });
   const documents = files.map((f) => ({
     organizationId: orgId,
     offeringId: o.id,
@@ -129,6 +145,8 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       region: o.region,
       assetType: o.assetType,
       stage: o.stage,
+      // the demo offerings raise capital (subscriptions, payments, distributions and their E2E suites)
+      status: "ACTIVE",
       renderKind: o.renderKind,
       legalEntityName: o.legalEntityName,
       legalWrapperType: o.legalWrapperType,
@@ -152,15 +170,32 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
     },
   });
   await db.vaultObject.createMany({
-    data: files.map((f) => ({
-      organizationId: orgId,
-      sha256: f.sha256,
-      sizeBytes: f.bytes.byteLength,
-      mimeType: MIME.pdf,
-      storageKey: f.storageKey,
-    })),
+    data: [
+      ...files.map((f) => ({
+        organizationId: orgId,
+        sha256: f.sha256,
+        sizeBytes: f.bytes.byteLength,
+        mimeType: MIME.pdf,
+        storageKey: f.storageKey,
+      })),
+      { organizationId: orgId, sha256: agreementSha256, sizeBytes: agreementBytes.byteLength, mimeType: MIME.pdf, storageKey: agreementKey },
+    ],
   });
   await db.dataRoomDocument.createMany({ data: documents });
+  await db.commercialAgreement.create({
+    data: {
+      organizationId: orgId,
+      reference: `RWX-COM-${dev.onboardedAt.slice(0, 4)}-${o.code.replace(/\D/g, "").padStart(3, "0")}`,
+      signedOn: new Date(dev.onboardedAt),
+      platformFeeBps: dev.fees.platformFeeBps,
+      sha256: agreementSha256,
+      sizeBytes: agreementBytes.byteLength,
+      fileName: `acuerdo-comercial-${dev.slug}.pdf`,
+      storageKey: agreementKey,
+      recordedByEmail: "direccion@rwaxi.com",
+      createdAt: new Date(dev.onboardedAt),
+    },
+  });
 
   // 4 · Token deployment
   const tokenAddress = o.token.deployed ? demoAddress(`token-${o.id}`) : null;
@@ -176,6 +211,8 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       onchainId: toOnchainId(o.id),
       contractAddress: tokenAddress,
       deployTxHash: o.token.deployed ? demoHash(`deploy-${o.id}`) : null,
+      // the fee the factory writes into the token when it is deployed (RwaxiPropertyToken.platformFeeBps)
+      platformFeeBps: o.token.deployed ? dev.fees.platformFeeBps : null,
       status: o.token.deployed ? "DEPLOYED" : "NOT_DEPLOYED",
       deployedAt: o.token.deployed ? new Date("2025-10-01") : null,
     },
@@ -206,8 +243,8 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
       network: o.network,
       kind: "OFFERING_TOKEN_DEPLOYED",
       contractAddress: demoAddress("factory"),
-      method: "deployOfferingToken(bytes32,bytes32,(string,string,string,string,uint256,bytes32),address,address)",
-      args: { symbol: o.token.symbol, token: tokenAddress, dataRoomMerkleRoot: dataRoomRoot },
+      method: "deployOfferingToken(bytes32,bytes32,(string,string,string,string,uint256,bytes32,uint16),address,address)",
+      args: { symbol: o.token.symbol, token: tokenAddress, dataRoomMerkleRoot: dataRoomRoot, platformFeeBps: dev.fees.platformFeeBps },
       txHash: demoHash(`deploy-${o.id}`),
       status: "CONFIRMED",
       createdAt: new Date("2025-10-01"),
@@ -251,6 +288,8 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
         acceptedAt: landedAt,
       },
     });
+    // the tenant half of the double legal wall, as signNda() records it
+    await db.investor.update({ where: { id: investor.id }, data: { tenantNdaAccepted: true, tenantNdaDate: landedAt } });
     const approved = lead.kyc === "APPROVED";
     const kyc = await db.kycCase.create({
       data: {
@@ -305,6 +344,9 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
           units,
           capitalUsd: lead.subscriptionUsd,
           status: tokenAddress ? "MINTED" : "RESERVED",
+          // the platform fee linked to the subscription (B2B, paid by the developer), as subscribe() records it
+          platformFeeBps: dev.fees.platformFeeBps,
+          platformFeeUsd: (lead.subscriptionUsd * dev.fees.platformFeeBps) / 10_000,
           paymentEvidenceRef: tokenAddress ? demoHash(`pay-${orgId}-${i}`) : null,
           mintTxHash: tokenAddress ? demoHash(`mint-${orgId}-${i}`) : null,
         },
@@ -332,8 +374,9 @@ async function seedDeveloper(dev: (typeof DEVELOPERS)[number]) {
           organizationId: orgId,
           subscriptionId: sub.id,
           kind: "INFRASTRUCTURE_USAGE",
-          amountUsd: (lead.subscriptionUsd * dev.fees.usagePct) / 100,
+          amountUsd: (lead.subscriptionUsd * dev.fees.platformFeeBps) / 10_000,
           baseUsd: lead.subscriptionUsd,
+          platformFeeBps: dev.fees.platformFeeBps,
           accruedOn: landedAt,
           evidence: sub.mintTxHash!,
           status: "INVOICED",

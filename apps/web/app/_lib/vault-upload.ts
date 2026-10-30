@@ -4,7 +4,7 @@
 // functions; with the local vault they are posted to /api/vault/upload.
 import { sha256Bytes } from "./sha256";
 
-export type VaultUploadPurpose = "kyc" | "onboarding" | "data-room";
+export type VaultUploadPurpose = "kyc" | "onboarding" | "data-room" | "distribution";
 
 export type VaultUploadResult =
   | {

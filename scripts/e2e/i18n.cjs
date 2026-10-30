@@ -3,9 +3,10 @@
 // keep-all and strict CJK line breaking): the commercial page — three anchors in the header, «Cómo Invertir»,
 // «Inversión Supercargada» with its comparison, the B2B links to rwaxi.com and the legal disclosure — translated,
 // and in every language, at 1360 px and on a 390 px phone, no text wider than its box, no horizontal page scroll and
-// nothing overlapping in the header. White Label portal and
-// backoffice in ES | EN | PT (cookie rwaxi_portal_lang shared by both), server messages and the On-Chain queue
-// blockers rendered in the visitor's language, and Spanish untouched by default.
+// nothing overlapping in the header. White Label portal in the same 10 languages (cookie rwaxi_portal_lang,
+// inherited from the vitrina with ?lang=, dir="rtl" in Arabic) and the backoffice restricted to ES | EN | PT (its own
+// cookie rwaxi_backoffice_lang: the investor's language never reaches the internal panel), server messages and the
+// On-Chain queue blockers rendered in the language of whoever called, and Spanish untouched by default.
 const fs = require("fs");
 const path = require("path");
 const {
@@ -267,6 +268,15 @@ function checkCards(lang, snap, offerings) {
 }
 
 // ── tenant helpers ──────────────────────────────────────────────────────────
+/** Portal header: the menu of the 10 public languages. */
+async function choosePortalLanguage(page, lang) {
+  await page.waitForSelector("[data-lang-menu] > button", { timeout: 120000 });
+  await page.click("[data-lang-menu] > button");
+  await page.waitForSelector(`[data-lang-option="${lang}"]`, { timeout: 30000 });
+  await page.click(`[data-lang-option="${lang}"]`);
+  await page.waitForSelector(`[data-lang-menu="${lang}"]`, { timeout: 60000 });
+}
+/** Backoffice header: ES | EN | PT. */
 async function chooseTenantLanguage(page, lang) {
   await page.waitForSelector("[data-lang-toggle]", { timeout: 120000 });
   await page.click(`[data-lang-toggle] [data-lang-option="${lang}"]`);
@@ -590,26 +600,27 @@ const videoOverlaps = (page) =>
     );
     await ctxV.close();
 
-    // ── B · portal: ES | EN | PT and a server message in English ────────────
+    // ── B · portal: the 10 languages, inherited from the vitrina, server messages in them ────────────
     const ctxP = await browser.createBrowserContext();
     const p = await ctxP.newPage();
     p.on("pageerror", (e) => console.log("PAGEERROR(portal)", e.message));
     await p.goto(url("avista"), { waitUntil: "domcontentloaded", timeout: 180000 });
     await waitText(p, "Firmar NDA con un clic", 180000);
-    const toggle = await p.$$eval("[data-lang-toggle] [data-lang-option]", (bs) =>
-      bs.map((b) => b.textContent.trim()),
-    );
+    await p.click("[data-lang-menu] > button");
+    await p.waitForSelector("[data-lang-option]", { timeout: 30000 });
+    const menu = await p.$$eval("[data-lang-option]", (bs) => bs.map((b) => b.dataset.langOption));
+    await p.keyboard.press("Escape");
     ok(
-      "portal: selector ES | EN | PT, español por defecto",
-      toggle.join("|") === "ES|EN|PT" && !!(await p.$('[data-lang-toggle="es"]')),
-      toggle.join("|"),
+      "portal: menú con los 10 idiomas de la plataforma, español por defecto",
+      menu.join("|") === VITRINA.join("|") && !!(await p.$('[data-lang-menu="es"]')),
+      menu.join("|"),
     );
     ok(
       "la cookie de la vitrina no se comparte con el portal",
       !(await cookie(p, "avista", "rwaxi_vitrina_lang")),
     );
 
-    await chooseTenantLanguage(p, "en");
+    await choosePortalLanguage(p, "en");
     await waitText(p, tr("en", "Firmar NDA con un clic"), 30000);
     // The funnel in its order — NDA, Data Room, KYC, subscription — with its steps in English (avista: SAGRILAFT + PTEE).
     const funnel = await p.$$eval('[id^="funnel-"]', (bs) => bs.map((b) => b.textContent));
@@ -650,10 +661,41 @@ const videoOverlaps = (page) =>
     );
     ok("error del servidor (signNda) en inglés", true, conflict.slice(0, 60));
 
-    await chooseTenantLanguage(p, "pt");
+    // A language beyond es · en · pt: the funnel and the server's answer are native, not English or Spanish.
+    await choosePortalLanguage(p, "fr");
+    await waitText(p, tr("fr", "Firmar NDA con un clic"), 30000);
+    await clickText(p, tr("fr", "Firmar NDA con un clic"));
+    const conflictFr = tr(
+      "fr",
+      "Este correo ya tiene un proceso de inversión en este portal. Para continuar en este navegador, usa «Recuperar mi sesión»: te enviaremos un código a ese correo.",
+    );
+    await p.waitForFunction(
+      (t) => [...document.querySelectorAll('[role="alert"]')].some((n) => n.textContent.includes(t)),
+      { timeout: 60000 },
+      conflictFr,
+    );
+    ok(
+      "portal en francés: embudo y error del servidor (signNda) en francés nativo",
+      conflictFr !== conflict && (await p.evaluate(() => document.documentElement.lang)) === "fr",
+      conflictFr.slice(0, 60),
+    );
+
+    // Arabic: right to left, Latin figures, the Inspector-only texts aside.
+    await choosePortalLanguage(p, "ar");
+    await waitText(p, tr("ar", "Firmar NDA con un clic"), 30000);
+    const arFrame = await p.$eval('[data-env="portal"]', (n) => ({ lang: n.getAttribute("lang"), dir: n.getAttribute("dir") }));
+    const arScroll = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    ok(
+      "portal en árabe: dir=rtl, lang ar y sin scroll horizontal",
+      arFrame.lang === "ar" && arFrame.dir === "rtl" && arScroll <= 1,
+      `${JSON.stringify(arFrame)} · scroll ${arScroll}px`,
+    );
+    await shot(p, "i18n-portal-ar");
+
+    await choosePortalLanguage(p, "pt");
     await waitText(p, tr("pt", "Firmar NDA con un clic"), 30000);
     await p.reload({ waitUntil: "domcontentloaded", timeout: 180000 });
-    await p.waitForSelector('[data-lang-toggle="pt"]', { timeout: 180000 });
+    await p.waitForSelector('[data-lang-menu="pt"]', { timeout: 180000 });
     ok(
       "portal: el portugués persiste tras recargar",
       await p.evaluate((t) => document.body.innerText.includes(t), tr("pt", "Firmar NDA con un clic")),
@@ -662,7 +704,7 @@ const videoOverlaps = (page) =>
     // Pitch video on a phone (390 px): badge, title, play button, subtitles and controls never overlap.
     await p.setViewport({ width: 390, height: 900 });
     for (const lang of ["pt", "es"]) {
-      if (lang !== "pt") await chooseTenantLanguage(p, lang);
+      if (lang !== "pt") await choosePortalLanguage(p, lang);
       await p.reload({ waitUntil: "domcontentloaded", timeout: 180000 });
       await p.waitForSelector(".vp-box button.vp-play", { timeout: 180000 });
       const paused = await videoOverlaps(p);
@@ -681,6 +723,53 @@ const videoOverlaps = (page) =>
     }
     await p.setViewport({ width: 1360, height: 1000 });
     await ctxP.close();
+
+    // The vitrina hands its language to the portal it opens: ?lang= is stored on the portal host and dropped.
+    const ctxH = await browser.createBrowserContext();
+    const h = await ctxH.newPage();
+    h.on("pageerror", (e) => console.log("PAGEERROR(hand-off)", e.message));
+    await h.goto(url("avista", "/?lang=ja"), { waitUntil: "domcontentloaded", timeout: 180000 });
+    await waitText(h, tr("ja", "Firmar NDA con un clic"), 180000);
+    const jaCookie = await cookie(h, "avista", "rwaxi_portal_lang");
+    ok(
+      "herencia desde la vitrina: ?lang=ja abre el portal en japonés, lo guarda en rwaxi_portal_lang y lo quita de la URL",
+      jaCookie?.value === "ja" &&
+        !new URL(h.url()).searchParams.has("lang") &&
+        (await h.evaluate(() => document.documentElement.lang)) === "ja" &&
+        !!(await h.$('[data-lang-menu="ja"]')),
+      h.url(),
+    );
+    await h.goto(url("avista", "/?lang=xx"), { waitUntil: "domcontentloaded", timeout: 180000 });
+    await h.waitForSelector('[data-lang-menu="ja"]', { timeout: 180000 });
+    ok("un ?lang= desconocido no cambia nada (y también se quita)", !new URL(h.url()).searchParams.has("lang"));
+
+    // The internal panel stays in es · en · pt: the investor's Japanese never reaches it.
+    await h.goto(url("avista", "/backoffice"), { waitUntil: "domcontentloaded", timeout: 180000 });
+    await h.waitForSelector("[data-lang-toggle]", { timeout: 180000 });
+    const boOptions = await h.$$eval("[data-lang-toggle] [data-lang-option]", (bs) => bs.map((b) => b.textContent.trim()));
+    ok(
+      "backoffice: solo ES | EN | PT, en español aunque el portal del mismo navegador esté en japonés",
+      boOptions.join("|") === "ES|EN|PT" &&
+        !!(await h.$('[data-lang-toggle="es"]')) &&
+        !(await h.$("[data-lang-menu]")) &&
+        (await h.evaluate(() => document.documentElement.lang)) === "es-CO",
+      boOptions.join("|"),
+    );
+    const forcedJa = await h.evaluate(() => {
+      document.cookie = "rwaxi_backoffice_lang=ja; Path=/";
+      return true;
+    });
+    await h.reload({ waitUntil: "domcontentloaded", timeout: 180000 });
+    await h.waitForSelector("[data-lang-toggle]", { timeout: 180000 });
+    ok("backoffice: una cookie con otro idioma (ja) cae al español", forcedJa && !!(await h.$('[data-lang-toggle="es"]')));
+    await chooseTenantLanguage(h, "pt");
+    await h.goto(url("avista"), { waitUntil: "domcontentloaded", timeout: 180000 });
+    await h.waitForSelector('[data-lang-menu="ja"]', { timeout: 180000 });
+    ok(
+      "cada superficie con su cookie: backoffice en pt (rwaxi_backoffice_lang) y el portal sigue en japonés",
+      (await cookie(h, "avista", "rwaxi_backoffice_lang"))?.value === "pt" && (await cookie(h, "avista", "rwaxi_portal_lang"))?.value === "ja",
+    );
+    await ctxH.close();
 
     // ── C · backoffice + On-Chain queue: blockers and notes in EN and PT ────
     // The investor journey runs in Spanish (the default) with the shared helpers.
@@ -792,10 +881,15 @@ const videoOverlaps = (page) =>
       await off.keyboard.press("Escape");
     }
 
-    // One cookie per host: the portal of the same browser opens in the backoffice's language.
+    // One cookie per surface: the portal of the same browser keeps its own language (Spanish, never chosen there).
     await off.goto(url("avista"), { waitUntil: "domcontentloaded", timeout: 180000 });
-    await off.waitForSelector('[data-lang-toggle="pt"]', { timeout: 180000 });
-    ok("portal y backoffice comparten rwaxi_portal_lang (pt)", true);
+    await off.waitForSelector('[data-lang-menu="es"]', { timeout: 180000 });
+    ok(
+      "el portal no hereda el idioma del backoffice (pt): rwaxi_backoffice_lang y rwaxi_portal_lang son independientes",
+      (await cookie(off, "avista", "rwaxi_backoffice_lang"))?.value === "pt" && !(await cookie(off, "avista", "rwaxi_portal_lang")),
+    );
+    // back in the backoffice (still in pt): Spanish again, then the tab by its Spanish label
+    await off.goto(url("avista", "/backoffice"), { waitUntil: "domcontentloaded", timeout: 180000 });
     await chooseTenantLanguage(off, "es");
     await openBackofficeTab(off, "avista", "Suscripciones y Pagos");
     const back = await apiQueue(off);
@@ -805,7 +899,7 @@ const videoOverlaps = (page) =>
     );
     ok(
       "el idioma del inversionista no cambia por el del backoffice",
-      !!(await inv.$('[data-lang-toggle="es"]')),
+      !!(await inv.$('[data-lang-menu="es"]')),
     );
   } catch (e) {
     fail(e);

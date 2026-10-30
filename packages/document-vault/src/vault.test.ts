@@ -115,3 +115,11 @@ test("sample PDFs are valid, deterministic and ASCII-safe", () => {
   assert.match(text, /startxref\n\d+\n%%EOF\n$/);
   assert.ok([...a].every((byte) => byte < 0x80));
 });
+
+test("supporting documents (evidence): a PDF or a scan up to 10 MB, never a spreadsheet", () => {
+  const pdf = samplePdf(["Certificación fiduciaria · distribución 2026-Q3"]);
+  assert.equal(inspectUpload(pdf, { type: MIME.pdf, sha256: sha256Hex(pdf) }, POLICIES.evidence).ok, true);
+  assert.equal(inspectUpload(PNG, { type: MIME.png, sha256: sha256Hex(PNG) }, POLICIES.evidence).ok, true);
+  assert.equal(inspectUpload(ZIP, { type: MIME.xlsx, sha256: sha256Hex(ZIP) }, POLICIES.evidence).ok, false);
+  assert.equal(POLICIES.evidence.maxBytes, 10 * 1024 * 1024);
+});

@@ -21,7 +21,10 @@ export interface VaultAccess {
   actor: { id: string | null; email: string };
   entityType: string;
   entityId: string;
-  action: Extract<AuditAction, "KYC_DOCUMENT_VIEWED" | "DATA_ROOM_DOCUMENT_DOWNLOADED">;
+  action: Extract<
+    AuditAction,
+    "KYC_DOCUMENT_VIEWED" | "DATA_ROOM_DOCUMENT_DOWNLOADED" | "COMMERCIAL_AGREEMENT_DOWNLOADED" | "DISTRIBUTION_SUPPORT_DOWNLOADED"
+  >;
   file: { name: string; mimeType: string; sha256: string; storageKey: string };
   payload: Record<string, unknown>;
   download: boolean;

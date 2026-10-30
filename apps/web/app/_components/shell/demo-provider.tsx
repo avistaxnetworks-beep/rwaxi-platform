@@ -99,7 +99,10 @@ export function DemoProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const { tr } = useI18n();
+  const { tr, locale, scope } = useI18n();
+  // The vitrina hands its language to the portal it opens (?lang=, stored by the middleware on the portal host).
+  const withLang = (search: string) =>
+    scope === "vitrina" ? `${search}${search ? "&" : "?"}lang=${locale}` : search;
   const [boot] = useState(() => {
     if (dbTenant) registerDbTenant(dbTenant);
     const T: Record<string, Tenant> = initTenants();
@@ -172,7 +175,7 @@ export function DemoProvider({
     const setJourney = (u: Updater<Journey>) => setJourneys((prev) => ({ ...prev, [tenantId]: u(prev[tenantId]) }));
 
     const navigate = (env: EnvId, id: string = tenantId, search = "") => {
-      const url = new URL(envHref(env, tenants[id].slug, search));
+      const url = new URL(envHref(env, tenants[id].slug, env === "portal" ? withLang(search) : search));
       if (url.origin === window.location.origin) {
         if (id !== tenantId) setTenantId(id);
         router.push(url.pathname + url.search);
@@ -189,7 +192,7 @@ export function DemoProvider({
       setTimeout(() => {
         setLeadOverlay(null);
         // vitrina → tenant portal is always a different host: full navigation.
-        window.location.assign(envHref("portal", target.slug, `?ref=${encodeURIComponent(referral.token)}`));
+        window.location.assign(envHref("portal", target.slug, withLang(`?ref=${encodeURIComponent(referral.token)}`)));
       }, 1900);
     };
 

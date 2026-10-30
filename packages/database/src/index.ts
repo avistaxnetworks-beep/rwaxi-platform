@@ -11,10 +11,12 @@ export {
 export { resolveTenant, type ResolvedTenant } from "./tenant";
 export {
   listPublicOfferings,
+  recordVitrinaAccess,
   offeringTranslations,
   type OfferingCopy,
   type OfferingTranslations,
   type PublicOffering,
+  type VitrinaAccessInput,
 } from "./public";
 export { isUniqueViolation } from "./errors";
 export {

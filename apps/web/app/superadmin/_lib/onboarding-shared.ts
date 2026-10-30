@@ -138,5 +138,6 @@ export interface OnboardingInput {
     tokenSymbol: string;
   };
   documents: OnboardingDocument[];
-  fees: { setupUsd: string; monthlyUsd: string; usagePct: string };
+  /** setup and SaaS in USD; the platform fee in basis points (25–500) */
+  fees: { setupUsd: string; monthlyUsd: string; platformFeeBps: string };
 }

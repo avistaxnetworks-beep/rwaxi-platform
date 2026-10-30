@@ -50,7 +50,6 @@ const catalog: Catalog = {
     one: "{n} of 4 images is an uploaded photo.",
     other: "{n} of 4 images are uploaded photos.",
   },
-  "{n} distribución(es)": { one: "{n} distribution", other: "{n} distributions" },
   "{n} documento(s) cargados · SHA-256 calculado · Merkle Root actualizado": {
     one: "{n} document uploaded · SHA-256 computed · Merkle Root updated",
     other: "{n} documents uploaded · SHA-256 computed · Merkle Root updated",
@@ -451,12 +450,6 @@ const catalog: Catalog = {
     one: "Distribution {period} · {total} USD to {holders} holder · anchorDistributionRoot queued",
     other: "Distribution {period} · {total} USD among {holders} holders · anchorDistributionRoot queued",
   },
-  "Distribución {period} declarada · {amount} USD entre {holders} tenedor(es) · anchorDistributionRoot() en cola":
-    {
-      one: "Distribution {period} declared · {amount} USD to {holders} holder · anchorDistributionRoot() queued",
-      other:
-        "Distribution {period} declared · {amount} USD among {holders} holders · anchorDistributionRoot() queued",
-    },
   "Distribución anual est.": "Est. annual distribution",
   "Distribución Anual Est.": "Est. Annual Distribution",
   "Distribución declarada": "Distribution declared",
@@ -466,7 +459,6 @@ const catalog: Catalog = {
   "Distribuciones de rendimientos": "Yield distributions",
   "Distribuciones declaradas": "Declared distributions",
   "Distribuciones y Rendimientos": "Distributions & Yields",
-  "Distribuido declarado": "Total declared",
   "DISTRIBUTION_ROLE · emisor (desarrollador)": "DISTRIBUTION_ROLE · issuer (developer)",
   Documento: "Document",
   "Documento agregado al Data Room": "Document added to the Data Room",
@@ -784,8 +776,6 @@ const catalog: Catalog = {
   "Imagen de portada (thumbnail)": "Cover image (thumbnail)",
   "Imágenes de referencia generadas para este prototipo. Carga las fotografías del Data Room para reemplazarlas.":
     "Reference images generated for this prototype. Upload the Data Room photos to replace them.",
-  "Indica el monto: el cálculo prorrata se muestra antes de declarar y el servidor lo recalcula sobre el snapshot de PostgreSQL.":
-    "Enter the amount: the pro rata calculation is shown before declaring, and the server recalculates it on the PostgreSQL snapshot.",
   "Información de identidad u origen de fondos desvirtuada o sin actualizar tras el requerimiento.":
     "Identity or source-of-funds information disproved, or not updated after the request.",
   "Informe del comité de inversiones": "Investment committee report",
@@ -886,8 +876,6 @@ const catalog: Catalog = {
     "The signing time is not valid; reload the page and try again.",
   "La información de esta vitrina es referencial: no constituye oferta pública de valores ni recomendación o asesoría financiera, legal o tributaria. Los documentos vinculantes de cada proyecto están en el portal de su emisor: el Data Room se abre con la firma del NDA y la suscripción exige, además, la verificación KYC.":
     "The information on this showcase is for reference only: it does not constitute a public offering of securities or any financial, legal or tax recommendation or advice. The binding documents of each project are on its issuer's portal: the Data Room opens once the NDA is signed, and subscribing also requires KYC verification.",
-  "La oferta no tiene tokens emitidos (MINTED) en wallets de inversionistas.":
-    "The offering has no minted tokens (MINTED) in investor wallets.",
   "La pantalla completa no está disponible en esta vista": "Full screen is not available in this view",
   "La raíz de esta distribución ya está anclada.": "This distribution's root is already anchored.",
   "La red {network} no conoce la transacción {hash}: revisa que tu wallet la haya enviado a {chain}.":
@@ -995,12 +983,8 @@ const catalog: Catalog = {
   "Modo RPC: no hay contrato desplegado en esa dirección de la red configurada.":
     "RPC mode: no contract is deployed at that address on the configured network.",
   Moneda: "Currency",
-  "Moneda declarada": "Declared currency",
-  "Moneda: USD o COP.": "Currency: USD or COP.",
   Monto: "Amount",
   "Monto a suscribir": "Amount to subscribe",
-  "Monto en COP": "Amount in COP",
-  "Monto en USD": "Amount in USD",
   "Monto total ({currency})": "Total amount ({currency})",
   "Motivo de rechazo inválido.": "Invalid rejection reason.",
   "Motivo de revocación inválido.": "Invalid revocation reason.",
@@ -1017,8 +1001,6 @@ const catalog: Catalog = {
   "NDA firmado con {name}": "NDA signed with {name}",
   "NDA firmados": "NDA signatures",
   "Negocios Inmobiliarios.": "Real Estate Ventures.",
-  "Ninguna oferta de este tenant tiene su token emitido todavía: las distribuciones se calculan sobre los tokens MINTED en wallets de inversionistas.":
-    "None of this tenant's offerings has issued its token yet: distributions are calculated on MINTED tokens in investor wallets.",
   "Ninguna oferta tiene su token desplegado todavía.": "No offering has its token deployed yet.",
   "NIT del desarrollador": "Developer's NIT",
   No: "No",
@@ -1051,8 +1033,6 @@ const catalog: Catalog = {
     "The recovery could not be completed. Please try again.",
   "No se pudo conciliar el pago. Inténtalo de nuevo.": "Could not reconcile the payment. Please try again.",
   "No se pudo contactar el servidor.": "Could not reach the server.",
-  "No se pudo declarar la distribución. Inténtalo de nuevo.":
-    "Could not declare the distribution. Please try again.",
   "No se pudo determinar la dirección del registro desplegado.":
     "Could not determine the address of the deployed registry.",
   "No se pudo ejecutar la transacción. Inténtalo de nuevo.":
@@ -1287,7 +1267,6 @@ const catalog: Catalog = {
   "Quiero invertir en este proyecto — Suscribir unidades": "I want to invest in this project — Subscribe for units",
   Quitar: "Remove",
   "Quitar {name}": "Remove {name}",
-  "Raíces ancladas": "Roots anchored",
   "Raíz anclada": "Root anchored",
   "Raíz anclada · tx {hash} · {mode}": "Root anchored · tx {hash} · {mode}",
   "Raíz en cola": "Root queued",
@@ -1444,12 +1423,6 @@ const catalog: Catalog = {
   },
   "Se desbloquea al firmar el NDA": "Unlocks when you sign the NDA",
   "Se habilita con tu KYC aprobado": "Enabled once your KYC is approved",
-  "Se repartirán {amount} entre {holders} tenedor(es) en proporción a sus tokens (centavos exactos, método del mayor residuo). Cada asignación será una hoja del árbol de Merkle (SHA-256) y la raíz se anclará con anchorDistributionRoot().":
-    {
-      one: "{amount} will be distributed to {holders} holder in proportion to their tokens (exact cents, largest remainder method). Each allocation will be a leaf of the Merkle tree (SHA-256) and the root will be anchored with anchorDistributionRoot().",
-      other:
-        "{amount} will be distributed among {holders} holders in proportion to their tokens (exact cents, largest remainder method). Each allocation will be a leaf of the Merkle tree (SHA-256) and the root will be anchored with anchorDistributionRoot().",
-    },
   "Según tu wallet, la cuenta {account} no tiene {role} en el contrato {contract}: no se pidió ninguna firma.":
     "According to your wallet, account {account} does not hold {role} on contract {contract}: no signature was requested.",
   "Seguridad Jurídica": "Legal Certainty",
@@ -1517,7 +1490,6 @@ const catalog: Catalog = {
   "Sin emitir": "Not issued",
   "sin iniciar": "not started yet",
   "Sin oferta pública no autorizada ni asesoría financiera": "No unauthorized public offering or financial advice",
-  "Sin tokens MINTED en wallets de inversionistas.": "No MINTED tokens in investor wallets.",
   "Sin transacciones para este tenant.": "No transactions for this tenant.",
   "Sin tu nombre, tu correo, el nombre de la empresa ni «rwaxi»":
     "Without your name, your email, the company name or «rwaxi»",
@@ -1529,7 +1501,6 @@ const catalog: Catalog = {
     one: "synced with the Data Room ({n} document)",
     other: "synced with the Data Room ({n} documents)",
   },
-  "Snapshot de tenedores · {n} tokens MINTED": "Holder snapshot · {n} MINTED tokens",
   "Solicitud de {name} rechazada con motivo": "Application from {name} rejected with reason",
   "Solicitud inválida.": "Invalid request.",
   "Solo el ISSUER_ADMIN_ROLE o el COMPLIANCE_OFFICER_ROLE de {name} pueden pausar el token. RWAXI no tiene esta facultad.":
@@ -1575,7 +1546,6 @@ const catalog: Catalog = {
   "Teaser financiero del proyecto": "Project financial teaser",
   Tecnología: "Technology",
   "Tenant admin": "Tenant admin",
-  "Tenedores (MINTED)": "Holders (MINTED)",
   "Tenedores de {code}": "{code} holders",
   "Tenedores de la oferta": "Offering holders",
   "Términos de Coinversión": "Co-investment Terms",
@@ -1796,8 +1766,6 @@ const catalog: Catalog = {
     "You now have access to 100% of the project's Data Room (Step 2). When you decide to invest, complete your KYC/AML verification with the developer's Compliance Officer (Step 3).",
   "YouTube (no listado)": "YouTube (unlisted)",
   "Zona Común": "Common Area",
-  "Cada raíz de distribución la ancla el emisor (DISTRIBUTION_ROLE) una sola vez y nunca vacía (DistributionAlreadyAnchored, EmptyDistributionRoot).":
-    "Each distribution root is anchored by the issuer (DISTRIBUTION_ROLE) exactly once and never empty (DistributionAlreadyAnchored, EmptyDistributionRoot).",
   "Cada suscripción se acuña una sola vez y nunca por encima del tope de emisión (SubscriptionAlreadyProcessed, SupplyCapExceeded).":
     "Each subscription is minted exactly once and never beyond the supply cap (SubscriptionAlreadyProcessed, SupplyCapExceeded).",
   "Código fuente": "Source code",
@@ -1830,6 +1798,344 @@ const catalog: Catalog = {
     "A token is only deployed on its own tenant's registry (UnknownTenant), isolated from other developers.",
   "Una wallet congelada no puede transferir; únicamente la recuperación forzosa omite ese bloqueo.":
     "A frozen wallet cannot transfer; only forced recovery bypasses that block.",
+  // offering lifecycle, the vitrina's legal wall and the deferred tenant registry
+  "Captación completada": "Capital raising completed",
+  "El ingreso sólo se registra desde la vitrina.": "Access can only be recorded from the showcase.",
+  "Escribe un correo electrónico válido.": "Enter a valid email address.",
+  "Demasiados intentos desde esta red: espera {minutes} min y vuelve a intentarlo.": "Too many attempts from this network: wait {minutes} min and try again.",
+  "No se pudo registrar tu ingreso. Inténtalo de nuevo.": "Your access could not be recorded. Please try again.",
+  "Este proyecto está en estructuración: la captación abrirá próximamente.": "This project is being structured: capital raising will open soon.",
+  "Comunidad privada de inversionistas": "Private investor community",
+  "La vitrina RWAXI reúne oportunidades de coinversión inmobiliaria de desarrolladores independientes. Para ver los proyectos, identifícate con tu correo y acepta las condiciones de ingreso.": "The RWAXI showcase brings together real estate co-investment opportunities from independent developers. To see the projects, identify yourself with your email and accept the entry conditions.",
+  "Ingresar a la vitrina": "Enter the showcase",
+  "RWAXI actúa como canal de descubrimiento y proveedor tecnológico: no custodia recursos ni realiza ofertas públicas. Cada oferta es responsabilidad de su desarrollador.": "RWAXI acts as a discovery channel and technology provider: it does not hold funds or make public offerings. Each offering is the responsibility of its developer.",
+  "PROYECTO EN ESTRUCTURACIÓN - PRÓXIMAMENTE": "PROJECT IN STRUCTURING - COMING SOON",
+  "Próximamente: captación aún no abierta": "Coming soon: capital raising not open yet",
+  "Este proyecto está en estructuración: todavía no recibe suscripciones.": "This project is being structured: it does not take subscriptions yet.",
+  "Este proyecto completó su captación: ya no recibe nuevas suscripciones.": "This project completed its capital raising: it no longer takes new subscriptions.",
+  "Estado de la oferta inválido.": "Invalid offering status.",
+  "El motivo admite hasta 300 caracteres.": "The reason may be up to 300 characters long.",
+  "La oferta ya está en ese estado; recarga la mesa.": "The offering is already in that status; reload the desk.",
+  "Ese cambio de estado no está permitido.": "That status change is not allowed.",
+  "Cerrar la captación exige un motivo de 10 a 300 caracteres.": "Closing capital raising requires a reason of 10 to 300 characters.",
+  "Otro usuario cambió el estado de la oferta; recarga la mesa.": "Another user changed the offering's status; reload the desk.",
+  "{code}: captación abierta (ACTIVE)": "{code}: capital raising open (ACTIVE)",
+  "{code}: captación completada (FUNDED)": "{code}: capital raising completed (FUNDED)",
+  "{code}: de vuelta a estructuración (STRUCTURING)": "{code}: back to structuring (STRUCTURING)",
+  "No se pudo cambiar el estado de la oferta. Inténtalo de nuevo.": "The offering's status could not be changed. Please try again.",
+  "Estado de captación de la oferta": "Offering capital-raising status",
+  "Gobierno RWAXI · wallets declaradas y registro en cola": "RWAXI governance · wallets declared and registry queued",
+  "En estructuración · próximamente": "Structuring · coming soon",
+  "Captación abierta": "Capital raising open",
+  "Abrir captación": "Open capital raising",
+  "Marcar captación completada": "Mark capital raising completed",
+  "Volver a estructuración": "Back to structuring",
+  "Reabrir captación": "Reopen capital raising",
+  "Estado de captación": "Capital-raising status",
+  "Sólo una oferta con la captación abierta (ACTIVE) recibe suscripciones. En estructuración, la vitrina la muestra como «próximamente» y el portal no permite suscribir; las suscripciones ya firmadas siguen su curso.": "Only an offering with capital raising open (ACTIVE) takes subscriptions. While structuring, the showcase lists it as “coming soon” and the portal does not allow subscribing; subscriptions already signed carry on.",
+  "{code} · {from} → {to}": "{code} · {from} → {to}",
+  "La oferta empezará a recibir suscripciones en el portal y la vitrina enlazará a él.": "The offering will start taking subscriptions in the portal and the showcase will link to it.",
+  "La oferta dejará de recibir suscripciones: la vitrina la mostrará con la captación completada.": "The offering will stop taking subscriptions: the showcase will show its capital raising as completed.",
+  "La oferta dejará de recibir suscripciones: la vitrina la mostrará como «próximamente».": "The offering will stop taking subscriptions: the showcase will list it as “coming soon”.",
+  "Motivo (obligatorio, 10 a 300 caracteres)": "Reason (required, 10 to 300 characters)",
+  "Motivo (opcional)": "Reason (optional)",
+  "Cancelar": "Cancel",
+  "{from} → {to}": "{from} → {to}",
+  "Oferta {code}": "Offering {code}",
+  "El desarrollador todavía no abre la captación de este proyecto: no se reciben suscripciones. Puedes revisar el Data Room y completar tu KYC mientras tanto.": "The developer has not opened capital raising for this project yet: no subscriptions are taken. Meanwhile you can review the Data Room and complete your KYC.",
+  "Wallets declaradas · administrador {admin} · oficial {officer} · deployTenantRegistry() en cola ({network})": "Wallets declared · administrator {admin} · officer {officer} · deployTenantRegistry() queued ({network})",
+  // granular consent of the vitrina's legal wall and its /legal/* documents
+  "Debes aceptar las tres condiciones para ingresar.": "You must accept all three conditions to enter.",
+  "Condiciones de ingreso": "Entry conditions",
+  "Términos y Condiciones y Exención de Responsabilidad": "Terms and Conditions and Liability Disclaimer",
+  "Políticas de Tratamiento de Datos Personales": "Personal Data Processing Policies",
+  "Política de Cookies": "Cookie Policy",
+  "Documentos legales": "Legal documents",
+  "Documento legal en redacción": "Legal document being drafted",
+  "El equipo legal de RWAXI está redactando este documento. Su versión vigente se publicará en esta misma dirección.": "RWAXI's legal team is drafting this document. Its current version will be published at this same address.",
+  "Volver a la vitrina": "Back to the showcase",
+  "Solicito el ingreso a la comunidad privada y acepto los {link} y la Exención de Responsabilidad (Powered by RWAXI).": "I request admission to the private community and accept the {link} and the Liability Disclaimer (Powered by RWAXI).",
+  "Términos y Condiciones": "Terms and Conditions",
+  "Autorizo y acepto las {link}.": "I authorize and accept the {link}.",
+  "Acepto la {link}.": "I accept the {link}.",
+  // platform fee agreed with each developer (commercial agreements, factory and token)
+  "Cada token se despliega con la comisión de plataforma pactada con su desarrollador (platformFeeBps), que el evento OfferingTokenDeployed publica.":
+    "Each token is deployed with the platform fee agreed with its developer (platformFeeBps), published by the OfferingTokenDeployed event.",
+  "La comisión de plataforma (platformFeeBps) queda fijada al desplegar el token, solo entre 25 y 500 puntos básicos (InvalidPlatformFee), y cada emisión la declara en PlatformFeeAccrued: el token nunca transfiere unidades ni valor a RWAXI.":
+    "The platform fee (platformFeeBps) is fixed when the token is deployed, only between 25 and 500 basis points (InvalidPlatformFee), and every issuance declares it in PlatformFeeAccrued: the token never transfers units or value to RWAXI.",
+  "Acuerdo comercial {reference} ({date}) · comisión de plataforma {from} → {to} pb · SHA-256 {hash}":
+    "Commercial agreement {reference} ({date}) · platform fee {from} → {to} bps · SHA-256 {hash}",
+  "Acuerdo comercial {reference} consultado · re-hasheado contra su SHA-256":
+    "Commercial agreement {reference} viewed · re-hashed against its SHA-256",
+  "Gobierno RWAXI · acuerdo comercial y comisión de plataforma":
+    "RWAXI governance · commercial agreement and platform fee",
+  "Gobierno RWAXI · acuerdo comercial consultado":
+    "RWAXI governance · commercial agreement viewed",
+  // subscription flow: offering token from the console, raising readiness, fee linked to each subscription
+  "No se puede abrir la captación: {gaps}":
+    "Capital raising cannot be opened: {gaps}",
+  "Gobierno RWAXI · despliegue del token de la oferta":
+    "RWAXI governance · offering token deployment",
+  "Reserva abierta a pago":
+    "Reservation opened for payment",
+  "La captación no puede abrirse todavía:":
+    "Capital raising cannot be opened yet:",
+  "comisión de plataforma estimada {bps} pb · {fee} USD (la paga el desarrollador)":
+    "estimated platform fee {bps} bps · {fee} USD (paid by the developer)",
+  "PlatformFeeAccrued {bps} pb":
+    "PlatformFeeAccrued {bps} bps",
+  "No se pudo determinar la dirección del token desplegado.":
+    "The address of the deployed token could not be determined.",
+  "El despliegue del token no indica su oferta.":
+    "The token deployment does not name its offering.",
+  "El token de la oferta ya está desplegado.":
+    "The offering's token is already deployed.",
+  "Revertiría: UnknownTenant(organizationId) — el tenant aún no tiene RwaxiComplianceRegistry.":
+    "Would revert: UnknownTenant(organizationId) — the tenant has no RwaxiComplianceRegistry yet.",
+  "Revertiría: OfferingAlreadyDeployed(offeringId).":
+    "Would revert: OfferingAlreadyDeployed(offeringId).",
+  "Revertiría: InvalidPlatformFee({bps}) — la comisión debe estar entre 25 y 500 puntos básicos.":
+    "Would revert: InvalidPlatformFee({bps}) — the fee must be between 25 and 500 basis points.",
+  "La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma: el token queda con la comisión de plataforma pactada (platformFeeBps) fija y con la raíz del Data Room anclada.":
+    "Executed by the RWAXI operator (RWAXI_OPERATOR_ROLE) from the platform console: the token keeps the agreed platform fee (platformFeeBps) fixed and the Data Room root anchored.",
+  "Token de {code} en cola · deployOfferingToken() con comisión de plataforma {bps} pb · reservas por abrir a pago: {n} ({network})":
+    "Token of {code} queued · deployOfferingToken() with platform fee {bps} bps · reservations to open for payment: {n} ({network})",
+  "El registro de cumplimiento (RwaxiComplianceRegistry) del tenant aún no está desplegado.":
+    "The tenant's compliance registry (RwaxiComplianceRegistry) is not deployed yet.",
+  "Falta la wallet oficial del Administrador del desarrollador.":
+    "The developer's Administrator official wallet is missing.",
+  "No hay un Oficial de Cumplimiento activo asignado al desarrollador.":
+    "No active Compliance Officer is assigned to the developer.",
+  "Falta la wallet oficial del Oficial de Cumplimiento.":
+    "The Compliance Officer's official wallet is missing.",
+  "El Administrador y el Oficial de Cumplimiento deben tener wallets distintas.":
+    "The Administrator and the Compliance Officer must have different wallets.",
+  "Una wallet oficial del desarrollador no puede ser la del operador RWAXI.":
+    "An official wallet of the developer cannot be the RWAXI operator's.",
+  // yield distributions: record date, payment currency, supporting document, payment instructions
+  "No se pudo completar la operación de la distribución. Inténtalo de nuevo.":
+    "The distribution operation could not be completed. Please try again.",
+  "A la fecha de corte la oferta no tenía tokens emitidos en wallets de inversionistas.":
+    "At the record date the offering had no tokens issued to investor wallets.",
+  "La wallet {wallet} tiene tokens de la oferta pero no es de un inversionista de este tenant.":
+    "The wallet {wallet} holds tokens of the offering but does not belong to an investor of this tenant.",
+  "Fecha de corte: una fecha válida (AAAA-MM-DD) que no sea futura.":
+    "Record date: a valid date (YYYY-MM-DD) that is not in the future.",
+  "Moneda de pago: COP, USD, USDC o USDT.":
+    "Payment currency: COP, USD, USDC or USDT.",
+  "Monto en {currency}":
+    "Amount in {currency}",
+  "El soporte documental no fue verificado por el servidor: vuelve a adjuntarlo.":
+    "The supporting document was not verified by the server: attach it again.",
+  "El soporte documental debe ser un PDF o una imagen (PNG, JPG o WebP).":
+    "The supporting document must be a PDF or an image (PNG, JPG or WebP).",
+  "El registro de tenedores no coincide con el token on-chain a la fecha de corte (oferta total {onchain} on-chain, {recorded} en el registro; {n} wallet(s) con otro saldo): no se declaró nada.": {
+    one: "The register of holders does not match the on-chain token at the record date (total supply {onchain} on-chain, {recorded} in the register; {n} wallet with a different balance): nothing was declared.",
+    other: "The register of holders does not match the on-chain token at the record date (total supply {onchain} on-chain, {recorded} in the register; {n} wallets with a different balance): nothing was declared.",
+  },
+  "El registro de tenedores cambió mientras se verificaba on-chain: vuelve a declarar la distribución.":
+    "The register of holders changed while it was being checked on-chain: declare the distribution again.",
+  "Distribución {period} declarada · {amount} {currency} entre {holders} tenedor(es) a la fecha de corte {date} · anchorDistributionRoot() en cola": {
+    one: "Distribution {period} declared · {amount} {currency} among {holders} holder at the record date {date} · anchorDistributionRoot() queued",
+    other: "Distribution {period} declared · {amount} {currency} among {holders} holders at the record date {date} · anchorDistributionRoot() queued",
+  },
+  "{n} asignación(es) con el pago retenido hoy por la whitelist": {
+    one: "{n} allocation with its payment withheld today by the whitelist",
+    other: "{n} allocations with their payment withheld today by the whitelist",
+  },
+  "Distribución inválida.":
+    "Invalid distribution.",
+  "El registro de cumplimiento del tenant no está desplegado: no hay whitelist contra la cual validar el pago.":
+    "The tenant's compliance registry is not deployed: there is no whitelist to validate the payment against.",
+  "Distribución no encontrada en este tenant.":
+    "Distribution not found in this tenant.",
+  "Esta distribución se declaró sin fecha de corte ni soporte documental: no admite instrucciones de pago.":
+    "This distribution was declared without a record date or a supporting document: it takes no payment instructions.",
+  "La raíz de la distribución aún no está anclada en el token: el pago se instruye después de anclarla.":
+    "The distribution root is not anchored on the token yet: the payment is instructed after anchoring it.",
+  "Todas las asignaciones de esta distribución ya tienen instrucción de pago.":
+    "Every allocation of this distribution already has a payment instruction.",
+  "Ninguna asignación pendiente supera hoy la validación de la whitelist ({n} retenida(s)): no se emitió ninguna instrucción de pago.":
+    "No pending allocation passes the whitelist check today ({n} withheld): no payment instruction was issued.",
+  "Instrucción de pago #{sequence} de {period} emitida · {total} {currency} a {payees} wallet(s) validada(s) en la whitelist": {
+    one: "Payment instruction #{sequence} for {period} issued · {total} {currency} to {payees} wallet cleared by the whitelist",
+    other: "Payment instruction #{sequence} for {period} issued · {total} {currency} to {payees} wallets cleared by the whitelist",
+  },
+  "{n} asignación(es) retenida(s) hasta que la whitelist las habilite": {
+    one: "{n} allocation withheld until the whitelist clears it",
+    other: "{n} allocations withheld until the whitelist clears them",
+  },
+  "Instrucción de pago de la distribución":
+    "Distribution payment instruction",
+  "Soporte de la distribución consultado":
+    "Distribution supporting document viewed",
+  "SHA-256 instrucción de pago":
+    "SHA-256 payment instruction",
+  "Tenedores hoy":
+    "Holders today",
+  "Distribuido declarado (equiv. USD)":
+    "Declared distributions (USD equiv.)",
+  "{n} distribución(es) · {anchored} raíz(ces) ancladas": {
+    one: "{n} distribution · {anchored} root(s) anchored",
+    other: "{n} distributions · {anchored} root(s) anchored",
+  },
+  "Pagos instruidos":
+    "Payments instructed",
+  "{n} instrucción(es) de pago": {
+    one: "{n} payment instruction",
+    other: "{n} payment instructions",
+  },
+  "El emisor declara y paga sus distribuciones: RWAXI calcula la prorrata, la compromete en un árbol de Merkle y verifica la whitelist, pero no custodia ni mueve los fondos. Cada tenedor a la fecha de corte conserva su asignación; el pago solo se instruye a wallets que la whitelist de cumplimiento habilita en ese momento.":
+    "The issuer declares and pays its distributions: RWAXI computes the pro-rata split, commits it in a Merkle tree and checks the whitelist, but never holds or moves the funds. Every holder at the record date keeps their allocation; payment is only instructed to wallets the compliance whitelist clears at that moment.",
+  "Ninguna oferta de este tenant tiene su token emitido todavía: las distribuciones se calculan sobre los tokens emitidos en wallets de inversionistas.":
+    "No offering of this tenant has its token issued yet: distributions are computed over the tokens issued to investor wallets.",
+  "No se pudo verificar el archivo; vuelve a adjuntarlo.":
+    "The file could not be verified; attach it again.",
+  "COP · fiduciaria":
+    "COP · fiduciary",
+  "USD · fiduciaria":
+    "USD · fiduciary",
+  "USDC · tesorería del emisor":
+    "USDC · issuer's treasury",
+  "USDT · tesorería del emisor":
+    "USDT · issuer's treasury",
+  "Tenedores a la fecha de corte {date} · {n} tokens":
+    "Holders at the record date {date} · {n} tokens",
+  "Elige una fecha de corte válida que no sea futura.":
+    "Choose a valid record date that is not in the future.",
+  "Whitelist hoy":
+    "Whitelist today",
+  "Sin tokens emitidos en wallets de inversionistas a esa fecha.":
+    "No tokens issued to investor wallets at that date.",
+  Pagable:
+    "Payable",
+  "Fecha de corte":
+    "Record date",
+  "Moneda de pago":
+    "Payment currency",
+  "Soporte documental (certificación fiduciaria o comprobante)":
+    "Supporting document (fiduciary certificate or receipt)",
+  "Verificando el archivo y guardándolo en la bóveda…":
+    "Verifying the file and storing it in the vault…",
+  "{name} · {size} · SHA-256 {hash} verificado por el servidor":
+    "{name} · {size} · SHA-256 {hash} verified by the server",
+  "Se repartirán {amount} entre {holders} tenedor(es) a la fecha de corte, en proporción a sus tokens (centésimas exactas, método del mayor residuo). Cada asignación será una hoja del árbol de Merkle (SHA-256) y la raíz se anclará con anchorDistributionRoot(), que verifica on-chain la oferta total a esa fecha y registra el SHA-256 del soporte.": {
+    one: "{amount} will be split among {holders} holder at the record date, in proportion to their tokens (exact hundredths, largest-remainder method). Each allocation will be a leaf of the Merkle tree (SHA-256) and the root will be anchored with anchorDistributionRoot(), which checks the total supply at that date on-chain and records the SHA-256 of the supporting document.",
+    other: "{amount} will be split among {holders} holders at the record date, in proportion to their tokens (exact hundredths, largest-remainder method). Each allocation will be a leaf of the Merkle tree (SHA-256) and the root will be anchored with anchorDistributionRoot(), which checks the total supply at that date on-chain and records the SHA-256 of the supporting document.",
+  },
+  "Indica el monto: el cálculo prorrata se muestra antes de declarar y el servidor lo recalcula sobre el registro de tenedores a la fecha de corte.":
+    "Enter the amount: the pro-rata split is shown before declaring and the server recomputes it over the register of holders at the record date.",
+  "Hoy la whitelist retendría el pago de {n} tenedor(es): conservan su asignación y se pagan cuando queden habilitados.": {
+    one: "Today the whitelist would withhold the payment of {n} holder: they keep their allocation and are paid once cleared.",
+    other: "Today the whitelist would withhold the payment of {n} holders: they keep their allocation and are paid once cleared.",
+  },
+  "Snapshot al declarar · {at}":
+    "Snapshot at declaration · {at}",
+  "Fecha de corte {date} · instante de registro {at} · {mode}":
+    "Record date {date} · instant of record {at} · {mode}",
+  "cotejado con balanceOfAt / totalSupplyAt on-chain":
+    "checked against balanceOfAt / totalSupplyAt on-chain",
+  "réplica de las emisiones confirmadas (simulación)":
+    "replay of the confirmed mints (simulation)",
+  "Soporte: {name} · {size} · SHA-256 {hash}":
+    "Support: {name} · {size} · SHA-256 {hash}",
+  "Ver soporte":
+    "View support",
+  "Declarada sin soporte documental (versión anterior del módulo).":
+    "Declared without a supporting document (earlier version of the module).",
+  Pago:
+    "Payment",
+  "Instruido · #{n}":
+    "Instructed · #{n}",
+  "Retenido · {reason}":
+    "Withheld · {reason}",
+  "Pendiente · pagable hoy":
+    "Pending · payable today",
+  Pagos:
+    "Payments",
+  "{done}/{total} asignaciones con instrucción de pago":
+    "{done}/{total} allocations with a payment instruction",
+  "{n} pendiente(s), {payable} pagable(s) hoy":
+    "{n} pending, {payable} payable today",
+  "Emitir instrucción de pago":
+    "Issue payment instruction",
+  "La instrucción de pago se emite cuando la raíz quede anclada en el token.":
+    "The payment instruction is issued once the root is anchored on the token.",
+  "Instrucción #{n}":
+    "Instruction #{n}",
+  "{n} wallet(s)": {
+    one: "{n} wallet",
+    other: "{n} wallets",
+  },
+  "{n} retenida(s)":
+    "{n} withheld",
+  "whitelist leída on-chain":
+    "whitelist read on-chain",
+  "whitelist según la cola confirmada":
+    "whitelist per the confirmed queue",
+  "JSON (SHA-256 verificable)":
+    "JSON (verifiable SHA-256)",
+  "Distribución {period} · {amount} {currency} entre {holders} tenedor(es) a la fecha de corte {date}": {
+    one: "Distribution {period} · {amount} {currency} among {holders} holder at the record date {date}",
+    other: "Distribution {period} · {amount} {currency} among {holders} holders at the record date {date}",
+  },
+  "{n} retenida(s) hoy por la whitelist":
+    "{n} withheld today by the whitelist",
+  "anchorDistributionRoot en cola":
+    "anchorDistributionRoot queued",
+  "Instrucción de pago #{sequence} de {period} · {total} {currency} a {payees} wallet(s)": {
+    one: "Payment instruction #{sequence} for {period} · {total} {currency} to {payees} wallet",
+    other: "Payment instruction #{sequence} for {period} · {total} {currency} to {payees} wallets",
+  },
+  "{n} retenida(s) por la whitelist":
+    "{n} withheld by the whitelist",
+  "whitelist leída del registro on-chain":
+    "whitelist read from the on-chain registry",
+  "whitelist según la cola confirmada (simulación)":
+    "whitelist per the confirmed queue (simulation)",
+  "Soporte de la distribución {period} · SHA-256 verificado al servirlo · {by}":
+    "Supporting document of distribution {period} · SHA-256 verified when served · {by}",
+  "consola RWAXI (supervisión)":
+    "RWAXI console (supervision)",
+  "Cada raíz de distribución la ancla el emisor (DISTRIBUTION_ROLE) una sola vez y nunca vacía (DistributionAlreadyAnchored, EmptyDistributionRoot, EmptyDistribution).":
+    "Each distribution root is anchored by the issuer (DISTRIBUTION_ROLE) only once and never empty (DistributionAlreadyAnchored, EmptyDistributionRoot, EmptyDistribution).",
+  "El token guarda el historial de saldos (balanceOfAt, totalSupplyAt): una distribución solo se ancla si su oferta total coincide con la del token a la fecha de corte, ya transcurrida (SnapshotSupplyMismatch, FutureLookup), y con el SHA-256 de su soporte documental (DistributionEvidenceRequired).":
+    "The token keeps the balance history (balanceOfAt, totalSupplyAt): a distribution is only anchored if its total supply matches the token's at the record date, already past (SnapshotSupplyMismatch, FutureLookup), and with the SHA-256 of its supporting document (DistributionEvidenceRequired).",
+  "Modo RPC: no se pudo leer el historial de saldos del token (balanceOfAt / totalSupplyAt); un token desplegado antes de esa versión del contrato no lo tiene.":
+    "RPC mode: the token's balance history (balanceOfAt / totalSupplyAt) could not be read; a token deployed before that version of the contract does not have it.",
+  "Revertiría: EmptyDistribution() — la distribución no tiene monto o tenedores.":
+    "Would revert: EmptyDistribution() — the distribution has no amount or holders.",
+  "Revertiría: DistributionEvidenceRequired() — falta el SHA-256 del soporte documental.":
+    "Would revert: DistributionEvidenceRequired() — the SHA-256 of the supporting document is missing.",
+  "Revertiría: FutureLookup — la fecha de corte aún no ha transcurrido.":
+    "Would revert: FutureLookup — the record date has not passed yet.",
+  "Revertiría: SnapshotSupplyMismatch({declared}, {recorded}) — la oferta total del token a la fecha de corte no coincide con la del snapshot.":
+    "Would revert: SnapshotSupplyMismatch({declared}, {recorded}) — the token's total supply at the record date does not match the snapshot's.",
+  "KYC revocado por el Oficial de Cumplimiento":
+    "KYC revoked by the Compliance Officer",
+  "Revocación en cola en el registro (revokeInvestor)":
+    "Revocation queued in the registry (revokeInvestor)",
+  "Wallet fuera de la whitelist del registro":
+    "Wallet outside the registry's whitelist",
+  "Wallet congelada en el registro":
+    "Wallet frozen in the registry",
+  "Congelamiento en cola en el registro (setFrozen)":
+    "Freeze queued in the registry (setFrozen)",
+  "Fecha de corte {date}":
+    "Record date {date}",
+  "Soporte documental · SHA-256 {hash}":
+    "Supporting document · SHA-256 {hash}",
+  "Pago instruido · instrucción #{n} · {date}":
+    "Payment instructed · instruction #{n} · {date}",
+  "Pago pendiente de instrucción del emisor":
+    "Payment pending the issuer's instruction",
+  "hoja = SHA-256(JSON canónico de la asignación: v, kind, distributionId, wallet, units, currency, amountCents)":
+    "leaf = SHA-256(canonical JSON of the allocation: v, kind, distributionId, wallet, units, currency, amountCents)",
+  // console report exports (organization-less audit events)
+  "Reporte exportado desde la consola RWAXI":
+    "Report exported from the RWAXI console",
+  "SHA-256 archivo exportado":
+    "SHA-256 of the exported file",
 };
 
 export default catalog;

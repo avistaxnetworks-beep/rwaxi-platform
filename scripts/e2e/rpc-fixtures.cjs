@@ -50,6 +50,7 @@ async function deployRpcFixtures(db, reuse = {}) {
       legalEntityName: offering.legalEntityName,
       maxSupplyCap: BigInt(offering.token.maxSupply),
       dataRoomMerkleRoot: offering.dataRoomRoot,
+      platformFeeBps: org.platformFeeBps, // the developer's agreed fee, fixed in the token
     },
     registry,
     admin.address,
@@ -68,7 +69,7 @@ async function deployRpcFixtures(db, reuse = {}) {
     db.offering.update({ where: { id: offering.id }, data: { network: "HARDHAT" } }),
     db.tokenDeployment.update({
       where: { offeringId: offering.id },
-      data: { network: "HARDHAT", contractAddress: token },
+      data: { network: "HARDHAT", contractAddress: token, platformFeeBps: org.platformFeeBps },
     }),
     // Registered wallets of the staff (stored lowercase, like every wallet of a tenant).
     db.user.updateMany({
@@ -88,6 +89,7 @@ async function deployRpcFixtures(db, reuse = {}) {
     officer: officer.address,
     operator: operator.address,
     maxSupply: offering.token.maxSupply,
+    platformFeeBps: org.platformFeeBps,
   };
 }
 

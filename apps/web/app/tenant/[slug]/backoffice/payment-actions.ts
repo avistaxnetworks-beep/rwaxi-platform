@@ -126,22 +126,28 @@ export async function confirmPayment(subscriptionId: string, paymentReference: s
             status: "PENDING",
           },
         });
-        const { feeUsagePct } = await tx.organization.findUniqueOrThrow({
+        // The platform fee is the one fixed in the token (its mintSubscription declares it on-chain in
+        // PlatformFeeAccrued); a token deployed before the fee existed on-chain accrues the agreed one.
+        const { platformFeeBps: agreedBps } = await tx.organization.findUniqueOrThrow({
           where: { id: orgId },
-          select: { feeUsagePct: true },
+          select: { platformFeeBps: true },
         });
+        const feeBps = token.platformFeeBps ?? sub.platformFeeBps ?? agreedBps;
         const fee = await tx.feeLedgerEntry.create({
           data: {
             organizationId: orgId,
             subscriptionId: sub.id,
             kind: "INFRASTRUCTURE_USAGE",
-            amountUsd: sub.capitalUsd.mul(feeUsagePct).div(100).toDecimalPlaces(2),
+            amountUsd: sub.capitalUsd.mul(feeBps).div(10_000).toDecimalPlaces(2),
             baseUsd: sub.capitalUsd,
+            platformFeeBps: feeBps,
             accruedOn: now,
             evidence: evidenceRef,
             status: "ACCRUED",
           },
         });
+        // The subscription keeps the fee it accrued (the estimate made at signature becomes the accrued amount).
+        await tx.subscription.update({ where: { id: sub.id }, data: { platformFeeBps: feeBps, platformFeeUsd: fee.amountUsd } });
 
         await tx.auditEvent.create({
           data: {
@@ -167,6 +173,8 @@ export async function confirmPayment(subscriptionId: string, paymentReference: s
               chainStatus: chainTx.status,
               feeLedgerEntryId: fee.id,
               feeUsd: fee.amountUsd.toFixed(2),
+              platformFeeBps: feeBps,
+              platformFeeSource: token.platformFeeBps === null ? "agreement" : "token",
             },
             ...meta,
             createdAt: now,

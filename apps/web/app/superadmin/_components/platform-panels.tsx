@@ -31,7 +31,7 @@ function SourceNote({ data }: { data: PlatformMetrics }) {
       <p className="font-mono text-[10.5px] text-muted text-right">
         {`generado ${utc(data.generatedAt)}`}
         <span className="block">
-          {`Módulos A, B y C: PostgreSQL · alta de desarrolladores: demo${data.admin ? ` · sesión ${data.admin.email}` : ""}`}
+          {`Módulos A–G: PostgreSQL · alta de desarrolladores: demo${data.admin ? ` · sesión ${data.admin.email}` : ""}`}
         </span>
       </p>
     </div>

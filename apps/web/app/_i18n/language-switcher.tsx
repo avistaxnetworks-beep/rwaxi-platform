@@ -5,8 +5,11 @@ import { Icon } from "@/app/_components/ui/icon";
 import { BCP47, LANGUAGE_NAME, dirOf, type Locale } from "./config";
 import { useI18n } from "./provider";
 
-/** Vitrina header: menu of its 10 languages, each written in its own script. */
-export function LanguageMenu() {
+/**
+ * Vitrina and portal headers: menu of the 10 public languages, each written in its own script. `tenant`: in a White
+ * Label portal its accents take the developer's colour (--tc) instead of RWAXI's.
+ */
+export function LanguageMenu({ tenant = false }: { tenant?: boolean }) {
   const { locale, locales, setLocale, tr } = useI18n();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -36,9 +39,9 @@ export function LanguageMenu() {
         aria-expanded={open}
         aria-label={`${tr("Idioma")}: ${LANGUAGE_NAME[locale]}`}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border border-line bg-white px-2.5 py-1.5 text-[12.5px] font-medium text-inkBody hover:border-rxPurple focus-ring"
+        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap border border-line bg-white px-2.5 py-1.5 text-[12.5px] font-medium text-inkBody ${tenant ? "hover:border-current" : "hover:border-rxPurple"} focus-ring`}
       >
-        <Icon name="Globe" size={15} className="text-rxPurple" />
+        <Icon name="Globe" size={15} className={tenant ? "tc-text" : "text-rxPurple"} />
         <span lang={BCP47[locale]}>{LANGUAGE_NAME[locale]}</span>
         <Icon name="ChevronDown" size={13} className="text-muted" />
       </button>
@@ -59,12 +62,12 @@ export function LanguageMenu() {
                 data-lang-option={l}
                 onClick={() => choose(l)}
                 className={`flex w-full items-center justify-between gap-3 px-3.5 py-2 text-start text-[13px] hover:bg-cloud focus-ring ${
-                  l === locale ? "font-semibold text-rxPurple" : "text-inkBody"
+                  l === locale ? `font-semibold ${tenant ? "tc-text" : "text-rxPurple"}` : "text-inkBody"
                 }`}
               >
                 <span>{LANGUAGE_NAME[l]}</span>
                 {l === locale ? (
-                  <Icon name="Check" size={14} className="text-rxAqua" />
+                  <Icon name="Check" size={14} className={tenant ? "tc-text" : "text-rxAqua"} />
                 ) : (
                   <span className="font-mono text-[10.5px] uppercase text-muted">{l}</span>
                 )}
@@ -77,7 +80,7 @@ export function LanguageMenu() {
   );
 }
 
-/** Portal and backoffice header: ES | EN | PT, in the tenant's colour. */
+/** Backoffice header (internal panel): ES | EN | PT, in the tenant's colour. */
 export function LanguageToggle({ className = "" }: { className?: string }) {
   const { locale, locales, setLocale, tr } = useI18n();
   return (

@@ -14,7 +14,7 @@ type Params = Promise<{ slug: string }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const name = await tenantDisplayName((await params).slug);
   if (!name) return {};
-  const tr = await requestTranslate("tenant");
+  const tr = await requestTranslate("portal");
   return { title: tr("{name} · Portal de inversión", { name }) };
 }
 
@@ -24,17 +24,18 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
  * journey and the compliance review stay in sync during client navigation.
  * The prototype's demo developers render from its seed; any other tenant (onboarded from the
  * Super-Admin console) is read from PostgreSQL under RLS and registered in the demo store.
- * Both share the language of the host (rwaxi_portal_lang): Spanish, English or Portuguese.
+ * The portal speaks the platform's 10 languages (rwaxi_portal_lang, inherited from the vitrina with ?lang=); the
+ * backoffice nests its own provider in es · en · pt (backoffice/layout.tsx).
  */
 export default async function TenantLayout({ children, params }: { children: ReactNode; params: Params }) {
   const { slug } = await params;
   const dbTenant = findTenant(slug) ? null : await loadDbTenantView(slug);
   if (!findTenant(slug) && !dbTenant) notFound();
-  const { locale, catalog } = await requestI18n("tenant");
+  const { locale, catalog } = await requestI18n("portal");
   const tr = makeTranslate(locale, catalog);
   return (
     <ClientOnly label={tr("RWAXI · CARGANDO PLATAFORMA")}>
-      <I18nProvider scope="tenant" locale={locale} catalog={catalog}>
+      <I18nProvider scope="portal" locale={locale} catalog={catalog}>
         <DemoProvider tenantSlug={slug} dbTenant={dbTenant}>
           {children}
         </DemoProvider>

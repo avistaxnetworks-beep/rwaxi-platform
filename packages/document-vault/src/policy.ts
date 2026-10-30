@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
  * What the vault accepts for each use. The server reads the type from the bytes (magic numbers) and recomputes
  * the SHA-256: a declared type or hash that does not match the bytes is refused.
  */
-export type VaultPurpose = "kyc" | "dataRoom";
+export type VaultPurpose = "kyc" | "dataRoom" | "evidence";
 
 export const MIME = {
   pdf: "application/pdf",
@@ -26,6 +26,8 @@ export const POLICIES: Record<VaultPurpose, UploadPolicy> = {
   kyc: { maxBytes: 10 * MB, types: [MIME.pdf, MIME.png, MIME.jpeg, MIME.webp] },
   // Legal, technical and financial files of an offering.
   dataRoom: { maxBytes: 20 * MB, types: [MIME.pdf, MIME.png, MIME.jpeg, MIME.webp, MIME.docx, MIME.xlsx] },
+  // Supporting documents of a decision (e.g. the fiduciary certificate of a yield distribution): a PDF or a scan.
+  evidence: { maxBytes: 10 * MB, types: [MIME.pdf, MIME.png, MIME.jpeg, MIME.webp] },
 };
 
 /** Type of a file from its first bytes, or null. A ZIP is only a docx/xlsx when that is what was declared. */

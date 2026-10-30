@@ -13,6 +13,7 @@ import {
 import { setNumberLocale } from "@/app/_lib/format";
 import { loadCatalog } from "./catalogs";
 import {
+  BACKOFFICE_LOCALES,
   BCP47,
   LOCALE_COOKIE,
   NUMBER_LOCALE,
@@ -35,6 +36,8 @@ export interface I18n {
   /** A message whose `{placeholders}` are elements (e.g. <Num> figures); `count` selects the plural form. */
   rich: (source: string, nodes: Record<string, ReactNode>, count?: number) => ReactNode[];
   setLocale: (next: Locale) => Promise<void>;
+  /** nesting level of the provider (the backoffice's sits inside the portal's): the deepest one sets <html lang> */
+  depth: number;
 }
 
 function richWith(tr: Translate): I18n["rich"] {
@@ -49,7 +52,7 @@ function richWith(tr: Translate): I18n["rich"] {
 
 // Without a provider (Super-Admin console) everything renders in Spanish, the source language.
 const SPANISH: I18n = {
-  scope: "tenant",
+  scope: "backoffice",
   locale: "es",
   lang: BCP47.es,
   dir: "ltr",
@@ -57,9 +60,19 @@ const SPANISH: I18n = {
   tr: spanish,
   rich: richWith(spanish),
   setLocale: async () => {},
+  depth: 0,
 };
 
 const Ctx = createContext<I18n>(SPANISH);
+
+// <html lang> belongs to the innermost mounted provider: effects run child-first, so each provider registers its
+// language by depth and the deepest one wins, also when it unmounts (back from the backoffice to the portal).
+const documentLangs = new Map<symbol, { depth: number; lang: string }>();
+function applyDocumentLang() {
+  let best: { depth: number; lang: string } | null = null;
+  for (const entry of documentLangs.values()) if (!best || entry.depth > best.depth) best = entry;
+  if (best) document.documentElement.lang = best.lang;
+}
 
 export const useI18n = (): I18n => useContext(Ctx);
 
@@ -79,7 +92,9 @@ export function I18nProvider({
   catalog: Catalog;
   children: ReactNode;
 }) {
+  const outer = useContext(Ctx);
   const [state, setState] = useState({ locale: initialLocale, catalog: initialCatalog });
+  const [id] = useState(() => Symbol("i18n"));
   // Figures follow the language (format.ts). Only in the browser: on the server the module is shared by requests.
   if (typeof window !== "undefined") setNumberLocale(NUMBER_LOCALE[state.locale]);
 
@@ -105,24 +120,30 @@ export function I18nProvider({
       tr,
       rich: richWith(tr),
       setLocale,
+      depth: outer.depth + 1,
     };
-  }, [scope, state, setLocale]);
+  }, [scope, state, setLocale, outer.depth]);
 
   useEffect(() => {
-    document.documentElement.lang = value.lang;
-  }, [value.lang]);
+    documentLangs.set(id, { depth: value.depth, lang: value.lang });
+    applyDocumentLang();
+    return () => {
+      documentLangs.delete(id);
+      applyDocumentLang();
+    };
+  }, [id, value.depth, value.lang]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 /**
- * Subtree translated only to the tenant languages (es · en · pt): the On-Chain Inspector, which the
- * architecture bar also opens from the vitrina. In the other vitrina languages it reads in English;
+ * Subtree translated only to the internal languages (es · en · pt): the On-Chain Inspector, which the
+ * architecture bar also opens from the vitrina and the portal. In their other languages it reads in English;
  * the English catalogue loads the first time the subtree becomes `active`.
  */
 export function TenantLanguages({ active, children }: { active: boolean; children: ReactNode }) {
   const outer = useI18n();
-  const fallback = !SCOPE_LOCALES.tenant.includes(outer.locale);
+  const fallback = !(BACKOFFICE_LOCALES as readonly Locale[]).includes(outer.locale);
   const [english, setEnglish] = useState<Catalog | null>(null);
   useEffect(() => {
     if (active && fallback && !english) void loadCatalog("en").then(setEnglish);

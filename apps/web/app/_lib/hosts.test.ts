@@ -59,3 +59,14 @@ test("internal rewrite paths", () => {
   assert.equal(internalPath({ kind: "tenant", slug: "avista", via: "subdomain" }, "/backoffice"), "/tenant/avista/backoffice");
   assert.equal(internalPath({ kind: "unknown", host: "x" }, "/"), null);
 });
+
+test("the vitrina's legal documents are served outside /vitrina (and its legal wall), only on www", () => {
+  assert.equal(internalPath({ kind: "www" }, "/legal/terms"), "/legal/terms");
+  assert.equal(internalPath({ kind: "www" }, "/legal/cookies/"), "/legal/cookies");
+  assert.equal(internalPath({ kind: "www" }, "/legal"), "/legal");
+  // anything deeper or differently shaped stays a vitrina path (→ 404), never another internal route
+  assert.equal(internalPath({ kind: "www" }, "/legal/terms/x"), "/vitrina/legal/terms/x");
+  assert.equal(internalPath({ kind: "www" }, "/legalese"), "/vitrina/legalese");
+  assert.equal(internalPath({ kind: "tenant", slug: "avista", via: "subdomain" }, "/legal/terms"), "/tenant/avista/legal/terms");
+  assert.equal(internalPath({ kind: "admin" }, "/legal/terms"), "/superadmin/legal/terms");
+});

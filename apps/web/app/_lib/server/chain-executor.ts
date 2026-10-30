@@ -20,6 +20,7 @@ import { RWAXI_CHAINS, rwaxiComplianceRegistryAbi, rwaxiPropertyTokenAbi, rwaxiT
 import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
 import { withTenant, type ChainNetwork, type ChainTransaction, type Prisma } from "@rwaxi/database";
 import { LocalizedError, msg, type Reason } from "@/app/_i18n/marks";
+import { interpolate } from "@/app/_i18n/translate";
 import { WALLET_SIGNER_ROLE, type WalletCall } from "@/app/_lib/chain-queue-types";
 import {
   MINTER_ROLE_ID,
@@ -31,6 +32,7 @@ import {
   type ExecutionOrigin,
 } from "./chain-invariants";
 import { calldataOf, eventOf, walletOf } from "./chain-queue";
+import { paymentCodeOf } from "./subscriptions";
 
 /**
  * Ordered execution of a tenant's ChainTransaction outbox.
@@ -73,14 +75,21 @@ export interface Execution {
   signer: string;
   nonce: number;
   signedTransaction: Hex | null;
-  /** contract created by the call (deployTenantRegistry → the tenant's RwaxiComplianceRegistry) */
+  /** contract created by the call (deployTenantRegistry → the tenant's registry; deployOfferingToken → the token) */
   created: Address | null;
+  /** RPC mint: the platform fee its PlatformFeeAccrued event declared (null if the receipt carried none) */
+  platformFeeBps?: number | null;
   /** who sent it: RWAXI's operator, the signer's browser wallet (EIP-1193) or a wallet whose hash was registered */
   via: "operator" | "wallet" | "registered";
 }
 
 /** Sent, but the node has no receipt yet: the row stays claimed by its hash until one arrives. */
 export class ReceiptPendingError extends ExecutionError {}
+/**
+ * A precondition stops the call before anything is signed: queue precedence, a revert the contracts would answer, a
+ * call the tenant signs with its own wallet. Not an execution attempt (no retry is counted).
+ */
+export class BlockedError extends ExecutionError {}
 
 const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 };
 const RECEIPT_TIMEOUT_MS = 60_000;
@@ -91,10 +100,11 @@ const GAS: Record<string, bigint> = {
   approveInvestor: 120_000n,
   revokeInvestor: 80_000n,
   setFrozen: 80_000n,
-  mintSubscription: 220_000n,
+  mintSubscription: 260_000n, // ~197k for a first holder: the token also records the balance history
   updateDataRoomMerkleRoot: 60_000n,
   anchorDistributionRoot: 90_000n,
   deployTenantRegistry: 2_500_000n,
+  deployOfferingToken: 4_500_000n,
 };
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
@@ -154,6 +164,60 @@ async function finalize(db: Prisma.TransactionClient, tx: ChainTransaction, ex: 
     if (org.count !== 1) throw new ExecutionError("El tenant ya tiene RwaxiComplianceRegistry.");
     await db.chainTransaction.update({ where: { id: tx.id }, data: { args: { ...args, registry: ex.created } as Prisma.InputJsonValue } });
   }
+  let reservationsOpened = 0;
+  if (tx.kind === "OFFERING_TOKEN_DEPLOYED") {
+    if (!ex.created) throw new ExecutionError("No se pudo determinar la dirección del token desplegado.");
+    if (!tx.offeringId) throw new ExecutionError("El despliegue del token no indica su oferta.");
+    const feeBps = Number(argsOf(args.cfg).platformFeeBps);
+    const token = await db.tokenDeployment.updateMany({
+      where: { offeringId: tx.offeringId, status: { in: ["NOT_DEPLOYED", "DEPLOYING"] } },
+      data: { status: "DEPLOYED", contractAddress: ex.created, deployTxHash: ex.txHash, deployedAt: now, platformFeeBps: feeBps },
+    });
+    if (token.count !== 1) throw new ExecutionError("El token de la oferta ya está desplegado.");
+    await db.chainTransaction.update({ where: { id: tx.id }, data: { args: { ...args, token: ex.created } as Prisma.InputJsonValue } });
+    // The offering's pre-sale reservations become payable: same units and signed agreement, now with their transfer
+    // reference and the platform fee fixed in the token (the developer pays it to RWAXI; the investor never does).
+    const reserved = await db.subscription.findMany({
+      where: { offeringId: tx.offeringId, status: "RESERVED" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true, onchainId: true, units: true, capitalUsd: true, agreementHash: true, investorId: true, investor: { select: { fullName: true } } },
+    });
+    for (const r of reserved) {
+      const platformFeeUsd = r.capitalUsd.mul(feeBps).div(10_000).toDecimalPlaces(2);
+      const opened = await db.subscription.updateMany({
+        where: { id: r.id, status: "RESERVED" },
+        data: { status: "PAYMENT_PENDING", platformFeeBps: feeBps, platformFeeUsd },
+      });
+      if (opened.count !== 1) continue;
+      reservationsOpened += 1;
+      await db.auditEvent.create({
+        data: {
+          organizationId: tx.organizationId,
+          action: "SUBSCRIPTION_PAYMENT_OPENED",
+          actorUserId: actor.id,
+          actorEmail: actor.email,
+          entityType: "Subscription",
+          entityId: r.id,
+          subjectHash: r.agreementHash,
+          payload: {
+            investorId: r.investorId,
+            investorName: r.investor.fullName,
+            from: "RESERVED",
+            to: "PAYMENT_PENDING",
+            units: r.units,
+            capitalUsd: r.capitalUsd.toFixed(2),
+            paymentCode: paymentCodeOf(r.onchainId),
+            token: ex.created,
+            platformFeeBps: feeBps,
+            platformFeeUsd: platformFeeUsd.toFixed(2),
+            chainTransactionId: tx.id,
+          },
+          ...meta,
+          createdAt: now,
+        },
+      });
+    }
+  }
   if (tx.kind === "DISTRIBUTION_ROOT_ANCHORED") {
     const anchored = await db.distribution.updateMany({
       where: { onchainId: String(args.distributionId), status: "DECLARED" },
@@ -180,6 +244,27 @@ async function finalize(db: Prisma.TransactionClient, tx: ChainTransaction, ex: 
       data: { status: "MINTED", mintTxHash: ex.txHash },
     });
     if (!sub || minted.count !== 1) throw new ExecutionError("La suscripción ya no está MINT_PENDING.");
+    // The fee accrual the mint declares on-chain (PlatformFeeAccrued, with the token's immutable fee), next to the
+    // ledger entry accrued when the payment was reconciled. RPC: read from the receipt; SIMULATION: the token's fee,
+    // which its code would declare (nothing is observed on a network).
+    const feeEntry = await db.feeLedgerEntry.findFirst({
+      where: { subscriptionId: sub.id, kind: "INFRASTRUCTURE_USAGE", status: { not: "VOIDED" } },
+      select: { id: true, amountUsd: true, platformFeeBps: true },
+    });
+    const tokenFee = await db.tokenDeployment.findFirst({
+      where: { contractAddress: { equals: tx.contractAddress, mode: "insensitive" } },
+      select: { platformFeeBps: true },
+    });
+    const declaredBps = ex.mode === "RPC" ? (ex.platformFeeBps ?? null) : (tokenFee?.platformFeeBps ?? null);
+    const platformFee = {
+      event: "PlatformFeeAccrued",
+      platformFeeBps: declaredBps,
+      observedOnChain: ex.mode === "RPC" && ex.platformFeeBps != null,
+      feeLedgerEntryId: feeEntry?.id ?? null,
+      feeUsd: feeEntry?.amountUsd.toFixed(2) ?? null,
+      ledgerBps: feeEntry?.platformFeeBps ?? null,
+      matchesLedger: declaredBps !== null && feeEntry?.platformFeeBps != null ? declaredBps === feeEntry.platformFeeBps : null,
+    };
     await db.auditEvent.create({
       data: {
         organizationId: tx.organizationId,
@@ -199,6 +284,7 @@ async function finalize(db: Prisma.TransactionClient, tx: ChainTransaction, ex: 
           txHash: ex.txHash,
           mode: ex.mode,
           paymentEvidenceRef: String(args.paymentEvidenceRef),
+          platformFee,
         },
         ...meta,
         createdAt: now,
@@ -226,6 +312,7 @@ async function finalize(db: Prisma.TransactionClient, tx: ChainTransaction, ex: 
         nonce: ex.nonce,
         blockNumber: ex.blockNumber?.toString() ?? null,
         created: ex.created,
+        ...(tx.kind === "OFFERING_TOKEN_DEPLOYED" ? { reservationsOpened } : {}),
       },
       ...meta,
       createdAt: now,
@@ -249,7 +336,7 @@ async function prepare(
   if (lockKey) await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey(row.network)}))`;
   const tx = await db.chainTransaction.findUniqueOrThrow({ where: { id: chainTxId } });
   const blocker = blockerReason(tx, await loadChainState(db), origin);
-  if (blocker) throw new ExecutionError(blocker.source, blocker.vars);
+  if (blocker) throw new BlockedError(blocker.source, blocker.vars);
   return { tx, encoded: calldataOf(tx)! };
 }
 
@@ -288,9 +375,9 @@ async function simulate(
         SELECT rwaxi_next_simulated_nonce(${tx.network}::"ChainNetwork", ${account.address}) AS nonce`;
       const nonce = Number(next?.nonce ?? 0);
       let created: Address | null = null;
-      if (tx.kind === "TENANT_REGISTRY_DEPLOYED") {
-        // The factory deploys with CREATE: its nonce is 1 + the contracts it already created on this network
-        // (only the operator calls it, so the signer lock above also serialises this count).
+      if (tx.kind === "TENANT_REGISTRY_DEPLOYED" || tx.kind === "OFFERING_TOKEN_DEPLOYED") {
+        // The factory deploys registries and tokens with CREATE: its nonce is 1 + the contracts it already created
+        // on this network (only the operator calls it, so the signer lock above also serialises this count).
         const [made] = await db.$queryRaw<{ n: number }[]>`
           SELECT rwaxi_factory_creations(${tx.network}::"ChainNetwork", ${tx.contractAddress}) AS n`;
         created = getContractAddress({ from: tx.contractAddress as Address, nonce: BigInt(1 + Number(made?.n ?? 0)) });
@@ -371,7 +458,10 @@ function emitsQueuedEvent(tx: ChainTransaction, logs: Log[]): boolean {
           lower(e.args.distributionId) === lower(args.distributionId) &&
           lower(e.args.merkleRoot) === lower(args.merkleRoot) &&
           e.args.totalAmountCents === BigInt(String(args.totalAmountCents)) &&
-          e.args.snapshotSupply === BigInt(String(args.snapshotSupply)),
+          e.args.snapshotSupply === BigInt(String(args.snapshotSupply)) &&
+          e.args.recordTimestamp === BigInt(String(args.recordTimestamp)) &&
+          e.args.currency === args.currency &&
+          lower(e.args.evidenceHash) === lower(args.evidenceHash),
       );
     case "MINTER_ROLE_GRANTED":
       return parseEventLogs({ abi: token, logs, eventName: "RoleGranted" }).some(
@@ -408,7 +498,14 @@ async function settle(
       await withTenant(organizationId, (db) =>
         db.chainTransaction.updateMany({
           where: { id: tx.id, status: "PENDING", txHash: hash },
-          data: { executionMode: null, signerAddress: null, txHash: null, error: `wallet tx ${hash} reverted on-chain (block ${receipt.blockNumber})` },
+          data: {
+            executionMode: null,
+            signerAddress: null,
+            txHash: null,
+            error: `wallet tx ${hash} reverted on-chain (block ${receipt.blockNumber})`,
+            attempts: { increment: 1 },
+            lastAttemptAt: new Date(),
+          },
         }),
       );
       throw new ExecutionError(
@@ -419,7 +516,14 @@ async function settle(
     await withTenant(organizationId, (db) =>
       db.chainTransaction.updateMany({
         where: { id: tx.id, status: "PENDING" },
-        data: { status: "REVERTED", blockNumber: receipt.blockNumber, executedAt: new Date(), error: "reverted on-chain" },
+        data: {
+          status: "REVERTED",
+          blockNumber: receipt.blockNumber,
+          executedAt: new Date(),
+          error: "reverted on-chain",
+          attempts: { increment: 1 },
+          lastAttemptAt: new Date(),
+        },
       }),
     );
     throw new ExecutionError("La transacción revirtió en la red ({hash}).", { hash });
@@ -446,6 +550,19 @@ async function settle(
           (e) => lower(e.address) === lower(tx.contractAddress) && lower(e.args.organizationId) === lower(argsOf(tx.args).organizationId),
         )
       : undefined;
+  const tokenDeployed =
+    tx.kind === "OFFERING_TOKEN_DEPLOYED"
+      ? parseEventLogs({ abi: rwaxiTenantFactoryAbi, logs: receipt.logs, eventName: "OfferingTokenDeployed" }).find(
+          (e) => lower(e.address) === lower(tx.contractAddress) && lower(e.args.offeringId) === lower(argsOf(tx.args).offeringId),
+        )
+      : undefined;
+  // The mint declares the platform fee fixed in the token (PlatformFeeAccrued): recorded next to the ledger's.
+  const feeAccrued =
+    tx.kind === "SUBSCRIPTION_MINTED"
+      ? parseEventLogs({ abi: rwaxiPropertyTokenAbi, logs: receipt.logs, eventName: "PlatformFeeAccrued" }).find(
+          (e) => lower(e.address) === lower(tx.contractAddress) && lower(e.args.subscriptionId) === lower(argsOf(tx.args).subscriptionId),
+        )
+      : undefined;
   const ex: Execution = {
     id: tx.id,
     kind: tx.kind,
@@ -456,7 +573,8 @@ async function settle(
     signer: getAddress(sent.from),
     nonce: sent.nonce,
     signedTransaction: null,
-    created: deployed ? getAddress(deployed.args.registry) : null,
+    created: deployed ? getAddress(deployed.args.registry) : tokenDeployed ? getAddress(tokenDeployed.args.token) : null,
+    platformFeeBps: feeAccrued ? Number(feeAccrued.args.platformFeeBps) : null,
     via: claim,
   };
   await withTenant(organizationId, (db) => finalize(db, tx, ex, actor, meta), TX_OPTIONS);
@@ -487,7 +605,7 @@ async function broadcast(
     async (db) => {
       const prepared = await prepare(db, chainTxId, undefined, origin);
       if (TENANT_SIGNED_KINDS.has(prepared.tx.kind)) {
-        throw new ExecutionError(
+        throw new BlockedError(
           prepared.tx.kind === "DISTRIBUTION_ROOT_ANCHORED"
             ? msg("Modo RPC: el emisor firma anchorDistributionRoot con su propia wallet (RWAXI no custodia DISTRIBUTION_ROLE); registra luego su tx hash.")
             : prepared.tx.kind === "DATA_ROOM_ROOT_ANCHORED"
@@ -536,10 +654,31 @@ export async function executeChainTx(
   meta: RequestMeta,
   origin: ExecutionOrigin = "tenant",
 ): Promise<Execution> {
-  const account = operator();
-  return executionMode() === "SIMULATION"
-    ? simulate(organizationId, chainTxId, actor, meta, account, origin)
-    : broadcast(organizationId, chainTxId, actor, meta, account, origin);
+  try {
+    const account = operator();
+    return executionMode() === "SIMULATION"
+      ? await simulate(organizationId, chainTxId, actor, meta, account, origin)
+      : await broadcast(organizationId, chainTxId, actor, meta, account, origin);
+  } catch (e) {
+    // A precondition (not an attempt) or a send that still awaits its receipt (it may yet confirm) is not a failure.
+    if (!(e instanceof BlockedError) && !(e instanceof ReceiptPendingError)) await recordFailedAttempt(organizationId, chainTxId, e);
+    throw e;
+  }
+}
+
+/**
+ * A failed execution of a PENDING row, counted with its moment and reason (one line): the Super-Admin console raises
+ * its retry alerts from them. A REVERTED row already counted its revert. Best effort: it never hides the failure.
+ */
+async function recordFailedAttempt(organizationId: string, chainTxId: string, e: unknown) {
+  const reason = e instanceof LocalizedError ? interpolate(e.reason.source, e.reason.vars) : e instanceof Error ? e.message : String(e);
+  const now = new Date();
+  await withTenant(organizationId, (db) =>
+    db.chainTransaction.updateMany({
+      where: { id: chainTxId, status: "PENDING" },
+      data: { attempts: { increment: 1 }, lastAttemptAt: now, error: `${now.toISOString()} · ${reason.split("\n")[0]}`.slice(0, 500) },
+    }),
+  ).catch((err: unknown) => console.error("[chain] could not record the failed attempt", err));
 }
 
 /**
@@ -588,6 +727,38 @@ export async function confirmExternalTransaction(
 }
 
 // ───────────────────────────────────────────────────────── EIP-1193: the tenant's own browser wallet
+
+/**
+ * The revert, if any, of a call a wallet is about to sign, executed against the latest block. A distribution anchoring
+ * whose record instant no block has passed yet would answer FutureLookup there, although its transaction lands in a
+ * later block: in that window the token's own checks are replayed instead — not anchored yet, and the supply at the
+ * record instant is the latest one (no block came after it). The other conditions were replayed by prepare().
+ */
+async function dryRun(publicClient: PublicRpc, tx: ChainTransaction, from: Address, to: Address, data: Hex): Promise<unknown> {
+  if (tx.kind === "DISTRIBUTION_ROOT_ANCHORED") {
+    const args = argsOf(tx.args);
+    const latest = await publicClient.getBlock({ blockTag: "latest" });
+    if (BigInt(String(args.recordTimestamp)) >= latest.timestamp) {
+      const [supply, root] = await Promise.all([
+        publicClient.readContract({ address: to, abi: rwaxiPropertyTokenAbi, functionName: "totalSupply", blockNumber: latest.number }),
+        publicClient.readContract({
+          address: to,
+          abi: rwaxiPropertyTokenAbi,
+          functionName: "distributionRoots",
+          args: [String(args.distributionId) as Hex],
+          blockNumber: latest.number,
+        }),
+      ]);
+      if (root !== zeroHash) return new Error("DistributionAlreadyAnchored(distributionId)");
+      const declared = BigInt(String(args.snapshotSupply));
+      return supply === declared ? null : new Error(`SnapshotSupplyMismatch(${declared}, ${supply})`);
+    }
+  }
+  return publicClient.call({ account: from, to, data }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+}
 
 const shortError = (e: unknown) =>
   (e && typeof e === "object" && "shortMessage" in e && typeof e.shortMessage === "string" ? e.shortMessage : e instanceof Error ? e.message : String(e))
@@ -640,10 +811,7 @@ export async function prepareWalletCall(organizationId: string, chainTxId: strin
       : new ExecutionError("Tu wallet registrada {wallet} no tiene {role} en {contract}: no puede firmar esta operación.", { wallet: from, role, contract: to });
   }
   // Dry run from the signer: a call the network would revert is never offered for signature.
-  const dry = await publicClient.call({ account: from, to, data: encoded.calldata }).then(
-    () => null,
-    (e: unknown) => e,
-  );
+  const dry = await dryRun(publicClient, tx, from, to, encoded.calldata);
   if (dry) throw new ExecutionError("La red rechazaría la llamada desde tu wallet ({detail}): no se pidió ninguna firma.", { detail: shortError(dry) });
   return {
     chainTxId: tx.id,
@@ -745,6 +913,80 @@ export async function confirmWalletCall(
   );
   if (claimed.count !== 1) throw new ExecutionError("Otra ejecución tomó esta transacción.");
   return reconcile({ ...tx, executionMode: "RPC", txHash: hash, signerAddress: getAddress(sent.from), error: null });
+}
+
+// ───────────────────────────────────────────────────────── distributions: the token's history and the whitelist (RPC)
+
+async function deployedAt(publicClient: PublicRpc, address: Address) {
+  const code = await publicClient.getCode({ address });
+  if (!code || code === "0x") throw new ExecutionError("Modo RPC: no hay contrato desplegado en esa dirección de la red configurada.");
+}
+
+/**
+ * What an offering's token recorded at an instant (RPC): totalSupplyAt and balanceOfAt of each wallet — or, while no
+ * block has been mined after that instant, the latest state, pinned to the latest block. The holders' register a
+ * distribution is declared over must match it.
+ */
+export async function readTokenSnapshot(
+  network: ChainNetwork,
+  token: string,
+  wallets: readonly string[],
+  seconds: number,
+): Promise<{ supply: number; balances: Map<string, number>; source: "history" | "latest"; blockNumber: bigint }> {
+  const { publicClient } = rpcClients(network);
+  const address = getAddress(token);
+  await deployedAt(publicClient, address);
+  const latest = await publicClient.getBlock({ blockTag: "latest" });
+  const history = BigInt(seconds) < latest.timestamp;
+  const blockNumber = latest.number;
+  const abi = rwaxiPropertyTokenAbi;
+  const at = BigInt(seconds);
+  try {
+    const supply = history
+      ? await publicClient.readContract({ address, abi, functionName: "totalSupplyAt", args: [at], blockNumber })
+      : await publicClient.readContract({ address, abi, functionName: "totalSupply", blockNumber });
+    const units = await Promise.all(
+      wallets.map((w) =>
+        history
+          ? publicClient.readContract({ address, abi, functionName: "balanceOfAt", args: [getAddress(w), at], blockNumber })
+          : publicClient.readContract({ address, abi, functionName: "balanceOf", args: [getAddress(w)], blockNumber }),
+      ),
+    );
+    return {
+      supply: Number(supply),
+      balances: new Map(wallets.map((w, i) => [w.toLowerCase(), Number(units[i])])),
+      source: history ? "history" : "latest",
+      blockNumber,
+    };
+  } catch (e) {
+    console.error("[chain] token snapshot read failed", e);
+    throw new ExecutionError(
+      "Modo RPC: no se pudo leer el historial de saldos del token (balanceOfAt / totalSupplyAt); un token desplegado antes de esa versión del contrato no lo tiene.",
+    );
+  }
+}
+
+/** The units an offering's token holds on its network now (RPC): totalSupply() at the latest block. */
+export async function readTokenSupply(network: ChainNetwork, token: string): Promise<number> {
+  const { publicClient } = rpcClients(network);
+  const address = getAddress(token);
+  await deployedAt(publicClient, address);
+  return Number(await publicClient.readContract({ address, abi: rwaxiPropertyTokenAbi, functionName: "totalSupply" }));
+}
+
+/** RwaxiComplianceRegistry's entry of each wallet (RPC): approved and frozen, as the token's isEligible() reads them. */
+export async function readRegistryEntries(
+  network: ChainNetwork,
+  registry: string,
+  wallets: readonly string[],
+): Promise<Map<string, { approved: boolean; frozen: boolean }>> {
+  const { publicClient } = rpcClients(network);
+  const address = getAddress(registry);
+  await deployedAt(publicClient, address);
+  const entries = await Promise.all(
+    wallets.map((w) => publicClient.readContract({ address, abi: rwaxiComplianceRegistryAbi, functionName: "investor", args: [getAddress(w)] })),
+  );
+  return new Map(wallets.map((w, i) => [w.toLowerCase(), { approved: entries[i]!.isApproved, frozen: entries[i]!.isFrozen }]));
 }
 
 // ───────────────────────────────────────────────────────── optional: the issuer signs its own mints

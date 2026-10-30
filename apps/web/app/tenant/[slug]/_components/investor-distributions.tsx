@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { allocationLeaf, verifyAllocation } from "@rwaxi/blockchain-sdk/distribution";
+import { allocationLeaf, verifyAllocation, type AllocationClaim } from "@rwaxi/blockchain-sdk/distribution";
 import { Icon } from "@/app/_components/ui/icon";
 import { CopyChip } from "@/app/_components/ui/primitives";
 import { useI18n } from "@/app/_i18n/provider";
@@ -10,13 +10,23 @@ import type { PersistedDistribution } from "../_lib/journey-types";
 
 type Check = { ok: boolean; leaf: string };
 
-/** Allocations are committed in USD cents (Merkle leaves): shown exactly, never at the demo TRM. */
-const usd = (n: number) => `USD ${nf(2).format(n)}`;
+/** Allocations are committed in hundredths of their payment currency (Merkle leaves): shown exactly, never converted. */
+const amountIn = (currency: string, n: number) => `${currency} ${nf(2).format(n)}`;
+
+/** The claim the leaf commits: v2 leaves include the payment currency, v1 leaves were USD cents. */
+const claimOf = (d: PersistedDistribution): AllocationClaim => ({
+  distributionId: d.distributionId,
+  wallet: d.wallet,
+  units: d.units,
+  amountCents: d.amountCents,
+  ...(d.leafVersion >= 2 ? { currency: d.currency } : {}),
+});
 
 /**
- * Portfolio · yield distributions allocated to the investor (PostgreSQL), each with its Merkle
- * proof. "Verificar prueba" recomputes the leaf from the allocation and folds the proof up to the
- * root in this browser (@rwaxi/blockchain-sdk/distribution): no server is trusted for the check.
+ * Portfolio · yield distributions allocated to the investor (PostgreSQL), each with its Merkle proof. "Verificar
+ * prueba" recomputes the leaf from the allocation and folds the proof up to the root in this browser
+ * (@rwaxi/blockchain-sdk/distribution): no server is trusted for the check. The payment shows only whether the issuer
+ * instructed it — never why it is still pending.
  */
 export function InvestorDistributions({ distributions, toast }: { distributions: PersistedDistribution[]; toast: (message: string) => void }) {
   const { tr } = useI18n();
@@ -24,9 +34,10 @@ export function InvestorDistributions({ distributions, toast }: { distributions:
   const [open, setOpen] = useState<string | null>(null);
   if (!distributions.length) return null;
 
-  const total = distributions.reduce((s, d) => s + d.amount, 0);
+  const totals = new Map<string, number>();
+  for (const d of distributions) totals.set(d.currency, Math.round(((totals.get(d.currency) ?? 0) + d.amount) * 100) / 100);
   const verify = (d: PersistedDistribution) => {
-    const claim = { distributionId: d.distributionId, wallet: d.wallet, units: d.units, amountCents: d.amountCents };
+    const claim = claimOf(d);
     let leaf = "";
     try {
       leaf = allocationLeaf(claim);
@@ -42,8 +53,8 @@ export function InvestorDistributions({ distributions, toast }: { distributions:
         <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">{tr("Distribuciones de rendimientos")}</p>
         <p className="text-[12px] text-inkBody">
           {tr("Asignado:")}{" "}
-          <span className="font-mono" data-distributions-total={total.toFixed(2)}>
-            {usd(total)}
+          <span className="font-mono" data-distributions-total={JSON.stringify(Object.fromEntries(totals))}>
+            {[...totals].map(([currency, total]) => amountIn(currency, total)).join(" · ")}
           </span>
         </p>
       </div>
@@ -51,12 +62,19 @@ export function InvestorDistributions({ distributions, toast }: { distributions:
         {distributions.map((d) => {
           const check = checks[d.id];
           return (
-            <li key={d.id} className="px-4 py-3 border-b border-line last:border-b-0 text-[12.5px]" data-distribution-allocation={d.period} data-status={d.status}>
+            <li
+              key={d.id}
+              className="px-4 py-3 border-b border-line last:border-b-0 text-[12.5px]"
+              data-distribution-allocation={d.period}
+              data-status={d.status}
+              data-currency={d.currency}
+              data-payout={d.payout ? `instructed-${d.payout.sequence}` : "pending"}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-inkBody">
                     <span className="font-mono font-semibold text-rxPurple">{d.period}</span>
-                    {` · ${usd(d.amount)}`}
+                    {` · ${amountIn(d.currency, d.amount)}`}
                     <span className="text-muted">
                       {" · "}
                       {tr("{units} de {total} tokens", { units: nf(0).format(d.units), total: nf(0).format(d.totalUnits), count: d.totalUnits })}
@@ -65,10 +83,17 @@ export function InvestorDistributions({ distributions, toast }: { distributions:
                     </span>
                   </p>
                   <p className="text-[11px] text-muted">
-                    {tr("Distribución total {amount}", { amount: usd(d.totalUsd) })}
-                    {d.currency === "COP" &&
+                    {tr("Distribución total {amount}", { amount: amountIn(d.currency, d.totalAmount) })}
+                    {d.leafVersion < 2 &&
+                      d.declaredCurrency === "COP" &&
                       ` (${tr("declarada en COP {amount} a {rate} COP/USD", { amount: nf(2).format(d.amountDeclared), rate: nf(2).format(d.fxRate ?? 0) })})`}
                   </p>
+                  {d.recordDate && (
+                    <p className="text-[11px] text-muted break-all">
+                      {tr("Fecha de corte {date}", { date: d.recordDate })}
+                      {d.supportSha256 && ` · ${tr("Soporte documental · SHA-256 {hash}", { hash: shortHash(d.supportSha256, 10, 6) })}`}
+                    </p>
+                  )}
                 </div>
                 <span className={`text-[10.5px] font-semibold px-2 py-0.5 ${d.status === "ANCHORED" ? "bg-aquaTint text-aquaInk" : "bg-goldTint text-goldInk"}`}>
                   {d.status === "ANCHORED" ? tr("Raíz anclada") : tr("Raíz en cola")}
@@ -83,6 +108,13 @@ export function InvestorDistributions({ distributions, toast }: { distributions:
                 </p>
               ) : (
                 <p className="text-[11px] text-goldInk mt-0.5">{tr("El emisor aún no ancla la raíz en el token (anchorDistributionRoot en cola).")}</p>
+              )}
+              {d.leafVersion >= 2 && d.status === "ANCHORED" && (
+                <p className={`text-[11px] mt-0.5 ${d.payout ? "text-aquaInk" : "text-muted"}`} data-payout-status>
+                  {d.payout
+                    ? tr("Pago instruido · instrucción #{n} · {date}", { n: d.payout.sequence, date: d.payout.at.slice(0, 10) })
+                    : tr("Pago pendiente de instrucción del emisor")}
+                </p>
               )}
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 <button
@@ -104,9 +136,13 @@ export function InvestorDistributions({ distributions, toast }: { distributions:
               </div>
               {open === d.id && (
                 <div className="mt-2 bg-cloud border border-line px-3 py-2.5 font-mono text-[10.5px] text-inkBody flex flex-col gap-1 break-all">
-                  <p className="text-muted">{tr("hoja = SHA-256(JSON canónico de la asignación: v, kind, distributionId, wallet, units, amountCents)")}</p>
+                  <p className="text-muted">
+                    {d.leafVersion >= 2
+                      ? tr("hoja = SHA-256(JSON canónico de la asignación: v, kind, distributionId, wallet, units, currency, amountCents)")
+                      : tr("hoja = SHA-256(JSON canónico de la asignación: v, kind, distributionId, wallet, units, amountCents)")}
+                  </p>
                   <p>{`distributionId ${d.distributionId}`}</p>
-                  <p>{`wallet ${d.wallet} · units ${d.units} · amountCents ${d.amountCents}`}</p>
+                  <p>{`wallet ${d.wallet} · units ${d.units}${d.leafVersion >= 2 ? ` · currency ${d.currency}` : ""} · amountCents ${d.amountCents}`}</p>
                   <p>{`${tr("hoja")} ${check?.leaf || d.leafHash}`}</p>
                   {d.proof.length === 0 ? (
                     <p className="text-muted">{tr("Única asignación: la hoja es la raíz.")}</p>

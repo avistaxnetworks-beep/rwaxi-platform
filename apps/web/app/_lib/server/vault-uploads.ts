@@ -23,9 +23,11 @@ import { VaultError, uploadReceipt, type StoredUpload } from "./vault";
  *   onboarding  admin host, the console session → staging, a receipt for onboardDeveloper()
  *   data-room   tenant host, TENANT_ADMIN (+ offeringId, folder, name, restricted) → a DataRoomDocument, the new
  *               Merkle root and its updateDataRoomMerkleRoot()
+ *   distribution  tenant host, TENANT_ADMIN (+ offeringId) → the tenant vault, a receipt for declareDistribution()
+ *               (the supporting document of a yield distribution: a PDF or a scan)
  * Rate limits (PostgreSQL, every instance): per IP address before anything else, per session once authorised.
  */
-export type UploadPurpose = "kyc" | "onboarding" | "data-room";
+export type UploadPurpose = "kyc" | "onboarding" | "data-room" | "distribution";
 
 export interface UploadContext {
   purpose: UploadPurpose;
@@ -151,10 +153,25 @@ export async function authorizeUpload(
       },
     };
   }
+  if (purpose === "distribution") {
+    const session = await requireBackofficeSession("TENANT_ADMIN");
+    const tenantId = session.tenant.id;
+    const offeringId = field("offeringId");
+    if (typeof offeringId !== "string" || !ID.test(offeringId)) throw new VaultError("Oferta inválida.");
+    const offering = await forTenant(tenantId).offering.findUnique({ where: { id: offeringId }, select: { id: true } });
+    if (!offering) throw new VaultError("Oferta no encontrada en este tenant.").withStatus(404);
+    return {
+      purpose,
+      vaultPurpose: "evidence",
+      scope: { organizationId: tenantId },
+      scopeKey: `tenant:${tenantId}`,
+      subject: `usr:${session.reviewer.id}`,
+    };
+  }
   throw new VaultError("Destino de carga inválido.");
 }
 
-/** What a verified upload becomes: a receipt (kyc, onboarding) or a Data Room document with its new root. */
+/** What a verified upload becomes: a receipt (kyc, onboarding, distribution) or a Data Room document with its new root. */
 export async function completeUpload(
   ctx: UploadContext,
   stored: StoredUpload,

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { LANG_PARAM, LOCALE_COOKIE, SURFACE_HEADER, isLocaleOf } from "@/app/_i18n/config";
 import { internalPath, resolveHost } from "@/app/_lib/hosts";
 import { REF_COOKIE, REF_MAX_AGE_S, verifyReferral } from "@/app/_lib/referral";
 
@@ -7,8 +8,30 @@ import { REF_COOKIE, REF_MAX_AGE_S, verifyReferral } from "@/app/_lib/referral";
  * Rewrites every page request to the internal route of its environment and forwards the
  * resolved context as request headers (x-rwaxi-env, x-rwaxi-tenant) for server components
  * and route handlers. Internal prefixes (/vitrina, /superadmin, /tenant) are never reachable
- * directly because every request is prefixed again.
+ * directly because every request is prefixed again. On a tenant host it also names the surface (x-rwaxi-surface:
+ * portal, 10 languages, or backoffice, es · en · pt), so a shared server action or route handler answers in the
+ * language of the surface that called it.
  */
+
+/** /backoffice and everything under it; the rest of a tenant host is the investor portal. */
+const BACKOFFICE = /^\/backoffice(?:\/|$)/;
+
+/**
+ * Surface of a tenant-host request. Pages and their server actions: the path. /api/* (not rewritten): routes only
+ * staff use (KYC documents, `?as=backoffice` downloads) are the backoffice's; any other, the page that called it,
+ * from its Referer on this same host (`host`, the header the tenant was resolved from).
+ */
+function surfaceOf(req: NextRequest, pathname: string, host: string | null): "portal" | "backoffice" {
+  if (!pathname.startsWith("/api/")) return BACKOFFICE.test(pathname) ? "backoffice" : "portal";
+  if (pathname.startsWith("/api/vault/kyc/") || req.nextUrl.searchParams.get("as") === "backoffice") return "backoffice";
+  try {
+    const referer = new URL(req.headers.get("referer") ?? "");
+    return referer.host === host?.toLowerCase() && BACKOFFICE.test(referer.pathname) ? "backoffice" : "portal";
+  } catch {
+    return "portal";
+  }
+}
+
 export async function middleware(req: NextRequest) {
   // Next forwards a Server Action that reached a page which does not bundle it to the page that does, by its
   // internal path (x-action-forwarded). The host rewrite below would send that copy to yet another page, which
@@ -25,14 +48,37 @@ export async function middleware(req: NextRequest) {
   const headers = new Headers(req.headers);
   headers.delete("x-rwaxi-env");
   headers.delete("x-rwaxi-tenant");
+  headers.delete(SURFACE_HEADER);
   headers.set("x-rwaxi-env", ctx.kind);
   if (ctx.kind === "tenant") headers.set("x-rwaxi-tenant", ctx.slug);
 
   const { pathname, search } = req.nextUrl;
+  if (ctx.kind === "tenant") headers.set(SURFACE_HEADER, surfaceOf(req, pathname, host));
+
+  // The vitrina hands its language to the portal (?lang=xx): stored as the portal's choice, then dropped from the
+  // address, so a later choice in the portal is not undone by reloading the page.
+  const lang =
+    ctx.kind === "tenant" && req.method === "GET" && !pathname.startsWith("/api/") ? req.nextUrl.searchParams.get(LANG_PARAM) : null;
+  if (lang !== null) {
+    const clean = req.nextUrl.clone();
+    clean.searchParams.delete(LANG_PARAM);
+    const res = NextResponse.redirect(clean, 307);
+    if (isLocaleOf(lang, "portal")) {
+      res.cookies.set(LOCALE_COOKIE.portal, lang, {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+        secure: req.nextUrl.protocol === "https:",
+      });
+    }
+    return res;
+  }
 
   // Route handlers stay at /api/* on every host; they read the tenant from the headers.
   if (pathname.startsWith("/api/")) return NextResponse.next({ request: { headers } });
 
+  // www/legal/* (RWAXI's terms, personal-data and cookie policies) is rewritten to /legal, not /vitrina: those pages
+  // stay outside the vitrina's legal wall, whose checkboxes link to them (LEGAL_PATH in hosts.ts).
   const target = internalPath(ctx, pathname);
   if (!target) return new NextResponse("Unknown host", { status: 404 });
 

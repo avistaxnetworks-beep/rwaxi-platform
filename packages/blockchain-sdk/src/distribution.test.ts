@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { allocationLeaf, buildDistribution, prorataCents, verifyAllocation } from "./distribution";
+import { evidenceHash } from "./canonical";
+import {
+  PAYOUT_CURRENCIES,
+  allocationLeaf,
+  buildDistribution,
+  isPayoutCurrency,
+  isStablecoin,
+  prorataCents,
+  stablecoinBaseUnits,
+  verifyAllocation,
+} from "./distribution";
 import { verifyMerkleProof } from "./merkle";
 
 const DIST = `0x${"d".repeat(64)}`;
@@ -62,4 +72,35 @@ test("leaves are deterministic and bound to the distribution, wallet, units and 
   const single = buildDistribution(DIST, 500, [{ key: "only", wallet: wallet("a"), units: 10 }]);
   assert.equal(single.root, single.allocations[0]!.leaf);
   assert.deepEqual(single.allocations[0]!.proof, []);
+});
+
+test("v2 leaves commit the payment currency; v1 leaves (USD cents) still verify", () => {
+  const claim = { distributionId: DIST, wallet: wallet("b"), units: 25, amountCents: 1_234_500 };
+  const v1 = allocationLeaf(claim);
+  const cop = allocationLeaf({ ...claim, currency: "COP" });
+  assert.notEqual(cop, v1);
+  assert.notEqual(cop, allocationLeaf({ ...claim, currency: "USD" }));
+  assert.equal(cop, evidenceHash({ v: 2, kind: "rwaxi.distribution.allocation", distributionId: DIST, wallet: wallet("b"), units: 25, currency: "COP", amountCents: 1_234_500 }));
+  assert.throws(() => allocationLeaf({ ...claim, currency: "EUR" as never }));
+
+  const holdings = [
+    { key: "a", wallet: wallet("a"), units: 300 },
+    { key: "c", wallet: wallet("c"), units: 150 },
+  ];
+  const d = buildDistribution(DIST, 4_100_000_000, holdings, "COP");
+  for (const a of d.allocations) {
+    const own = { distributionId: DIST, wallet: a.wallet, units: a.units, amountCents: a.amountCents };
+    assert.ok(verifyAllocation({ ...own, currency: "COP" }, a.proof, d.root));
+    assert.equal(verifyAllocation({ ...own, currency: "USD" }, a.proof, d.root), false); // the currency is part of the claim
+    assert.equal(verifyAllocation(own, a.proof, d.root), false); // and a v1 reading of it does not verify
+  }
+  const legacy = buildDistribution(DIST, 1_000_000, holdings);
+  assert.ok(legacy.allocations.every((a) => verifyAllocation({ distributionId: DIST, wallet: a.wallet, units: a.units, amountCents: a.amountCents }, a.proof, legacy.root)));
+});
+
+test("payout currencies: fiat through the fiduciary, USD stablecoins with 6 decimals", () => {
+  assert.deepEqual([...PAYOUT_CURRENCIES], ["COP", "USD", "USDC", "USDT"]);
+  assert.ok(isPayoutCurrency("USDT") && !isPayoutCurrency("usdt") && !isPayoutCurrency("EUR"));
+  assert.ok(isStablecoin("USDC") && !isStablecoin("COP"));
+  assert.equal(stablecoinBaseUnits(555_556), 5_555_560_000n); // 5,555.56 USDC
 });

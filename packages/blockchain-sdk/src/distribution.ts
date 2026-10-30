@@ -1,16 +1,32 @@
 /**
- * Yield distributions: pro-rata allocations over the token balances of an offering, committed in a
- * SHA-256 Merkle tree (the same construction as the Data Room, see merkle.ts). The issuer anchors
- * the root with RwaxiPropertyToken.anchorDistributionRoot(distributionId, root, totalAmountCents,
- * snapshotSupply); each investor verifies their allocation with its proof against that root.
+ * Yield distributions: pro-rata allocations over the token balances of an offering at its record date,
+ * committed in a SHA-256 Merkle tree (the same construction as the Data Room, see merkle.ts). The issuer
+ * anchors the root with RwaxiPropertyToken.anchorDistributionRoot(distributionId, root, totalAmountCents,
+ * snapshotSupply, recordTimestamp, currency, evidenceHash); each investor verifies their allocation with its
+ * proof against that root.
  *
- *   leaf = evidenceHash({ v: 1, kind: "rwaxi.distribution.allocation", distributionId, wallet, units, amountCents })
+ *   leaf v2 = evidenceHash({ v: 2, kind: "rwaxi.distribution.allocation", distributionId, wallet, units, currency, amountCents })
+ *   leaf v1 = evidenceHash({ v: 1, kind: "rwaxi.distribution.allocation", distributionId, wallet, units, amountCents })
  *
- * Amounts are integer cents. The split uses the largest-remainder method, so the allocations add up
- * exactly to the declared total; ties go to the larger holding, then to the lower key.
+ * Amounts are integer hundredths of the payment currency ("cents": USD or COP cents, or 1/100 of a USD
+ * stablecoin); v1 leaves (distributions declared before the payment currency existed) are USD cents. The
+ * split uses the largest-remainder method, so the allocations add up exactly to the declared total; ties
+ * go to the larger holding, then to the lower key.
  */
 import { evidenceHash } from "./canonical";
 import { buildMerkleTree, getMerkleProof, toBytes32, verifyMerkleProof, type Bytes32 } from "./merkle";
+
+/**
+ * What a distribution is paid in: fiat through the issuer's fiduciary vehicle (COP, USD) or a USD stablecoin
+ * transferred from the issuer's own treasury (USDC, USDT: 6 decimals on-chain). RWAXI never holds the funds.
+ */
+export const PAYOUT_CURRENCIES = ["COP", "USD", "USDC", "USDT"] as const;
+export type PayoutCurrency = (typeof PAYOUT_CURRENCIES)[number];
+export const isPayoutCurrency = (v: unknown): v is PayoutCurrency => (PAYOUT_CURRENCIES as readonly unknown[]).includes(v);
+/** USD stablecoins: paid on-chain by the issuer, 1 USD each. */
+export const isStablecoin = (c: PayoutCurrency) => c === "USDC" || c === "USDT";
+/** Base units (6 decimals) of a stablecoin amount given in cents: what an ERC-20 transfer(to, amount) carries. */
+export const stablecoinBaseUnits = (amountCents: number | bigint): bigint => BigInt(amountCents) * 10_000n;
 
 export interface DistributionHolding {
   /** stable id of the holder (e.g. Investor.id) */
@@ -31,7 +47,10 @@ export interface AllocationClaim {
   distributionId: string;
   wallet: string;
   units: number;
+  /** hundredths of the payment currency (v1: USD cents) */
   amountCents: number;
+  /** payment currency, committed in the leaf (v2); absent for v1 leaves */
+  currency?: PayoutCurrency;
 }
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
@@ -68,21 +87,27 @@ export function allocationLeaf(claim: AllocationClaim): Bytes32 {
   if (!positiveInt(claim.units) || !Number.isSafeInteger(claim.amountCents) || claim.amountCents < 0) {
     throw new Error("units must be positive and amountCents a non-negative integer");
   }
-  return evidenceHash({
-    v: 1,
+  const common = {
     kind: "rwaxi.distribution.allocation",
     distributionId: toBytes32(claim.distributionId),
     wallet: claim.wallet.toLowerCase(),
     units: claim.units,
     amountCents: claim.amountCents,
-  });
+  };
+  if (claim.currency === undefined) return evidenceHash({ v: 1, ...common });
+  if (!isPayoutCurrency(claim.currency)) throw new Error(`Unknown payout currency: ${String(claim.currency)}`);
+  return evidenceHash({ v: 2, ...common, currency: claim.currency });
 }
 
-/** Allocations, leaves, proofs and root of a distribution of `totalCents` over `holdings`. */
+/**
+ * Allocations, leaves, proofs and root of a distribution of `totalCents` over `holdings`; with a payment
+ * currency the leaves are v2 (they commit it), without one v1 (USD cents).
+ */
 export function buildDistribution(
   distributionId: string,
   totalCents: number,
   holdings: readonly DistributionHolding[],
+  currency?: PayoutCurrency,
 ): { root: Bytes32; totalUnits: number; allocations: DistributionAllocation[] } {
   if (new Set(holdings.map((h) => h.wallet.toLowerCase())).size !== holdings.length) {
     throw new Error("each wallet may appear only once");
@@ -90,7 +115,7 @@ export function buildDistribution(
   const cents = prorataCents(totalCents, holdings);
   const drafts = holdings.map((h) => {
     const amountCents = cents.get(h.key)!;
-    return { ...h, wallet: h.wallet.toLowerCase(), amountCents, leaf: allocationLeaf({ distributionId, wallet: h.wallet, units: h.units, amountCents }) };
+    return { ...h, wallet: h.wallet.toLowerCase(), amountCents, leaf: allocationLeaf({ distributionId, wallet: h.wallet, units: h.units, amountCents, currency }) };
   });
   const tree = buildMerkleTree(drafts.map((d) => d.leaf));
   return {

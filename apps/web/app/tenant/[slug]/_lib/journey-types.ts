@@ -58,6 +58,8 @@ export interface PortalOfferingState {
   tokenPaused: boolean;
   /** capital raising paused by the platform (off-chain): no new subscriptions */
   capturePaused: boolean;
+  /** lifecycle decided by the developer (Offering.status): only ACTIVE takes subscriptions */
+  status: "STRUCTURING" | "ACTIVE" | "FUNDED";
   /** the developer's commercial copy in other languages (Offering.translations) */
   translations: OfferingTranslations;
 }
@@ -75,16 +77,27 @@ export interface PersistedDistribution {
   offeringCode: string;
   wallet: string;
   units: number;
-  /** USD */
+  /** 2: the leaf commits the payment currency; 1: USD cents (declared before the payment currency existed) */
+  leafVersion: number;
+  /** what the allocation is paid in (v1: USD) */
+  currency: "COP" | "USD" | "USDC" | "USDT";
+  /** the allocation, in `currency` */
   amount: number;
+  /** hundredths of `currency`, as the leaf commits it */
   amountCents: number;
-  /** whole distribution: USD, holders and token supply of the snapshot */
+  /** whole distribution: total in `currency`, its USD equivalent, holders and token supply at the record date */
+  totalAmount: number;
   totalUsd: number;
   totalUnits: number;
   holders: number;
-  currency: "USD" | "COP";
+  /** v1: the currency it was declared in (COP converted at fxRate) */
+  declaredCurrency: string;
   amountDeclared: number;
   fxRate: number | null;
+  /** the cut-off date (null on v1 distributions) */
+  recordDate: string | null;
+  /** SHA-256 of the supporting document, anchored with the root (evidenceHash) */
+  supportSha256: string | null;
   merkleRoot: string;
   leafHash: string;
   proof: string[];
@@ -92,6 +105,8 @@ export interface PersistedDistribution {
   anchorTxHash: string | null;
   /** how the anchoring was executed (every view that shows a hash shows its mode) */
   anchorMode: "SIMULATION" | "RPC" | null;
+  /** the payment instruction that carries this allocation; never why one is withheld (no tipping-off) */
+  payout: { sequence: number; at: string } | null;
   token: { address: string | null; network: string };
   declaredAt: string;
 }

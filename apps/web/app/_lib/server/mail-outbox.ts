@@ -1,7 +1,7 @@
 import "server-only";
 import { after } from "next/server";
 import { withTenant, type Prisma } from "@rwaxi/database";
-import { MailDispatcher, bodySha256, mailDriverFromEnv, redactMail, type RunInDb } from "@rwaxi/mail";
+import { MailDispatcher, bodySha256, mailDriverFromEnv, redactMail, type MailDriver, type RunInDb } from "@rwaxi/mail";
 
 /**
  * Outgoing email (mail_outbox), delivered by the MailDispatcher of @rwaxi/mail: Resend, Postmark or a signed
@@ -24,6 +24,9 @@ function mailer(): MailDispatcher | null {
   }
   return dispatcher;
 }
+
+/** The configured mail driver (null if misconfigured), for platform mails that have no tenant outbox. */
+export const mailDriver = (): MailDriver | null => mailer()?.driver ?? null;
 
 /** Delivers one queued mail of a tenant and clears expired ones; never throws (it runs after the response). */
 async function deliver(organizationId: string, id: string): Promise<void> {

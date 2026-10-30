@@ -61,6 +61,14 @@ const CALLS: Partial<Record<ChainTxKind, CallSpec>> = {
     event: "TenantRegistryDeployed",
     note: msg("La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma; sin registro el tenant no puede aprobar inversionistas."),
   },
+  OFFERING_TOKEN_DEPLOYED: {
+    abi: rwaxiTenantFactoryAbi,
+    fn: "deployOfferingToken",
+    event: "OfferingTokenDeployed",
+    note: msg(
+      "La ejecuta el operador RWAXI (RWAXI_OPERATOR_ROLE) desde la consola de plataforma: el token queda con la comisión de plataforma pactada (platformFeeBps) fija y con la raíz del Data Room anclada.",
+    ),
+  },
   INVESTOR_WHITELISTED: { abi: rwaxiComplianceRegistryAbi, fn: "approveInvestor", event: "InvestorWhitelisted" },
   INVESTOR_REVOKED: { abi: rwaxiComplianceRegistryAbi, fn: "revokeInvestor", event: "InvestorRevoked" },
   INVESTOR_FREEZE_UPDATED: { abi: rwaxiComplianceRegistryAbi, fn: "setFrozen", event: "InvestorFreezeUpdated" },
@@ -106,6 +114,17 @@ function coerce(param: AbiParameter, value: unknown): unknown {
         : null;
     if (n === null || (m[1] === "u" && n < 0n)) return undefined;
     return Number(m[2] || 256) <= 48 ? Number(n) : n; // viem: small ints as number, larger as bigint
+  }
+  // A struct (e.g. the TokenConfig of deployOfferingToken): stored as an object keyed by component name.
+  if (t === "tuple" && "components" in param && value && typeof value === "object" && !Array.isArray(value)) {
+    const fields = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const component of param.components) {
+      const v = coerce(component, fields[component.name ?? ""]);
+      if (v === undefined) return undefined;
+      out[component.name ?? ""] = v;
+    }
+    return out;
   }
   return undefined;
 }

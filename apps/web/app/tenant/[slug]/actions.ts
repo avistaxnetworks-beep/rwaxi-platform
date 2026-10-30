@@ -40,6 +40,7 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const HEX64 = /^(0x)?[0-9a-fA-F]{64}$/;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+const BYTES32 = /^0x[0-9a-fA-F]{64}$/;
 const MAX_DOC_BYTES = 10 * 1024 * 1024;
 /** Client clocks may drift; the NDA hash embeds the client's signing time. */
 const MAX_CLOCK_SKEW_MS = 10 * 60 * 1000;
@@ -154,6 +155,13 @@ export async function signNda(input: NdaSubmission): Promise<NdaResult> {
               acceptedAt: at,
             },
           }));
+        // The tenant half of the double legal wall, on the investor: subscribe() requires it with the NDA's hash.
+        if (!investor.tenantNdaAccepted) {
+          investor = await tx.investor.update({
+            where: { id: investor.id },
+            data: { tenantNdaAccepted: true, tenantNdaDate: nda.acceptedAt },
+          });
+        }
 
         let lead = await tx.lead.findFirst({
           where: { offeringId: offering.id, investorId: investor.id },
@@ -440,6 +448,11 @@ export async function submitKyc(input: KycSubmission): Promise<KycResult> {
 // ───────────────────────────────────────────────────────────── Paso 4 · Suscripción
 
 const CAPTURE_PAUSED = msg("La captación de esta oferta está pausada temporalmente por la plataforma: no se reciben nuevas suscripciones.");
+/** Only an ACTIVE offering raises capital (Offering.status, decided by the developer in its backoffice). */
+const NOT_RAISING = {
+  STRUCTURING: msg("Este proyecto está en estructuración: todavía no recibe suscripciones."),
+  FUNDED: msg("Este proyecto completó su captación: ya no recibe nuevas suscripciones."),
+} as const;
 
 /** Ceiling of the prototype's amount slider (SubscriptionPanel), enforced server-side. */
 const MAX_SUBSCRIPTION_USD = 250_000;
@@ -476,10 +489,19 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         if (!investor) throw new OnboardingError("Tu sesión ya no es válida; firma de nuevo el NDA.");
         const org = await tx.organization.findUniqueOrThrow({
           where: { id: tenant.id },
-          select: { taxId: true, complianceRegistry: true },
+          select: { taxId: true, complianceRegistry: true, platformFeeBps: true },
         });
         const offering = await tx.offering.findFirst({ ...PORTAL_OFFERING, select: OFFERING_STATE_SELECT });
         if (!offering) throw new OnboardingError("Este portal no tiene una oferta publicada.");
+        // The tenant's legal wall: the NDA of this offering, signed by this investor, with the SHA-256 of the text
+        // they accepted (the agreement cites it).
+        const nda = await tx.ndaAcceptance.findUnique({
+          where: { offeringId_investorId: { offeringId: offering.id, investorId: investor.id } },
+          select: { documentHash: true, acceptedAt: true },
+        });
+        if (!nda || !BYTES32.test(nda.documentHash) || !investor.tenantNdaAccepted) {
+          throw new OnboardingError("Firma primero el NDA (Paso 1) para iniciar tu verificación.");
+        }
         const kyc = await tx.kycCase.findFirst({
           where: { investorId: investor.id, offeringId: offering.id },
           orderBy: { createdAt: "desc" },
@@ -502,6 +524,7 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         }
         const state = offeringState(offering);
         if (state.tokenPaused) throw new OnboardingError("El emisor pausó el token: no se pueden emitir nuevas unidades.");
+        if (state.status !== "ACTIVE") throw new OnboardingError(NOT_RAISING[state.status]);
         if (state.capturePaused) throw new OnboardingError(CAPTURE_PAUSED);
 
         const capital = offering.unitPriceUsd.mul(units);
@@ -513,12 +536,13 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         }
 
         // Atomic availability check (backed by the offerings_units_subscribed_range CHECK); a pause
-        // decided by the platform in the meantime also makes it match no row.
+        // decided by the platform, or the developer closing the raise, in the meantime also makes it match no row.
         const committed = await tx.$executeRaw`
           UPDATE offerings SET units_subscribed = units_subscribed + ${units}::int
-          WHERE id = ${offering.id} AND capture_paused_at IS NULL AND units_subscribed + ${units}::int <= total_units`;
+          WHERE id = ${offering.id} AND status = 'ACTIVE' AND capture_paused_at IS NULL AND units_subscribed + ${units}::int <= total_units`;
         if (committed !== 1) {
-          const current = await tx.offering.findUniqueOrThrow({ where: { id: offering.id }, select: { capturePausedAt: true } });
+          const current = await tx.offering.findUniqueOrThrow({ where: { id: offering.id }, select: { capturePausedAt: true, status: true } });
+          if (current.status !== "ACTIVE") throw new OnboardingError(NOT_RAISING[current.status]);
           if (current.capturePausedAt) throw new OnboardingError(CAPTURE_PAUSED);
           throw new OnboardingError("No hay unidades suficientes: quedan {n}.", { n: state.totalUnits - state.unitsSubscribed });
         }
@@ -527,6 +551,13 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
         // Deployed token: the signature reserves units and waits for the developer to reconcile the
         // fiduciary payment (backoffice), which queues the mint. Pre-sale: a reservation only.
         const awaitsPayment = state.tokenDeployed;
+        // The platform fee RWAXI will invoice the developer for this subscription (B2B: never charged to the
+        // investor, never part of the agreement they sign): the one fixed in the deployed token, or in pre-sale the
+        // agreed one, which the token fixes when it is deployed.
+        const token = await tx.tokenDeployment.findUnique({ where: { offeringId: offering.id }, select: { platformFeeBps: true } });
+        const tokenFeeBps = awaitsPayment ? (token?.platformFeeBps ?? null) : null;
+        const platformFeeBps = tokenFeeBps ?? org.platformFeeBps;
+        const platformFeeUsd = capital.mul(platformFeeBps).div(10_000).toDecimalPlaces(2);
         const created = await tx.subscription.create({
           data: {
             organizationId: tenant.id,
@@ -535,13 +566,16 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
             units,
             capitalUsd: capital,
             status: awaitsPayment ? "PAYMENT_PENDING" : "RESERVED",
+            platformFeeBps,
+            platformFeeUsd,
           },
         });
         const onchainId = toOnchainId(created.id);
         // The agreement the investor signed; its hash is combined with the payment reference later.
-        // v2 records the language the acknowledgments were shown in.
+        // v2 records the language the acknowledgments were shown in; v3 cites the tenant NDA it rests on (the
+        // SHA-256 of the text the investor accepted).
         const agreement = {
-          version: 2,
+          version: 3,
           language,
           subscription: { id: created.id, onchainId },
           organization: { id: tenant.id, taxId: org.taxId },
@@ -552,6 +586,7 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
           capitalUsd: capital.toFixed(2),
           acknowledgments: { contract: true, risk: true, layers: true },
           kycDossierHash: kyc.dossierHash,
+          nda: { documentHash: nda.documentHash, acceptedAt: nda.acceptedAt.toISOString() },
           createdAt: now.toISOString(),
         };
         const agreementHash = evidenceHash(agreement);
@@ -577,6 +612,13 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
               status: subscription.status,
               paymentCode: awaitsPayment ? paymentCodeOf(onchainId) : null,
               agreement,
+              platformFee: {
+                platformFeeBps,
+                estimatedUsd: platformFeeUsd.toFixed(2),
+                source: tokenFeeBps !== null ? "token" : "agreement",
+                fixedInToken: tokenFeeBps !== null,
+                payer: "developer",
+              },
             },
             ...meta,
             createdAt: now,

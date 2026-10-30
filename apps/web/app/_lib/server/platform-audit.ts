@@ -14,6 +14,10 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ORGANIZATION_ONBOARDED",
   "STAFF_INVITED",
   "STAFF_INVITATION_RESENT",
+  "REGISTRY_WALLETS_DECLARED",
+  "COMMERCIAL_TERMS_UPDATED",
+  "COMMERCIAL_AGREEMENT_DOWNLOADED",
+  "OFFERING_TOKEN_DEPLOYMENT_QUEUED",
 ] as const;
 export type PlatformAuditActionKey = (typeof PLATFORM_AUDIT_ACTIONS)[number];
 
@@ -38,10 +42,21 @@ interface PlatformPayload {
   email?: string;
   role?: string;
   expiresAt?: string;
+  tenantAdmin?: string;
+  complianceOfficer?: string;
+  network?: string;
+  /** COMMERCIAL_TERMS_UPDATED: the signed agreement it registers */
+  agreement?: { reference?: string; signedOn?: string; sha256?: string };
+  /** COMMERCIAL_AGREEMENT_DOWNLOADED */
+  reference?: string;
+  /** OFFERING_TOKEN_DEPLOYMENT_QUEUED: the fee written into the token and the reservations it will open to payment */
+  platformFeeBps?: number;
+  reservations?: number;
 }
 
 const ROLE_LABEL: Record<string, string> = { TENANT_ADMIN: msg("Administrador"), COMPLIANCE_OFFICER: msg("Oficial de Cumplimiento") };
 const utc = (iso: unknown) => `${String(iso).slice(0, 16).replace("T", " ")} UTC`;
+const short = (w: unknown) => (typeof w === "string" ? `${w.slice(0, 8)}…${w.slice(-6)}` : "—");
 
 const STATUS_LABEL: Record<string, string> = { ACTIVE: msg("ACTIVO"), REVIEW: msg("EN REVISIÓN"), SUSPENDED: msg("SUSPENDIDO") };
 const TERMS: [key: string, label: string, unit: string][] = [
@@ -98,5 +113,30 @@ export function platformAuditSummary(action: PlatformAuditActionKey, raw: unknow
         ? tr("Invitación de activación enviada a {email} ({role}) · vence {expires}", vars)
         : tr("Invitación de activación reenviada a {email} ({role}) · vence {expires}", vars);
     }
+    case "REGISTRY_WALLETS_DECLARED":
+      return tr("Wallets declaradas · administrador {admin} · oficial {officer} · deployTenantRegistry() en cola ({network})", {
+        admin: short(p.tenantAdmin),
+        officer: short(p.complianceOfficer),
+        network: String(p.network),
+      });
+    case "COMMERCIAL_TERMS_UPDATED": {
+      const bps = (v: unknown) => String((v as { platformFeeBps?: unknown } | undefined)?.platformFeeBps ?? "—");
+      return tr("Acuerdo comercial {reference} ({date}) · comisión de plataforma {from} → {to} pb · SHA-256 {hash}", {
+        reference: String(p.agreement?.reference),
+        date: String(p.agreement?.signedOn),
+        from: bps(p.from),
+        to: bps(p.to),
+        hash: short(p.agreement?.sha256),
+      });
+    }
+    case "OFFERING_TOKEN_DEPLOYMENT_QUEUED":
+      return tr("Token de {code} en cola · deployOfferingToken() con comisión de plataforma {bps} pb · reservas por abrir a pago: {n} ({network})", {
+        code: String(p.offeringCode),
+        bps: String(p.platformFeeBps),
+        n: p.reservations ?? 0,
+        network: String(p.network),
+      });
+    case "COMMERCIAL_AGREEMENT_DOWNLOADED":
+      return tr("Acuerdo comercial {reference} consultado · re-hasheado contra su SHA-256", { reference: String(p.reference) });
   }
 }

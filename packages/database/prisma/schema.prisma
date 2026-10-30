@@ -196,6 +196,19 @@ enum AuditAction {
   SUBSCRIPTION_CANCELLED
   INVESTOR_FREEZE_REQUESTED
   MINTER_ROLE_REQUESTED
+  // offering lifecycle (backoffice) and the registry deferred at onboarding (console)
+  OFFERING_STATUS_CHANGED
+  REGISTRY_WALLETS_DECLARED
+  COMMERCIAL_TERMS_UPDATED
+  COMMERCIAL_AGREEMENT_DOWNLOADED
+  // the console queues an offering's token (factory, agreed fee); its deployment opens the reservations' payment
+  OFFERING_TOKEN_DEPLOYMENT_QUEUED
+  SUBSCRIPTION_PAYMENT_OPENED
+  // yield distributions: payment instruction (whitelist re-checked) and audited reads of the supporting document
+  DISTRIBUTION_PAYOUT_INSTRUCTED
+  DISTRIBUTION_SUPPORT_DOWNLOADED
+  // the Super-Admin console exported a report (audit trail, B2B fees): organization-less, like console logins
+  PLATFORM_REPORT_EXPORTED
 }
 
 enum SessionScope {
@@ -249,7 +262,10 @@ model Organization {
   complianceRegistry     String?          @map("compliance_registry_address")
   feeSetupUsd            Decimal          @default(0) @map("fee_setup_usd") @db.Decimal(18, 2)
   feeMonthlyUsd          Decimal          @default(0) @map("fee_monthly_usd") @db.Decimal(18, 2)
-  feeUsagePct            Decimal          @default(0) @map("fee_usage_pct") @db.Decimal(6, 3)
+  /// Platform fee agreed with the developer, in basis points (25 = 0.25 % … 500 = 5 %; CHECK): written into every
+  /// token deployed from now on (RwaxiPropertyToken.platformFeeBps, immutable) and accrued as INFRASTRUCTURE_USAGE
+  /// on each reconciled payment. Changed only with a signed CommercialAgreement (Super-Admin, module A).
+  platformFeeBps         Int              @map("platform_fee_bps")
   onboardedAt            DateTime         @default(now()) @map("onboarded_at")
   createdAt              DateTime         @default(now()) @map("created_at")
   updatedAt              DateTime         @updatedAt @map("updated_at")
@@ -269,12 +285,15 @@ model Organization {
   feeInvoices    FeeInvoice[]
   distributions  Distribution[]
   allocations    DistributionAllocation[]
+  payoutBatches  DistributionPayoutBatch[]
+  payouts        DistributionPayout[]
   auditEvents    AuditEvent[]
   userSessions   UserSession[]
   investorOtps   InvestorOtp[]
   mailOutbox     MailOutbox[]
   invitations    UserInvitation[]
   vaultObjects   VaultObject[]
+  agreements     CommercialAgreement[]
 
   @@map("organizations")
 }
@@ -308,14 +327,15 @@ model User {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  organization          Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization          Organization?             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sessions              UserSession[]
   invitations           UserInvitation[]
-  reviewedCases         KycCase[]        @relation("KycReviewer")
-  revokedCases          KycCase[]        @relation("KycRevoker")
+  reviewedCases         KycCase[]                 @relation("KycReviewer")
+  revokedCases          KycCase[]                 @relation("KycRevoker")
   auditEvents           AuditEvent[]
-  confirmedPayments     Subscription[]   @relation("SubscriptionPaymentConfirmer")
+  confirmedPayments     Subscription[]            @relation("SubscriptionPaymentConfirmer")
   declaredDistributions Distribution[]
+  payoutBatches         DistributionPayoutBatch[]
 
   @@index([organizationId])
   @@map("users")
@@ -393,6 +413,9 @@ model TokenDeployment {
   onchainId       String?      @unique @map("onchain_id")
   contractAddress String?      @map("contract_address")
   deployTxHash    String?      @map("deploy_tx_hash")
+  /// Platform fee fixed in the deployed token (RwaxiPropertyToken.platformFeeBps), in basis points; NULL for tokens
+  /// deployed before the fee existed on-chain (their fee is the organization's agreed one)
+  platformFeeBps  Int?         @map("platform_fee_bps")
   status          TokenStatus  @default(NOT_DEPLOYED)
   deployedAt      DateTime?    @map("deployed_at")
   createdAt       DateTime     @default(now()) @map("created_at")
@@ -580,6 +603,12 @@ model Subscription {
   onchainId            String?            @unique @map("onchain_id")
   units                Int
   capitalUsd           Decimal            @map("capital_usd") @db.Decimal(18, 2)
+  /// The platform fee RWAXI invoices the developer for this subscription (B2B, never charged to the investor):
+  /// basis points and capital × bps / 10 000. Estimated at signature (the token's fee, or the agreed one in
+  /// pre-sale), fixed by the token when it is deployed, accrued when the payment is reconciled. NULL before
+  /// subscriptions were linked to the fee.
+  platformFeeBps       Int?               @map("platform_fee_bps")
+  platformFeeUsd       Decimal?           @map("platform_fee_usd") @db.Decimal(18, 2)
   status               SubscriptionStatus @default(RESERVED)
   /// SHA-256 of the signed subscription agreement (canonical JSON kept in the AuditEvent)
   agreementHash        String?            @map("agreement_hash")
@@ -630,6 +659,9 @@ model ChainTransaction {
   /// raw EIP-1559 signed transaction (SIMULATION); txHash = keccak256(signedTransaction)
   signedTransaction String?             @map("signed_transaction")
   executedAt        DateTime?           @map("executed_at")
+  /// executions that failed (node refused it, it reverted, a later step failed): not the ones a precondition blocked
+  attempts          Int                 @default(0)
+  lastAttemptAt     DateTime?           @map("last_attempt_at")
   createdAt         DateTime            @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -646,32 +678,53 @@ model ChainTransaction {
 /// A yield distribution of an offering, split pro rata over the MINTED token balances at the snapshot
 /// and committed in a SHA-256 Merkle tree (@rwaxi/blockchain-sdk/distribution).
 model Distribution {
-  id             String             @id @default(cuid())
-  organizationId String             @map("organization_id")
-  offeringId     String             @map("offering_id")
+  id                String              @id @default(cuid())
+  organizationId    String              @map("organization_id")
+  offeringId        String              @map("offering_id")
   /// keccak256("rwaxi.distribution:{offeringId}:{period}"): distributionId in RwaxiPropertyToken.anchorDistributionRoot
-  onchainId      String             @unique @map("onchain_id")
+  onchainId         String              @unique @map("onchain_id")
   /// month (2026-09) or quarter (2026-Q3), unique per offering
-  period         String
-  /// declared amount and currency; COP is converted at fxRate (COP per USD)
-  currency       String
-  amountDeclared Decimal            @map("amount_declared") @db.Decimal(20, 2)
-  fxRate         Decimal?           @map("fx_rate") @db.Decimal(12, 4)
-  totalUsd       Decimal            @map("total_usd") @db.Decimal(18, 2)
-  totalUnits     Int                @map("total_units")
-  holders        Int
-  snapshotAt     DateTime           @map("snapshot_at")
-  merkleRoot     String             @map("merkle_root")
-  status         DistributionStatus @default(DECLARED)
-  anchorTxHash   String?            @map("anchor_tx_hash")
-  declaredById   String?            @map("declared_by_id")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
+  period            String
+  /// payment currency: COP | USD through the fiduciary, USDC | USDT from the issuer's treasury (v1: the declared
+  /// currency, COP converted to USD cents at fxRate)
+  currency          String
+  /// total in the payment currency
+  amountDeclared    Decimal             @map("amount_declared") @db.Decimal(20, 2)
+  /// COP per USD: the USD equivalent of a COP distribution
+  fxRate            Decimal?            @map("fx_rate") @db.Decimal(12, 4)
+  /// USD equivalent (consolidated reporting); stablecoins count 1:1
+  totalUsd          Decimal             @map("total_usd") @db.Decimal(18, 2)
+  /// token supply of record: the units the allocations are proportional to
+  totalUnits        Int                 @map("total_units")
+  holders           Int
+  /// the cut-off date chosen by the issuer (America/Bogota); null on v1 distributions
+  recordDate        DateTime?           @map("record_date") @db.Date
+  /// the instant of record: end of recordDate in Bogotá or, for today, the declaration (v1: the declaration)
+  snapshotAt        DateTime            @map("snapshot_at")
+  /// where the register of holders at snapshotAt was checked: RPC (the token's balanceOfAt/totalSupplyAt) or
+  /// SIMULATION (replay of the confirmed outbox); null on v1 distributions
+  snapshotMode      ChainExecutionMode? @map("snapshot_mode")
+  /// 1: leaves in USD cents; 2: leaves commit the payment currency (@rwaxi/blockchain-sdk/distribution)
+  leafVersion       Int                 @default(1) @map("leaf_version")
+  merkleRoot        String              @map("merkle_root")
+  /// supporting document (fiduciary certificate or transfer receipt) in the tenant's DocumentVault, by its
+  /// SHA-256: anchorDistributionRoot(…, evidenceHash) commits it on-chain; required from v2
+  supportSha256     String?             @map("support_sha256")
+  supportFileName   String?             @map("support_file_name")
+  supportMimeType   String?             @map("support_mime_type")
+  supportSizeBytes  Int?                @map("support_size_bytes")
+  supportStorageKey String?             @map("support_storage_key")
+  status            DistributionStatus  @default(DECLARED)
+  anchorTxHash      String?             @map("anchor_tx_hash")
+  declaredById      String?             @map("declared_by_id")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
 
-  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  offering     Offering                 @relation(fields: [offeringId], references: [id], onDelete: Cascade)
-  declaredBy   User?                    @relation(fields: [declaredById], references: [id], onDelete: SetNull)
-  allocations  DistributionAllocation[]
+  organization  Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offering      Offering                  @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  declaredBy    User?                     @relation(fields: [declaredById], references: [id], onDelete: SetNull)
+  allocations   DistributionAllocation[]
+  payoutBatches DistributionPayoutBatch[]
 
   @@unique([offeringId, period])
   @@index([organizationId, createdAt])
@@ -685,21 +738,80 @@ model DistributionAllocation {
   distributionId String   @map("distribution_id")
   investorId     String   @map("investor_id")
   wallet         String
+  /// tokens held at the record date
   units          Int
+  /// share in the payment currency, as committed in the leaf (v1: USD)
+  amount         Decimal  @db.Decimal(20, 2)
+  /// USD equivalent
   amountUsd      Decimal  @map("amount_usd") @db.Decimal(18, 2)
   leafHash       String   @map("leaf_hash")
   /// sibling hashes bottom-up (bytes32[])
   merkleProof    Json     @map("merkle_proof")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  distribution Distribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
-  investor     Investor     @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  distribution Distribution        @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  investor     Investor            @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  payout       DistributionPayout?
 
   @@unique([distributionId, investorId])
   @@index([organizationId])
   @@index([investorId])
   @@map("distribution_allocations")
+}
+
+/// A payment instruction of a distribution (backoffice, TENANT_ADMIN), issued once its root is anchored: the
+/// allocations whose wallets the compliance whitelist cleared at that moment, in the payment currency, for the
+/// fiduciary (fiat) or the issuer's treasury (stablecoins) to execute — RWAXI never moves the funds. Withheld
+/// allocations wait for a later instruction. `instruction` is the canonical document its hash covers. Append-only.
+model DistributionPayoutBatch {
+  id              String             @id @default(cuid())
+  organizationId  String             @map("organization_id")
+  distributionId  String             @map("distribution_id")
+  /// 1, 2, … per distribution
+  sequence        Int
+  /// evidenceHash(instruction): SHA-256 of its canonical JSON (stable after jsonb)
+  instructionHash String             @map("instruction_hash")
+  instruction     Json
+  currency        String
+  /// instructed in this batch, in the payment currency
+  totalAmount     Decimal            @map("total_amount") @db.Decimal(20, 2)
+  payees          Int
+  /// allocations held back by the whitelist at this instruction
+  withheld        Int
+  /// how the whitelist was read: RPC (the registry contract) or SIMULATION (replay of the confirmed outbox)
+  registryMode    ChainExecutionMode @map("registry_mode")
+  createdById     String?            @map("created_by_id")
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  distribution Distribution         @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  createdBy    User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  payouts      DistributionPayout[]
+
+  @@unique([distributionId, sequence])
+  @@index([organizationId, createdAt])
+  @@map("distribution_payout_batches")
+}
+
+/// One allocation in a payment instruction: each allocation is instructed at most once. Append-only.
+model DistributionPayout {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  batchId        String   @map("batch_id")
+  allocationId   String   @unique @map("allocation_id")
+  wallet         String
+  /// in the payment currency (= the allocation's amount)
+  amount         Decimal  @db.Decimal(20, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  batch        DistributionPayoutBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  allocation   DistributionAllocation  @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([batchId])
+  @@map("distribution_payouts")
 }
 
 // ─────────────────────────────────────────────────────────────── 13. RWAXI revenue
@@ -712,6 +824,8 @@ model FeeLedgerEntry {
   amountUsd      Decimal   @map("amount_usd") @db.Decimal(18, 2)
   /// capital base for USAGE fees
   baseUsd        Decimal?  @map("base_usd") @db.Decimal(18, 2)
+  /// USAGE fees: the platform fee applied, in basis points (the token's, as its mint declares it on-chain)
+  platformFeeBps Int?      @map("platform_fee_bps")
   period         String? // YYYY-MM for SAAS
   accruedOn      DateTime  @map("accrued_on") @db.Date
   evidence       String // contract ref or tx hash
@@ -781,6 +895,9 @@ model AuditEvent {
 
   @@index([organizationId, createdAt])
   @@index([entityType, entityId])
+  // the console's cross-tenant trail: newest first, optionally by action
+  @@index([createdAt])
+  @@index([action, createdAt])
   @@map("audit_events")
 }
 
@@ -887,6 +1004,26 @@ model RateLimitHit {
   @@map("rate_limit_hits")
 }
 
+/// Acceptance of the vitrina's legal wall (private community of investors, RWAXI's terms and liability
+/// disclaimer). Platform evidence, not tenant data: the app roles cannot read or change it, the SECURITY DEFINER
+/// function rwaxi_record_vitrina_access() is the only way in (append-only). The IP address is stored hashed.
+model VitrinaAccessAcceptance {
+  id            String   @id @default(uuid())
+  email         String
+  /// version of the accepted texts (VITRINA_ACCESS_TERMS_VERSION) and, per consent (granular, all three
+  /// mandatory), the SHA-256 of its exact text as shown: terms + liability disclaimer, personal data, cookies
+  termsVersion  String   @map("terms_version")
+  termsSha256   String   @map("terms_sha256")
+  privacySha256 String   @map("privacy_sha256")
+  cookiesSha256 String   @map("cookies_sha256")
+  language      String
+  ipHash        String?  @map("ip_hash")
+  acceptedAt    DateTime @default(now()) @map("accepted_at") @db.Timestamptz(3)
+
+  @@index([email])
+  @@map("vitrina_access_acceptances")
+}
+
 /// Activation of a staff account created by the B2B onboarding (no password yet): a single-use link sent by
 /// email. Only the SHA-256 of its token is stored. Activating = password + TOTP enrolment, in two steps whose
 /// first one parks its results here until the code confirms them.
@@ -932,4 +1069,32 @@ model VaultObject {
 
   @@unique([organizationId, sha256])
   @@map("vault_objects")
+}
+
+/// A commercial agreement signed between RWAXI and a developer (Super-Admin, module A): the reference, the date it
+/// was signed, the platform fee it sets and the signed PDF, kept in the developer's DocumentVault by its SHA-256
+/// (re-hashed on every download). Every change of Organization.platformFeeBps registers one and cites its hash in a
+/// COMMERCIAL_TERMS_UPDATED AuditEvent. Append-only: a renegotiation is a new row.
+model CommercialAgreement {
+  id              String   @id @default(cuid())
+  organizationId  String   @map("organization_id")
+  /// e.g. "RWX-COM-2026-014"
+  reference       String
+  signedOn        DateTime @map("signed_on") @db.Date
+  /// platform fee the agreement sets, in basis points (25–500)
+  platformFeeBps  Int      @map("platform_fee_bps")
+  /// 0x + SHA-256 of the signed PDF
+  sha256          String
+  sizeBytes       Int      @map("size_bytes")
+  fileName        String   @map("file_name")
+  /// tenants/{organizationId}/sha256/{hex} (CHECK): the file in the developer's own vault
+  storageKey      String   @map("storage_key")
+  /// the RWAXI SUPER_ADMIN who registered it
+  recordedByEmail String   @map("recorded_by_email")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("commercial_agreements")
 }

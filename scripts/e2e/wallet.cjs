@@ -353,6 +353,8 @@ async function confirmedByWallet(label, id, wallet, signer, expectedData) {
         /reverted on-chain/.test(afterRevert.error ?? ""),
       reverted,
     );
+    // the refusals before sending were not attempts; the revert was: the console's retry alerts count it
+    ok("el revert queda contado como un intento fallido de la fila (attempts = 1, con su fecha)", afterRevert.attempts === 1 && !!afterRevert.lastAttemptAt);
     wallet.tamper = null;
 
     // ── The officer signs for real (the page first switches the wallet to Hardhat) ──
@@ -606,7 +608,9 @@ async function confirmedByWallet(label, id, wallet, signer, expectedData) {
     await openBackofficeTab(w, "avista", "Distribuciones y Rendimientos");
     await w.waitForSelector(`[data-distribution-offering="${offering.code}"]`, { timeout: 90000 });
     await fill(w, `#dist-period-${offering.id}`, "2026-Q3");
+    await w.select(`#dist-currency-${offering.id}`, "USD");
     await fill(w, `#dist-amount-${offering.id}`, "10000");
+    const support = await lib.attachDistributionSupport(w, offering.id, "certificacion-fiduciaria-wallet");
     await w.waitForFunction(
       (id) => !document.querySelector(`[data-declare-distribution="${id}"]`)?.disabled,
       { timeout: 10000 },
@@ -634,6 +638,9 @@ async function confirmedByWallet(label, id, wallet, signer, expectedData) {
         dist.merkleRoot,
         BigInt(anchorDist.args.totalAmountCents),
         BigInt(anchorDist.args.snapshotSupply),
+        BigInt(anchorDist.args.recordTimestamp),
+        "USD",
+        support.sha256,
       ]),
     );
     const distAfter = await db.distribution.findUniqueOrThrow({ where: { id: dist.id } });

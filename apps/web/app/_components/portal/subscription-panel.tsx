@@ -99,7 +99,7 @@ export function SubscriptionPanel({
           <label htmlFor="sub-amt" className="text-[12px] font-semibold tracking-[0.06em] uppercase text-muted">
             {tr("Monto a suscribir")}
           </label>
-          <span className="text-right">
+          <span className="text-end">
             <span className="block font-mono text-[24px] text-rxPurple tnum leading-tight">{money(d.capital, o, false)}</span>
             <span className="block font-mono text-[11.5px] text-muted">{alt(d.capital, o, false)}</span>
           </span>
@@ -135,6 +135,20 @@ export function SubscriptionPanel({
           </div>
         ) : c ? (
           <LockedNote text={tr("Nuevas suscripciones suspendidas temporalmente.")} />
+        ) : t.offering && t.offering.status === "STRUCTURING" ? (
+          <div data-subscribe-locked="structuring" className="border border-rxDeep bg-rxDeep text-white px-4 py-4">
+            <p className="font-semibold text-[13px] tracking-[0.08em] uppercase text-lav inline-flex items-center gap-2">
+              <Icon name="Clock" size={16} />
+              {tr("PROYECTO EN ESTRUCTURACIÓN - PRÓXIMAMENTE")}
+            </p>
+            <p className="text-[12.5px] mt-1.5 text-white/85 leading-relaxed">
+              {tr("El desarrollador todavía no abre la captación de este proyecto: no se reciben suscripciones. Puedes revisar el Data Room y completar tu KYC mientras tanto.")}
+            </p>
+          </div>
+        ) : t.offering && t.offering.status === "FUNDED" ? (
+          <div data-subscribe-locked="funded">
+            <LockedNote text={tr("Este proyecto completó su captación: ya no recibe nuevas suscripciones.")} />
+          </div>
         ) : t.offering?.capturePaused ? (
           <LockedNote
             text={tr(
@@ -173,7 +187,7 @@ export function SubscriptionPanel({
           <div className="border border-line overflow-x-auto">
             <table className="w-full min-w-[560px] text-[12.5px] tnum">
               <thead>
-                <tr className="text-left text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
+                <tr className="text-start text-[10px] tracking-[0.08em] uppercase text-muted border-b border-line">
                   <th className="font-semibold px-4 py-2.5">{tr("Fecha")}</th>
                   <th className="font-semibold px-3 py-2.5 text-end">{tr("Unidades")}</th>
                   <th className="font-semibold px-3 py-2.5 text-end">{tr("Capital")}</th>

@@ -9,8 +9,9 @@ import type { DataRoomDeskResult } from "./types";
 const FOLDERS: string[] = (DATAROOM as { n: string; name: string }[]).map((f) => `${f.n} ${f.name}`);
 /** Root an anchoring call writes on the token: updateDataRoomMerkleRoot(newRoot) or the deployment's initial one. */
 const rootOf = (args: unknown) => {
-  const a = (args ?? {}) as { newRoot?: unknown; dataRoomMerkleRoot?: unknown };
-  const root = a.newRoot ?? a.dataRoomMerkleRoot;
+  // updateDataRoomMerkleRoot(newRoot); deployOfferingToken anchors it in its TokenConfig (cfg)
+  const a = (args ?? {}) as { newRoot?: unknown; dataRoomMerkleRoot?: unknown; cfg?: { dataRoomMerkleRoot?: unknown } };
+  const root = a.newRoot ?? a.cfg?.dataRoomMerkleRoot ?? a.dataRoomMerkleRoot;
   return typeof root === "string" ? root.toLowerCase() : null;
 };
 

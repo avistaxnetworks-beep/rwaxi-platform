@@ -1,5 +1,6 @@
 import "server-only";
 import { computeDataRoomRoot } from "@rwaxi/blockchain-sdk/merkle";
+import { PLATFORM_FEE_BPS_MAX, PLATFORM_FEE_BPS_MIN, parsePlatformFeeBps } from "@rwaxi/blockchain-sdk/platform-fee";
 import type { ChainNetwork, ComplianceRegime, LegalWrapperType, OfferingStage } from "@rwaxi/database";
 import {
   DOCUMENT_SLOTS,
@@ -61,10 +62,22 @@ export interface OnboardingPlan {
   /** `receipt`: the DocumentVault receipt of the file's verified upload to staging (/api/vault/upload) */
   documents: { folder: string; name: string; restricted: boolean; sha256: string; sizeBytes: number; receipt: string }[];
   dataRoomRoot: string;
-  fees: { setupUsd: string; monthlyUsd: string; usagePct: string };
+  /** platformFeeBps: whole basis points within 25–500 (0.25 %–5 %), the range RwaxiPropertyToken enforces */
+  fees: { setupUsd: string; monthlyUsd: string; platformFeeBps: number };
 }
 
 class Invalid extends Error {}
+
+/** The platform fee agreed with the developer: whole basis points within 25 (0.25 %) and 500 (5 %). */
+function platformFee(v: unknown): number {
+  const bps = parsePlatformFeeBps(v);
+  if (bps === null) {
+    throw new Invalid(
+      `Comisión de plataforma: un número entero de puntos básicos entre ${PLATFORM_FEE_BPS_MIN} (0,25 %) y ${PLATFORM_FEE_BPS_MAX} (5 %).`,
+    );
+  }
+  return bps;
+}
 
 const clean = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "");
 function text(v: unknown, label: string, min: number, max: number): string {
@@ -200,7 +213,7 @@ export function parseOnboarding(raw: unknown): { ok: true; plan: OnboardingPlan 
       fees: {
         setupUsd: decimal(f.setupUsd, "Setup (USD)", 0, 1_000_000, 2),
         monthlyUsd: decimal(f.monthlyUsd, "SaaS mensual (USD)", 0, 100_000, 2),
-        usagePct: decimal(f.usagePct, "Uso de infraestructura (%)", 0, 10, 3),
+        platformFeeBps: platformFee(f.platformFeeBps),
       },
     };
     return { ok: true, plan };

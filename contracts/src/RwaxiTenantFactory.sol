@@ -17,7 +17,8 @@ contract RwaxiTenantFactory is AccessControl {
     mapping(bytes32 offeringId => bytes32 organizationId) public offeringOrganization;
 
     event TenantRegistryDeployed(bytes32 indexed organizationId, address registry, string organizationTaxId);
-    event OfferingTokenDeployed(bytes32 indexed organizationId, bytes32 indexed offeringId, address token);
+    /// @param platformFeeBps comisión de plataforma pactada con el desarrollador, fijada en el token desplegado
+    event OfferingTokenDeployed(bytes32 indexed organizationId, bytes32 indexed offeringId, address token, uint16 platformFeeBps);
 
     error TenantAlreadyRegistered(bytes32 organizationId);
     error UnknownTenant(bytes32 organizationId);
@@ -43,6 +44,8 @@ contract RwaxiTenantFactory is AccessControl {
         emit TenantRegistryDeployed(organizationId, registry, organizationTaxId);
     }
 
+    /// @param cfg incluye platformFeeBps, la comisión pactada con el desarrollador (25–500 puntos básicos): el token
+    ///            la fija para siempre y la declara en cada emisión; fuera de rango, InvalidPlatformFee.
     function deployOfferingToken(
         bytes32 organizationId,
         bytes32 offeringId,
@@ -56,6 +59,6 @@ contract RwaxiTenantFactory is AccessControl {
         token = address(new RwaxiPropertyToken(cfg, registry, tenantAdmin, complianceOfficer, msg.sender));
         offeringTokens[offeringId] = token;
         offeringOrganization[offeringId] = organizationId;
-        emit OfferingTokenDeployed(organizationId, offeringId, token);
+        emit OfferingTokenDeployed(organizationId, offeringId, token, cfg.platformFeeBps);
     }
 }

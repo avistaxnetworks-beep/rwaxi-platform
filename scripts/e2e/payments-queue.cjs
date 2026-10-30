@@ -14,7 +14,8 @@ const CHAIN_ID = {
   BASE_SEPOLIA: viemChains.baseSepolia.id,
   HARDHAT: viemChains.hardhat.id,
 };
-const GAS = { approveInvestor: 120000n, mintSubscription: 220000n };
+// the executor's fixed gas (chain-executor.ts GAS): a first mint records the holder's balance history too
+const GAS = { approveInvestor: 120000n, mintSubscription: 260000n };
 const STAGE = { PRESALE: "preventa", STRUCTURING: "estructuracion", OPERATING: "operacion" };
 const db = ownerDb();
 // The operator key as the web app sees it (never printed): the suite re-signs independently.
@@ -147,7 +148,9 @@ const catalog = () => db.$queryRaw`SELECT offering_code, units_subscribed, total
     });
     const fee1 = await db.feeLedgerEntry.findFirst({ where: { subscriptionId: sub1.id } });
     const pay1 = await db.auditEvent.findFirst({ where: { entityId: sub1.id, action: "PAYMENT_CONFIRMED" } });
-    const feeExpected = Math.round(25000 * Number(org.feeUsagePct)) / 100;
+    // the fee fixed in the offering's token (what its mint declares on-chain), else the agreed one
+    const feeBps = offering0.token.platformFeeBps ?? org.platformFeeBps;
+    const feeExpected = Math.round(250 * feeBps) / 100; // 25.000 USD × bps / 10.000
     ok(
       "Confirmar Pago Fiduciario → MINT_PENDING con referencia normalizada y conciliador",
       s1.status === "MINT_PENDING" && s1.paymentReference === "FID-2026-004512" && s1.paymentConfirmedById === admin.id && !!s1.paymentConfirmedAt,
@@ -164,12 +167,21 @@ const catalog = () => db.$queryRaw`SELECT offering_code, units_subscribed, total
         mint1.txHash === null,
     );
     ok(
-      `FeeLedgerEntry INFRASTRUCTURE_USAGE ACCRUED = ${org.feeUsagePct}% × 25.000 = ${feeExpected} USD`,
-      fee1?.kind === "INFRASTRUCTURE_USAGE" && fee1.status === "ACCRUED" && Number(fee1.amountUsd) === feeExpected && fee1.evidence === expectedRef,
+      `FeeLedgerEntry INFRASTRUCTURE_USAGE ACCRUED = ${feeBps} pb (comisión del token) × 25.000 = ${feeExpected} USD`,
+      fee1?.kind === "INFRASTRUCTURE_USAGE" &&
+        fee1.status === "ACCRUED" &&
+        Number(fee1.amountUsd) === feeExpected &&
+        fee1.platformFeeBps === feeBps &&
+        fee1.evidence === expectedRef,
     );
     ok(
       "AuditEvent PAYMENT_CONFIRMED enlaza evidencia, mint y comisión",
-      pay1?.subjectHash === expectedRef && pay1.actorEmail === admin.email && pay1.payload.chainTransactionId === mint1?.id && pay1.payload.feeLedgerEntryId === fee1?.id,
+      pay1?.subjectHash === expectedRef &&
+        pay1.actorEmail === admin.email &&
+        pay1.payload.chainTransactionId === mint1?.id &&
+        pay1.payload.feeLedgerEntryId === fee1?.id &&
+        pay1.payload.platformFeeBps === feeBps &&
+        pay1.payload.platformFeeSource === (offering0.token.platformFeeBps === null ? "agreement" : "token"),
     );
 
     // 4c · the same receipt cannot reconcile a second subscription

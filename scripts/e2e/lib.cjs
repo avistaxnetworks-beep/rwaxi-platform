@@ -53,13 +53,40 @@ function chromePath() {
   return found;
 }
 
-const launch = () =>
-  puppeteer.launch({
+/**
+ * A valid cookie of the vitrina's legal wall (app/_lib/server/vitrina-access.ts), signed as the server signs it:
+ * key = HMAC(INVESTOR_SESSION_SECRET, "rwaxi.vitrina-access.v1"). The suites test the vitrina behind the wall.
+ */
+const VITRINA_ACCESS_TERMS_VERSION = "2026-10-29";
+function vitrinaAccessCookie() {
+  const key = crypto.createHmac("sha256", webEnv("INVESTOR_SESSION_SECRET")).update("rwaxi.vitrina-access.v1").digest();
+  const payload = `v1.${crypto.randomUUID()}.${VITRINA_ACCESS_TERMS_VERSION}.${Date.now()}`;
+  return `${payload}.${crypto.createHmac("sha256", key).update(payload).digest("base64url")}`;
+}
+
+/** Chrome headless; every new page already carries the vitrina's legal-wall cookie (E2E_VITRINA_GATE=1: it does not). */
+async function launch() {
+  const browser = await puppeteer.launch({
     executablePath: chromePath(),
     headless: true,
     args: ["--no-first-run", "--disable-gpu"],
     defaultViewport: { width: 1360, height: 1000 },
   });
+  if (process.env.E2E_VITRINA_GATE === "1") return browser;
+  const cookie = vitrinaAccessCookie();
+  const pass = async (page) => {
+    await page.setCookie({ name: "rwaxi_vitrina_access", value: cookie, url: url(null) });
+    return page;
+  };
+  const withPass = (target) => {
+    const newPage = target.newPage.bind(target);
+    target.newPage = async (...args) => pass(await newPage(...args));
+    return target;
+  };
+  const createBrowserContext = browser.createBrowserContext.bind(browser);
+  browser.createBrowserContext = async (...args) => withPass(await createBrowserContext(...args));
+  return withPass(browser);
+}
 
 /**
  * Pool settings of packages/database/src/pool.ts: a suite's client idles while the browser works, and an idle
@@ -240,8 +267,11 @@ async function openGovernance(page) {
   await page.waitForSelector("[data-platform-governance]", { timeout: 60000 });
 }
 
-/** The onboarding wizard with its sample data for `slug` (optionally on `network`); resolves once persisted. */
-async function onboardTenant(page, { slug, legalName, displayName, nit, network }) {
+/**
+ * The onboarding wizard with its sample data for `slug` (optionally on `network`); resolves once persisted.
+ * `wallets: false` leaves both staff wallets empty: the registry is deferred (no deployTenantRegistry() queued).
+ */
+async function onboardTenant(page, { slug, legalName, displayName, nit, network, wallets = true }) {
   await openGovernance(page);
   await clickText(page, "Dar de Alta Nuevo Desarrollador");
   await page.waitForSelector('[data-onboarding-step="0"]', { timeout: 30000 });
@@ -255,6 +285,7 @@ async function onboardTenant(page, { slug, legalName, displayName, nit, network 
     await clickText(page, "Continuar");
     await page.waitForSelector(`[data-onboarding-step="${step}"]`, { timeout: 30000 });
     if (step === 1 || step === 2) await clickText(page, "Completar con datos de ejemplo");
+    if (step === 1 && !wallets) for (const id of ["#ob-admin-wallet", "#ob-officer-wallet"]) await fill(page, id, "");
     if (step === 2 && network) await page.select("#ob-network", network);
     if (step === 3) {
       await clickText(page, "Adjuntar documentos de ejemplo");
@@ -463,6 +494,19 @@ const fileSha256 = (file) => "0x" + crypto.createHash("sha256").update(fs.readFi
 const pdfBytes = (seed = crypto.randomBytes(12).toString("hex")) => Buffer.from(`%PDF-1.4\n% RWAXI E2E ${seed}\n%%EOF\n`);
 const sha256Of = (bytes) => "0x" + crypto.createHash("sha256").update(bytes).digest("hex");
 
+/**
+ * Attaches a fresh PDF as the supporting document of the distribution form of an offering (backoffice, «Distribuciones
+ * y Rendimientos») and waits until the server verified it: resolves the file and its SHA-256.
+ */
+async function attachDistributionSupport(page, offeringId, label = "certificacion-fiduciaria") {
+  const file = path.join(ARTIFACTS, `${label}-${crypto.randomBytes(3).toString("hex")}.pdf`);
+  fs.writeFileSync(file, pdfBytes(`${label} ${Date.now()}`));
+  const sha256 = fileSha256(file);
+  await (await page.$(`#dist-support-${offeringId}`)).uploadFile(file);
+  await page.waitForSelector(`[data-support-verified="${sha256}"]`, { timeout: 60000 });
+  return { file, sha256 };
+}
+
 /** POST /api/vault/upload from `page` (its host and cookies): returns { status, body }. */
 const vaultUpload = (page, { purpose, bytes, type, name = "documento.pdf", sha256, fields = {} }) =>
   page.evaluate(
@@ -623,6 +667,7 @@ module.exports = {
   vaultPath,
   fileSha256,
   pdfBytes,
+  attachDistributionSupport,
   sha256Of,
   vaultUpload,
   vaultGet,

@@ -77,6 +77,8 @@ export function toVitrinaProject(o: PublicOffering, locale: Locale = "es"): any 
     tokenStatus: o.token?.status ?? "NOT_DEPLOYED",
     // platform pause of capital raising (Super-Admin, module A): listed without a link to subscribe
     capturePaused: o.capturePaused,
+    // lifecycle of the offering (backoffice): only ACTIVE raises capital; STRUCTURING is listed as "coming soon"
+    status: o.status,
     rentStart: o.rentStartMonths,
     pipeline: o.pipeline,
     merkle: (o.dataRoomRoot ?? "").replace(/^0x/, "") || "0".repeat(64),

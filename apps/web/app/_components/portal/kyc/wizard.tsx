@@ -411,7 +411,7 @@ export function Wizard({
             className={`${o === 3 ? "bg-rxOrange hover:bg-[#F59C45] text-rxDeep" : "tc-btn"} font-semibold text-[13px] px-5 py-3 inline-flex items-center gap-2 focus-ring`}
           >
             {o === 3 ? tr("Enviar a revisión de cumplimiento") : tr("Continuar")}
-            <Icon name="ChevronRight" size={15} />
+            <Icon name="ChevronRight" size={15} className="rtl:-scale-x-100" />
           </button>
         </div>
       </div>

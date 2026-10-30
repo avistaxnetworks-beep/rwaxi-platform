@@ -91,12 +91,18 @@ export function resolveHost(rawHost: string | null | undefined, root: string = R
   return { kind: "unknown", host };
 }
 
+/**
+ * RWAXI's legal documents on the vitrina host (www/legal/terms|privacy|cookies). They are served from /legal, outside
+ * /vitrina and therefore outside its legal wall: the wall's consent checkboxes link to them.
+ */
+export const LEGAL_PATH = /^\/legal(?:\/[a-z]+)?\/?$/;
+
 /** Internal (rewritten) path for a public request. */
 export function internalPath(ctx: HostContext, pathname: string): string | null {
   const path = pathname === "/" ? "" : pathname;
   switch (ctx.kind) {
     case "www":
-      return `/vitrina${path}`;
+      return LEGAL_PATH.test(pathname) ? pathname.replace(/\/$/, "") : `/vitrina${path}`;
     case "admin":
       return `/superadmin${path}`;
     case "tenant":

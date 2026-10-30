@@ -13,6 +13,10 @@ interface AuditPayload {
   units?: number;
   capitalUsd?: string;
   feeUsd?: string | null;
+  // the platform fee linked to a subscription (B2B, paid by the developer) and the one its mint declared on-chain
+  platformFeeBps?: number | null;
+  platformFeeUsd?: string | null;
+  platformFee?: { platformFeeBps?: number | null; estimatedUsd?: string | null } | null;
   status?: string;
   paymentCode?: string | null;
   paymentReference?: string;
@@ -23,6 +27,16 @@ interface AuditPayload {
   totalUsd?: string;
   holders?: number;
   offeringCode?: string;
+  // yield distributions: payment currency, record date, payment instructions
+  currency?: string;
+  amountDeclared?: string;
+  recordDate?: string;
+  withheldAtDeclaration?: number;
+  sequence?: number;
+  total?: string;
+  payees?: number;
+  withheld?: number;
+  registryMode?: string;
   // staff authentication / investor session recovery
   email?: string;
   factor?: "password" | "totp";
@@ -34,7 +48,7 @@ interface AuditPayload {
   name?: string;
   folder?: string;
   kind?: string;
-  by?: "investor" | "staff";
+  by?: "investor" | "staff" | "backoffice" | "platform";
   dataRoomRoot?: string;
   anchorChainTransactionId?: string | null;
   // revocation, freeze and the issuer's MINTER_ROLE
@@ -46,6 +60,9 @@ interface AuditPayload {
   revokeChainTransactionId?: string | null;
   voidedFeeIds?: string[];
   wallet?: string;
+  // offering lifecycle
+  from?: string;
+  to?: string;
   // chain confirmations: who sent the transaction
   via?: "operator" | "wallet" | "registered";
   signer?: string;
@@ -83,8 +100,30 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate):
             : p.chainStatus
               ? `mintSubscription ${p.chainStatus}`
               : null;
-      return [amount, state, p.feeUsd ? tr("fee RWAXI {fee} USD", { fee: p.feeUsd }) : null].filter(Boolean).join(" · ");
+      const fee =
+        p.platformFee?.platformFeeBps != null
+          ? tr("comisión de plataforma estimada {bps} pb · {fee} USD (la paga el desarrollador)", {
+              bps: p.platformFee.platformFeeBps,
+              fee: p.platformFee.estimatedUsd ?? "?",
+            })
+          : p.feeUsd
+            ? tr("fee RWAXI {fee} USD", { fee: p.feeUsd })
+            : null;
+      return [amount, state, fee].filter(Boolean).join(" · ");
     }
+    case "SUBSCRIPTION_PAYMENT_OPENED":
+      return [
+        amount,
+        tr("pago fiduciario pendiente · ref. {code}", { code: p.paymentCode ?? "?" }),
+        p.platformFeeBps != null
+          ? tr("comisión de plataforma estimada {bps} pb · {fee} USD (la paga el desarrollador)", {
+              bps: p.platformFeeBps,
+              fee: p.platformFeeUsd ?? "?",
+            })
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     case "PAYMENT_CONFIRMED":
       return [
         tr("comprobante {reference}", { reference: p.paymentReference ?? "?" }),
@@ -104,7 +143,12 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate):
         .filter(Boolean)
         .join(" · ");
     case "SUBSCRIPTION_MINTED":
-      return tr("{amount} · tokens en la wallet del inversionista", { amount });
+      return [
+        tr("{amount} · tokens en la wallet del inversionista", { amount }),
+        p.platformFee?.platformFeeBps != null ? tr("PlatformFeeAccrued {bps} pb", { bps: p.platformFee.platformFeeBps }) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
     case "LOGIN_FAILED":
     case "MFA_FAILED":
       return [p.factor === "totp" ? tr("código TOTP") : tr("contraseña"), p.locked ? tr("cuenta bloqueada") : null]
@@ -170,12 +214,50 @@ function detailOf(action: AuditEvent["action"], p: AuditPayload, tr: Translate):
       return tr("grantRole(MINTER_ROLE) a la wallet del emisor {wallet} en cola", {
         wallet: p.wallet ? `${p.wallet.slice(0, 8)}…${p.wallet.slice(-6)}` : "",
       });
+    case "OFFERING_STATUS_CHANGED":
+      return [tr("{from} → {to}", { from: String(p.from), to: String(p.to) }), p.reason ?? null].filter(Boolean).join(" · ");
     case "DISTRIBUTION_DECLARED":
-      return tr("Distribución {period} · {total} USD entre {holders} tenedor(es) · anchorDistributionRoot en cola", {
+      // version 2: payment currency, record date and supporting document; version 1: USD
+      return p.recordDate
+        ? [
+            tr("Distribución {period} · {amount} {currency} entre {holders} tenedor(es) a la fecha de corte {date}", {
+              period: String(p.period),
+              amount: String(p.amountDeclared),
+              currency: String(p.currency),
+              holders: p.holders ?? 0,
+              count: p.holders ?? 0,
+              date: p.recordDate,
+            }),
+            p.withheldAtDeclaration ? tr("{n} retenida(s) hoy por la whitelist", { n: p.withheldAtDeclaration, count: p.withheldAtDeclaration }) : null,
+            tr("anchorDistributionRoot en cola"),
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : tr("Distribución {period} · {total} USD entre {holders} tenedor(es) · anchorDistributionRoot en cola", {
+            period: String(p.period),
+            total: String(p.totalUsd),
+            holders: p.holders ?? 0,
+            count: p.holders ?? 0,
+          });
+    case "DISTRIBUTION_PAYOUT_INSTRUCTED":
+      return [
+        tr("Instrucción de pago #{sequence} de {period} · {total} {currency} a {payees} wallet(s)", {
+          sequence: p.sequence ?? 0,
+          period: String(p.period),
+          total: String(p.total),
+          currency: String(p.currency),
+          payees: p.payees ?? 0,
+          count: p.payees ?? 0,
+        }),
+        p.withheld ? tr("{n} retenida(s) por la whitelist", { n: p.withheld, count: p.withheld }) : null,
+        p.registryMode === "RPC" ? tr("whitelist leída del registro on-chain") : tr("whitelist según la cola confirmada (simulación)"),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    case "DISTRIBUTION_SUPPORT_DOWNLOADED":
+      return tr("Soporte de la distribución {period} · SHA-256 verificado al servirlo · {by}", {
         period: String(p.period),
-        total: String(p.totalUsd),
-        holders: p.holders ?? 0,
-        count: p.holders ?? 0,
+        by: p.by === "platform" ? tr("consola RWAXI (supervisión)") : tr("personal del backoffice"),
       });
     default:
       return p.reason ? tr(p.reason) : p.chainStatus ? `ChainTransaction ${p.chainStatus}` : null;
@@ -195,13 +277,15 @@ export function toAuditEntry(e: AuditEvent, tr: Translate = spanish): AuditEntry
       (AUTH_ACTIONS.has(e.action) ? (p.email ?? e.actorEmail) : null) ??
       (isPlatformAction(e.action)
         ? `RWAXI · ${p.tenant ?? e.entityType}`
-        : e.action === "DISTRIBUTION_DECLARED"
+        : e.action === "DISTRIBUTION_DECLARED" || e.action === "DISTRIBUTION_PAYOUT_INSTRUCTED" || e.action === "DISTRIBUTION_SUPPORT_DOWNLOADED"
           ? p.offeringCode
             ? tr("Tenedores de {code}", { code: p.offeringCode })
             : tr("Tenedores de la oferta")
           : e.action === "DATA_ROOM_DOCUMENT_ADDED" || e.action === "DATA_ROOM_DOCUMENT_DOWNLOADED" || e.action === "VAULT_INTEGRITY_FAILED"
             ? tr("Data Room {code}", { code: p.offeringCode ?? "" })
-            : e.entityId),
+            : e.action === "OFFERING_STATUS_CHANGED"
+              ? tr("Oferta {code}", { code: p.offeringCode ?? "" })
+              : e.entityId),
     subjectHash: e.subjectHash,
     detail: detailOf(e.action, p, tr),
   };

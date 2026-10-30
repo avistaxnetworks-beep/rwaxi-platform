@@ -83,6 +83,7 @@ export async function loadDbTenantView(slug: string): Promise<DbTenantView | nul
     token: token ? { status: token.status, symbol: token.symbol, address: token.contractAddress } : null,
     capturePaused: !!offering.capturePausedAt,
     translations: offeringTranslations(offering.translations),
+    status: offering.status,
   };
   const project = { ...toVitrinaProject(listed), id: slug } as DbTenantView["project"];
   const merkle = String(project.merkle);

@@ -148,6 +148,10 @@ async function main() {
         mailDue: boolean;
         mailExhausted: boolean;
         vaultKeys: boolean;
+        vitrinaAccess: boolean;
+        recordVitrinaAccess: boolean;
+        agreements: boolean;
+        payouts: boolean;
       }[]
     >`SELECT to_regclass('public._prisma_migrations') IS NOT NULL AS migrations,
              to_regclass('public.audit_events') IS NOT NULL AS audit,
@@ -163,7 +167,11 @@ async function main() {
              to_regprocedure('public.rwaxi_redact_expired_mail()') IS NOT NULL AS "redactMail",
              to_regprocedure('public.rwaxi_mail_due(integer,integer,integer)') IS NOT NULL AS "mailDue",
              to_regprocedure('public.rwaxi_mail_fail_exhausted(integer,integer)') IS NOT NULL AS "mailExhausted",
-             to_regprocedure('public.rwaxi_vault_referenced_keys()') IS NOT NULL AS "vaultKeys"`;
+             to_regprocedure('public.rwaxi_vault_referenced_keys()') IS NOT NULL AS "vaultKeys",
+             to_regclass('public.vitrina_access_acceptances') IS NOT NULL AS "vitrinaAccess",
+             to_regprocedure('public.rwaxi_record_vitrina_access(text,text,text,text,text,text,text)') IS NOT NULL AS "recordVitrinaAccess",
+             to_regclass('public.commercial_agreements') IS NOT NULL AS agreements,
+             to_regclass('public.distribution_payouts') IS NOT NULL AS payouts`;
 
     if (!exists || opts.rotate) password = newPassword();
     const role = q(opts.role);
@@ -201,16 +209,34 @@ async function main() {
       ...(obj?.mailDue ? [`GRANT EXECUTE ON FUNCTION rwaxi_mail_due(integer, integer, integer) TO ${role}`] : []),
       ...(obj?.mailExhausted ? [`GRANT EXECUTE ON FUNCTION rwaxi_mail_fail_exhausted(integer, integer) TO ${role}`] : []),
       ...(obj?.vaultKeys ? [`GRANT EXECUTE ON FUNCTION rwaxi_vault_referenced_keys() TO ${role}`] : []),
-      // the app never touches the migration history; the audit trail, distribution allocations and vault
-      // objects are append-only;
+      ...(obj?.recordVitrinaAccess
+        ? [`GRANT EXECUTE ON FUNCTION rwaxi_record_vitrina_access(text, text, text, text, text, text, text) TO ${role}`]
+        : []),
+      // the app never touches the migration history; the audit trail, distribution allocations and payment
+      // instructions, vault objects and signed commercial agreements are append-only;
       ...(obj?.migrations ? [`REVOKE ALL ON TABLE _prisma_migrations FROM ${role}`] : []),
       ...(obj?.audit ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE audit_events FROM ${role}`] : []),
-      ...(obj?.allocations ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE distribution_allocations FROM ${role}`] : []),
+      ...(obj?.allocations
+        ? [
+            `REVOKE UPDATE, DELETE, TRUNCATE ON TABLE distribution_allocations FROM ${role}`,
+            // a declared distribution is never deleted (its anchoring is an UPDATE its trigger allows)
+            `REVOKE DELETE, TRUNCATE ON TABLE distributions FROM ${role}`,
+          ]
+        : []),
       ...(obj?.vault ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE vault_objects FROM ${role}`] : []),
+      ...(obj?.agreements ? [`REVOKE UPDATE, DELETE, TRUNCATE ON TABLE commercial_agreements FROM ${role}`] : []),
+      ...(obj?.payouts
+        ? [
+            `REVOKE UPDATE, DELETE, TRUNCATE ON TABLE distribution_payout_batches FROM ${role}`,
+            `REVOKE UPDATE, DELETE, TRUNCATE ON TABLE distribution_payouts FROM ${role}`,
+          ]
+        : []),
       // rate-limit hits are only reachable through rwaxi_rate_limit_hit()
       ...(obj?.rateLimits
         ? [`REVOKE ALL ON TABLE rate_limit_hits FROM ${role}`, `REVOKE ALL ON SEQUENCE rate_limit_hits_id_seq FROM ${role}`]
         : []),
+      // vitrina legal-wall acceptances are only reachable through rwaxi_record_vitrina_access()
+      ...(obj?.vitrinaAccess ? [`REVOKE ALL ON TABLE vitrina_access_acceptances FROM ${role}`] : []),
     ];
 
     if (opts.dryRun) {

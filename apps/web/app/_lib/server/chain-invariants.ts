@@ -2,6 +2,7 @@ import { keccak256, toHex } from "viem";
 import type { ChainTransaction, Prisma } from "@rwaxi/database";
 import { reason, type Reason } from "@/app/_i18n/marks";
 import { interpolate } from "@/app/_i18n/translate";
+import { confirmedMints, supplyAt } from "@/app/_lib/distribution-snapshot";
 import { calldataOf, walletOf } from "./chain-queue";
 
 /**
@@ -14,11 +15,14 @@ import { calldataOf, walletOf } from "./chain-queue";
  *                            after the earlier registry calls of that wallet.
  *   RwaxiPropertyToken       mintSubscription → SubscriptionAlreadyProcessed, SupplyCapExceeded,
  *                            EnforcedPause and, in _update, the receiver's isEligible();
- *                            anchorDistributionRoot → EmptyDistributionRoot, DistributionAlreadyAnchored;
+ *                            anchorDistributionRoot → EmptyDistributionRoot, EmptyDistribution,
+ *                            DistributionEvidenceRequired, DistributionAlreadyAnchored, FutureLookup and
+ *                            SnapshotSupplyMismatch (totalSupplyAt(recordTimestamp) replayed from the confirmed mints);
  *                            updateDataRoomMerkleRoot → in creation order per token;
  *                            grantRole → only MINTER_ROLE, once per wallet (the issuer's own: checked where it is
  *                            queued and where its wallet signs it).
- *   RwaxiTenantFactory       deployTenantRegistry → TenantAlreadyRegistered (platform console only).
+ *   RwaxiTenantFactory       deployTenantRegistry → TenantAlreadyRegistered; deployOfferingToken → UnknownTenant,
+ *                            OfferingAlreadyDeployed and, in the token, InvalidPlatformFee (platform console only).
  */
 /** Calls of the tenant's RwaxiComplianceRegistry (the compliance officer signs them). */
 export const REGISTRY_KIND_LIST = ["INVESTOR_WHITELISTED", "INVESTOR_REVOKED", "INVESTOR_FREEZE_UPDATED"] as const;
@@ -254,8 +258,29 @@ export function blockerReason(tx: ChainTransaction, state: ChainState, origin: E
       }
       return null;
 
+    case "OFFERING_TOKEN_DEPLOYED": {
+      if (origin !== "platform") return reason("La despliega el operador RWAXI desde la consola de plataforma (RWAXI_OPERATOR_ROLE).");
+      if (!state.registry) return reason("Revertiría: UnknownTenant(organizationId) — el tenant aún no tiene RwaxiComplianceRegistry.");
+      const offeringId = lower(args.offeringId);
+      const deployed = state.txs.some(
+        (t) => t.kind === "OFFERING_TOKEN_DEPLOYED" && t.status === "CONFIRMED" && t.id !== tx.id && lower(argsOf(t.args).offeringId) === offeringId,
+      );
+      if (deployed) return reason("Revertiría: OfferingAlreadyDeployed(offeringId).");
+      const bps = Number(argsOf(args.cfg).platformFeeBps);
+      if (!Number.isInteger(bps) || bps < 25 || bps > 500) {
+        return reason("Revertiría: InvalidPlatformFee({bps}) — la comisión debe estar entre 25 y 500 puntos básicos.", { bps: String(argsOf(args.cfg).platformFeeBps) });
+      }
+      return null;
+    }
+
     case "DISTRIBUTION_ROOT_ANCHORED": {
       if (lower(args.merkleRoot) === ZERO32) return reason("Revertiría: EmptyDistributionRoot().");
+      if (!(Number(args.totalAmountCents) > 0) || !(Number(args.snapshotSupply) > 0)) {
+        return reason("Revertiría: EmptyDistribution() — la distribución no tiene monto o tenedores.");
+      }
+      if (lower(args.evidenceHash) === ZERO32) {
+        return reason("Revertiría: DistributionEvidenceRequired() — falta el SHA-256 del soporte documental.");
+      }
       const distributionId = lower(args.distributionId);
       const distribution = state.distributions.find((d) => lower(d.onchainId) === distributionId);
       if (!distribution) return reason("No existe la distribución de ese distributionId.");
@@ -270,6 +295,18 @@ export function blockerReason(tx: ChainTransaction, state: ChainState, origin: E
       if (anchored) return reason("Revertiría: DistributionAlreadyAnchored(distributionId).");
       const token = state.tokens.find((k) => lower(k.contractAddress) === lower(tx.contractAddress));
       if (!token || token.status === "NOT_DEPLOYED" || token.status === "DEPLOYING") return reason("El token destino no está desplegado.");
+      // totalSupplyAt(recordTimestamp): only an instant already past, and the supply the token recorded at it.
+      const record = Number(args.recordTimestamp);
+      if (!Number.isSafeInteger(record) || record >= Math.floor(Date.now() / 1000)) {
+        return reason("Revertiría: FutureLookup — la fecha de corte aún no ha transcurrido.");
+      }
+      const recorded = supplyAt(confirmedMints(state.txs, tx.contractAddress), record);
+      if (recorded !== Number(args.snapshotSupply)) {
+        return reason(
+          "Revertiría: SnapshotSupplyMismatch({declared}, {recorded}) — la oferta total del token a la fecha de corte no coincide con la del snapshot.",
+          { declared: String(args.snapshotSupply), recorded },
+        );
+      }
       return null;
     }
 

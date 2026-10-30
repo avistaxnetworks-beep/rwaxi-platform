@@ -7,6 +7,7 @@ import { TenantAccessError } from "@/app/_lib/server/tenant-context";
 import { ExecutionError, executionMode, operatorAddress, readIssuerRoles } from "@/app/_lib/server/chain-executor";
 import { blockerReason, loadChainState } from "@/app/_lib/server/chain-invariants";
 import { toQueueItem } from "@/app/_lib/server/chain-queue";
+import { READINESS_GAP, readinessGaps } from "@/app/_lib/server/raising-readiness";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
 import { toAuditEntry } from "./audit";
 import { formatDoc } from "./queries";
@@ -21,6 +22,7 @@ const DESK_AUDIT = [
   "SUBSCRIPTION_MINTED",
   "SUBSCRIPTION_CANCELLED",
   "MINTER_ROLE_REQUESTED",
+  "OFFERING_STATUS_CHANGED",
 ] as const;
 /** A token the desk could not read within this time is shown as unreadable (the desk never waits on a dead node). */
 const ROLE_READ_TIMEOUT_MS = 5_000;
@@ -50,20 +52,36 @@ async function readDesk(
       const state = await loadChainState(db);
       const org = await db.organization.findUniqueOrThrow({
         where: { id: session.tenant.id },
-        select: { slug: true, legalName: true, brandColor: true, feeUsagePct: true },
+        select: { slug: true, legalName: true, brandColor: true, platformFeeBps: true, complianceRegistry: true },
       });
+      // What opening the raise still requires (registry, official wallets, compliance officer), in the reader's language.
+      const staff = await db.user.findMany({
+        where: { role: { in: ["TENANT_ADMIN", "COMPLIANCE_OFFICER"] } },
+        select: { role: true, active: true, walletAddress: true },
+      });
+      const raisingGaps = readinessGaps({ complianceRegistry: org.complianceRegistry, staff, operator: operatorAddress() }).map((g) =>
+        tr(READINESS_GAP[g]),
+      );
       // Cancelled subscriptions stay listed: a reconciled payment of one is a refund the treasury still owes.
       const subs = await db.subscription.findMany({
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         include: {
           investor: { select: { fullName: true, docType: true, docNumber: true, walletAddress: true } },
-          offering: { select: { code: true, assetName: true, token: { select: { status: true } } } },
+          offering: { select: { code: true, assetName: true, token: { select: { status: true, platformFeeBps: true } } } },
           paymentConfirmedBy: { select: { email: true } },
         },
       });
       const offerings = await db.offering.findMany({
         orderBy: { code: "asc" },
-        select: { id: true, code: true, token: { select: { contractAddress: true, network: true, status: true } } },
+        select: {
+          id: true,
+          code: true,
+          assetName: true,
+          status: true,
+          unitsSubscribed: true,
+          totalUnits: true,
+          token: { select: { contractAddress: true, network: true, status: true } },
+        },
       });
       const me = await db.user.findUnique({ where: { id: session.reviewer.id }, select: { walletAddress: true } });
       const investors = await db.investor.findMany({
@@ -129,6 +147,7 @@ async function readDesk(
           mint: mintTx
             ? { chainTxId: mintTx.id, status: mintTx.status, blockedReason: blockerById.get(mintTx.id) ?? null }
             : null,
+          platformFeeBps: s.offering.token?.platformFeeBps ?? org.platformFeeBps,
           paymentBlocker:
             s.status === "PAYMENT_PENDING" && tokenStatus !== "DEPLOYED" && TOKEN_BLOCKER[tokenStatus] ? tr(TOKEN_BLOCKER[tokenStatus]) : null,
           cancellation:
@@ -153,7 +172,7 @@ async function readDesk(
       };
 
       const data = {
-        organization: { slug: org.slug, legalName: org.legalName, brandColor: org.brandColor, feeUsagePct: Number(org.feeUsagePct) },
+        organization: { slug: org.slug, legalName: org.legalName, brandColor: org.brandColor, platformFeeBps: org.platformFeeBps },
         admin: { name: session.reviewer.fullName, email: session.reviewer.email },
         session: deskSession(session, "TENANT_ADMIN"),
         execution: { mode: executionMode(), operator: operatorAddress() },
@@ -162,6 +181,18 @@ async function readDesk(
         recent,
         fees: { accruedUsd: Number(fees._sum.amountUsd ?? 0), entries: fees._count._all },
         audit: audit.map((e) => toAuditEntry(e, tr)),
+        raising: {
+          registryDeployed: !!org.complianceRegistry,
+          gaps: raisingGaps,
+          offerings: offerings.map((o) => ({
+            id: o.id,
+            code: o.code,
+            assetName: o.assetName,
+            status: o.status,
+            unitsSubscribed: o.unitsSubscribed,
+            totalUnits: o.totalUnits,
+          })),
+        },
       };
       return { data, minter };
     },

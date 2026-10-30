@@ -1,10 +1,16 @@
 // E2E · operational actions of the Super-Admin console against Neon:
-//   Module C — invoice ACCRUED fees (→ INVOICED), record payments (→ PAID), agreed fee terms (next accrual);
-//   Module A — suspend / reactivate a portal, pause / resume an offering's capture, vitrina publication,
+//   Module C — invoice ACCRUED fees (→ INVOICED), record payments (→ PAID), agreed setup / SaaS (next accrual);
+//   Module A — the commercial agreement and the platform fee it sets (25–500 bps, signed PDF verified into the
+//   tenant's vault, re-hashed on view; deployed tokens keep theirs), suspend / reactivate a portal, pause / resume an
+//   offering's capture, vitrina publication,
 //   with the effect checked at once in the vitrina, the tenant portal (also on pages opened before the
 //   decision) and the AuditEvent trail (subjectHash recomputed independently).
+const fs = require("fs");
+const path = require("path");
+const http = require("http");
+const crypto = require("crypto");
 const lib = require("./lib.cjs");
-const { launch, ownerDb, ok, fail, shot, url, canon, sha256 } = lib;
+const { launch, ownerDb, ok, fail, shot, url, canon, sha256, ARTIFACTS, PORT } = lib;
 const { waitText, clickText, clickIn, fill, toastText, alertText, waitAlert, openBackofficeTab, replayAction } = lib;
 
 const db = ownerDb();
@@ -12,6 +18,16 @@ const today = new Date().toISOString().slice(0, 10);
 const kpiOf = async (page, id) => JSON.parse(await page.$eval(`[data-kpi="${id}"]`, (n) => n.dataset.value));
 const auditHash = (e) => sha256(canon({ action: e.action, organizationId: e.organizationId, entityId: e.entityId, ...e.payload }));
 const lastAudit = (organizationId, action) => db.auditEvent.findFirst({ where: { organizationId, action }, orderBy: { createdAt: "desc" } });
+/** Status of a GET on `{host}.localhost` (Node cannot resolve *.localhost: 127.0.0.1 with its Host header). */
+const hostGet = (host, pathname) =>
+  new Promise((resolve) => {
+    const req = http.request({ host: "127.0.0.1", port: PORT, path: pathname, headers: { Host: `${host}.localhost:${PORT}` } }, (res) => {
+      res.resume();
+      resolve(res.statusCode);
+    });
+    req.on("error", () => resolve(0));
+    req.end();
+  });
 
 async function openAdmin(page, tab) {
   await page.goto(url("admin"), { waitUntil: "domcontentloaded", timeout: 180000 });
@@ -176,14 +192,19 @@ const vitrinaCard = async (page, code) => {
     );
     await shot(s, "superadmin-ledger", { fullPage: true });
 
-    // Agreed fee terms
+    // Agreed fixed terms (module C): setup and SaaS. The platform fee is agreed in module A, with its signed agreement.
+    const platformFeeShown = await s.$eval('[data-fee-terms="avista"] [data-platform-fee-bps]', (n) => n.dataset.platformFeeBps);
     await clickIn(s, '[data-fee-terms="avista"]', "Editar tarifas");
-    await s.waitForSelector("#fee-usage", { timeout: 30000 });
-    await fill(s, "#fee-usage", "15");
+    await s.waitForSelector("#fee-monthly", { timeout: 30000 });
+    ok(
+      "módulo C: muestra la comisión de plataforma pactada pero no la edita (sin campo de uso)",
+      platformFeeShown === String(avista.platformFeeBps) && !(await s.$("#fee-usage")),
+      `${platformFeeShown} pb`,
+    );
+    await fill(s, "#fee-monthly", "abc");
     await clickText(s, "Guardar tarifas", '[role="dialog"]');
-    await waitAlert(s, /porcentaje entre 0 y 10/);
-    ok("uso de infraestructura del 15 % → rechazado (0–10)", Number((await db.organization.findUniqueOrThrow({ where: { id: avista.id } })).feeUsagePct) === Number(avista.feeUsagePct));
-    await fill(s, "#fee-usage", "1.5");
+    await waitAlert(s, /SaaS mensual: importe en USD/);
+    ok("SaaS mensual inválido → rechazado", Number((await db.organization.findUniqueOrThrow({ where: { id: avista.id } })).feeMonthlyUsd) === Number(avista.feeMonthlyUsd));
     await fill(s, "#fee-monthly", "6000");
     await clickText(s, "Guardar tarifas", '[role="dialog"]');
     await s.waitForFunction(() => !document.querySelector("[data-billing-dialog]"), { timeout: 60000 });
@@ -191,12 +212,111 @@ const vitrinaCard = async (page, code) => {
     const termsAudit = await lastAudit(avista.id, "FEE_TERMS_UPDATED");
     ok(
       "tarifas pactadas actualizadas en Neon + AuditEvent con valores anteriores y nuevos",
-      Number(termsOrg.feeUsagePct) === 1.5 &&
-        Number(termsOrg.feeMonthlyUsd) === 6000 &&
-        termsAudit?.payload.from.usagePct === Number(avista.feeUsagePct).toFixed(3) &&
-        termsAudit.payload.to.usagePct === "1.500" &&
+      Number(termsOrg.feeMonthlyUsd) === 6000 &&
+        termsOrg.platformFeeBps === avista.platformFeeBps &&
+        termsAudit?.payload.from.monthlyUsd === Number(avista.feeMonthlyUsd).toFixed(2) &&
+        termsAudit.payload.to.monthlyUsd === "6000.00" &&
+        !("usagePct" in termsAudit.payload.to) &&
         termsAudit.subjectHash === auditHash(termsAudit),
-      `uso ${termsAudit?.payload.from.usagePct} → ${termsAudit?.payload.to.usagePct} · SaaS ${termsAudit?.payload.from.monthlyUsd} → ${termsAudit?.payload.to.monthlyUsd}`,
+      `SaaS ${termsAudit?.payload.from.monthlyUsd} → ${termsAudit?.payload.to.monthlyUsd}`,
+    );
+
+    // ══ Commercial agreement and platform fee (module A) ═══════════════════
+    const consoleActions = {};
+    s.on("request", (req) => {
+      const id = req.headers()["next-action"];
+      if (req.method() === "POST" && id) consoleActions[req.postData() ?? ""] = id;
+    });
+    await openAdmin(s, "Gobierno");
+    const seeded = await db.commercialAgreement.findFirstOrThrow({ where: { organizationId: avista.id }, orderBy: { createdAt: "desc" } });
+    const cell = await s.$eval('[data-commercial-terms="avista"]', (n) => ({ bps: n.dataset.platformFeeBps, agreement: n.dataset.agreement, text: n.textContent }));
+    ok(
+      "módulo A: comisión pactada y acuerdo vigente (referencia, fecha y SHA-256)",
+      cell.bps === String(avista.platformFeeBps) && cell.agreement === seeded.id && cell.text.includes(seeded.reference) && cell.text.includes(seeded.sha256.slice(0, 10)),
+      cell.text.slice(0, 90),
+    );
+    const pdf = await s.evaluate(async (id) => {
+      const r = await fetch(`/api/vault/agreement/${id}`, { cache: "no-store" });
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+      return { status: r.status, type: r.headers.get("content-type"), sha256: `0x${[...digest].map((x) => x.toString(16).padStart(2, "0")).join("")}` };
+    }, seeded.id);
+    const viewed = await lastAudit(avista.id, "COMMERCIAL_AGREEMENT_DOWNLOADED");
+    ok(
+      "PDF del acuerdo servido re-hasheado (= SHA-256 registrado) y la consulta queda en la auditoría del desarrollador",
+      pdf.status === 200 && /pdf/.test(pdf.type ?? "") && pdf.sha256 === seeded.sha256 && viewed?.subjectHash === seeded.sha256 && viewed.actorUserId === admin.id,
+      `${pdf.status} ${pdf.sha256.slice(0, 18)}…`,
+    );
+    ok("el PDF del acuerdo no se sirve en el host de un tenant", (await hostGet("avista", `/api/vault/agreement/${seeded.id}`)) === 404);
+
+    await clickIn(s, '[data-commercial-terms="avista"]', "Registrar acuerdo y comisión");
+    await s.waitForSelector("#gov-fee-bps", { timeout: 30000 });
+    const confirmDisabled = () =>
+      s.$eval('[role="dialog"]', (d) => [...d.querySelectorAll("button")].find((b) => b.textContent.includes("Confirmar decisión")).disabled);
+    await fill(s, "#gov-agreement-ref", "RWX-COM-2026-099");
+    const outOfRange = [];
+    for (const bad of ["24", "501", "1.5"]) {
+      await fill(s, "#gov-fee-bps", bad);
+      const problem = await s.$eval("[data-terms-problem]", (n) => n.textContent).catch(() => "");
+      outOfRange.push(/entre 25 \(0,25 %\) y 500 \(5 %\)/.test(problem) && (await confirmDisabled()));
+    }
+    ok("formulario: 24, 501 y 1.5 pb → aviso del rango 0,25 %–5 % y «Confirmar» deshabilitado", outOfRange.every(Boolean));
+
+    // A real, signed PDF: verified by the server (type from the bytes, SHA-256 recomputed) before it can be registered.
+    const agreementFile = path.join(ARTIFACTS, `acuerdo-avista-${Date.now()}.pdf`);
+    fs.writeFileSync(agreementFile, `%PDF-1.4\n% Acuerdo comercial RWAXI - Avista · comision 150 pb · ${crypto.randomBytes(16).toString("hex")}\n%%EOF\n`);
+    const agreementSha = `0x${crypto.createHash("sha256").update(fs.readFileSync(agreementFile)).digest("hex")}`;
+    await fill(s, "#gov-fee-bps", "150");
+    await (await s.$("#gov-agreement-file")).uploadFile(agreementFile);
+    await s.waitForSelector(`[data-agreement-verified="${agreementSha}"]`, { timeout: 60000 });
+    await clickText(s, "Confirmar decisión", '[role="dialog"]');
+    await s.waitForFunction(() => !document.querySelector("[data-governance-dialog]"), { timeout: 60000 });
+    await s.waitForFunction(() => document.querySelector('[data-commercial-terms="avista"]')?.dataset.platformFeeBps === "150", { timeout: 60000 });
+
+    const afterTerms = await db.organization.findUniqueOrThrow({ where: { id: avista.id }, include: { tokens: true } });
+    const agreement = await db.commercialAgreement.findFirstOrThrow({ where: { organizationId: avista.id }, orderBy: { createdAt: "desc" } });
+    const vaulted = await db.vaultObject.findUnique({ where: { organizationId_sha256: { organizationId: avista.id, sha256: agreementSha } } });
+    const termsEvent = await lastAudit(avista.id, "COMMERCIAL_TERMS_UPDATED");
+    ok(
+      "acuerdo registrado: PDF en la bóveda del tenant por su SHA-256, comisión 150 pb en la organización",
+      afterTerms.platformFeeBps === 150 &&
+        agreement.reference === "RWX-COM-2026-099" &&
+        agreement.platformFeeBps === 150 &&
+        agreement.sha256 === agreementSha &&
+        agreement.storageKey === `tenants/${avista.id}/sha256/${agreementSha.slice(2)}` &&
+        vaulted?.storageKey === agreement.storageKey &&
+        vaulted.mimeType === "application/pdf",
+      agreement.reference,
+    );
+    ok(
+      "AuditEvent COMMERCIAL_TERMS_UPDATED: comisión anterior y nueva, cita el SHA-256 del acuerdo, hash recalculable",
+      termsEvent?.entityId === agreement.id &&
+        termsEvent.payload.from.platformFeeBps === avista.platformFeeBps &&
+        termsEvent.payload.to.platformFeeBps === 150 &&
+        termsEvent.payload.agreement.sha256 === agreementSha &&
+        termsEvent.actorUserId === admin.id &&
+        termsEvent.subjectHash === auditHash(termsEvent),
+      `${termsEvent?.payload.from.platformFeeBps} → ${termsEvent?.payload.to.platformFeeBps} pb`,
+    );
+    const deployedTokens = avista.offerings.length ? await db.tokenDeployment.findMany({ where: { organizationId: avista.id, status: "DEPLOYED" } }) : [];
+    ok(
+      "los tokens ya desplegados conservan su comisión (inmutable on-chain)",
+      deployedTokens.length > 0 && deployedTokens.every((t) => t.platformFeeBps === avista.platformFeeBps),
+      deployedTokens.map((t) => `${t.symbol}=${t.platformFeeBps}`).join(" "),
+    );
+    const termsId = Object.entries(consoleActions).find(([body]) => body.includes(avista.id) && body.includes("RWX-COM-2026-099"))?.[1];
+    const forgedFees = [];
+    for (const bad of ["24", "501", "1.5", 600]) {
+      const out = termsId
+        ? await replayAction(s, termsId, [avista.id, { platformFeeBps: bad, reference: "RWX-COM-2026-100", signedOn: today, document: {} }])
+        : "sin id de acción";
+      forgedFees.push(/entre 25 \(0,25 %\) y 500 \(5 %\)/.test(out));
+    }
+    ok(
+      "acciones forjadas: comisiones fuera de 25–500 pb rechazadas en el servidor, nada cambia",
+      forgedFees.every(Boolean) &&
+        (await db.organization.findUniqueOrThrow({ where: { id: avista.id } })).platformFeeBps === 150 &&
+        (await db.commercialAgreement.count({ where: { organizationId: avista.id } })) === 2,
     );
 
     // ══ An investor signs a subscription before the governance tests ═══════
@@ -317,13 +437,21 @@ const vitrinaCard = async (page, code) => {
     ok("vitrina: 'Captación pausada temporalmente', sin enlace", cardP.capture === "paused" && !cardP.cta && /Captación pausada temporalmente/.test(cardP.text));
     ok("vitrina: emitir referido con la captación pausada → rechazado", /pausada temporalmente/.test(await replayAction(v, issueId, ["avista"])));
 
-    // Subscriptions signed before the pause continue: the payment is reconciled at the new usage rate.
+    // Subscriptions signed before the pause continue. The payment accrues the fee fixed in the deployed token (what its
+    // mint declares on-chain), not the 150 bps of the agreement registered above: deployed tokens keep theirs.
     await openBackofficeTab(b, "avista", "Suscripciones y Pagos");
     await lib.confirmPayment(b, sub.id, "FID-SA-000001");
     const fee = await db.feeLedgerEntry.findFirst({ where: { subscriptionId: sub.id } });
+    const subToken = await db.tokenDeployment.findUniqueOrThrow({ where: { offeringId: sub.offeringId } });
+    const tokenFee = Math.round(Number(sub.capitalUsd) * subToken.platformFeeBps) / 10000;
     ok(
-      "la suscripción firmada antes de la pausa se concilia; comisión con la tarifa nueva (1,5 % × 25.000 = 375 USD)",
-      Number(fee?.amountUsd) === 375 && fee.status === "ACCRUED" && (await db.subscription.findUniqueOrThrow({ where: { id: sub.id } })).status === "MINT_PENDING",
+      `la suscripción firmada antes de la pausa se concilia; comisión fijada en el token (${subToken.platformFeeBps} pb × ${Number(sub.capitalUsd)} = ${tokenFee} USD), no la del acuerdo nuevo (150 pb)`,
+      subToken.platformFeeBps !== 150 &&
+        Number(fee?.amountUsd) === tokenFee &&
+        fee.platformFeeBps === subToken.platformFeeBps &&
+        fee.status === "ACCRUED" &&
+        (await db.subscription.findUniqueOrThrow({ where: { id: sub.id } })).status === "MINT_PENDING",
+      `${fee?.amountUsd} USD a ${fee?.platformFeeBps} pb`,
     );
 
     // Resume
@@ -366,14 +494,19 @@ const vitrinaCard = async (page, code) => {
             "FEE_TERMS_UPDATED",
             "FEE_INVOICED",
             "FEE_PAYMENT_RECORDED",
+            "COMMERCIAL_TERMS_UPDATED",
           ],
         },
       },
     });
+    // the console's decisions, plus the audited view of the seeded agreement (its subject is the PDF's SHA-256)
     ok(
       "cada acción de plataforma: un AuditEvent del SUPER_ADMIN con hash recalculable (y listado en el módulo A)",
-      platformEvents.length === 9 && platformEvents.every((e) => e.actorUserId === admin.id && e.subjectHash === auditHash(e)) && listed.length === 9,
-      `${platformEvents.length} eventos`,
+      platformEvents.length === 10 &&
+        platformEvents.every((e) => e.actorUserId === admin.id && e.subjectHash === auditHash(e)) &&
+        listed.length === 11 &&
+        listed.includes("COMMERCIAL_AGREEMENT_DOWNLOADED"),
+      `${platformEvents.length} decisiones · ${listed.length} listadas`,
     );
     await shot(s, "superadmin-governance", { fullPage: true });
   } finally {

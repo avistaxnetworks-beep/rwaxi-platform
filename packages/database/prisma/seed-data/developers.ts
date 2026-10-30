@@ -23,7 +23,8 @@ export interface SeedDeveloper {
   complianceEmail: string;
   adminEmail: string;
   onboardedAt: string;
-  fees: { setup: number; monthly: number; usagePct: number };
+  /** setup and SaaS in USD; the platform fee in basis points (25–500), as agreed in the developer's commercial agreement */
+  fees: { setup: number; monthly: number; platformFeeBps: number };
   offering: {
     id: string;
     code: string;
@@ -67,7 +68,7 @@ export const DEVELOPERS: SeedDeveloper[] = [
     complianceEmail: "cumplimiento@andesurbano.co",
     adminEmail: "admin@andesurbano.co",
     onboardedAt: "2026-03-02",
-    fees: { setup: 12000, monthly: 1800, usagePct: 1.2 },
+    fees: { setup: 12000, monthly: 1800, platformFeeBps: 120 },
     offering: {
       id: "off_santabarbara",
       code: "P-01",
@@ -110,7 +111,7 @@ export const DEVELOPERS: SeedDeveloper[] = [
     complianceEmail: "oficialcumplimiento@vallealto.co",
     adminEmail: "admin@vallealto.co",
     onboardedAt: "2026-06-17",
-    fees: { setup: 6500, monthly: 950, usagePct: 1.5 },
+    fees: { setup: 6500, monthly: 950, platformFeeBps: 150 },
     offering: {
       id: "off_elpoblado",
       code: "P-02",
@@ -152,7 +153,7 @@ export const DEVELOPERS: SeedDeveloper[] = [
     complianceEmail: "compliance@avistaresort.co",
     adminEmail: "admin@avistaresort.co",
     onboardedAt: "2025-09-08",
-    fees: { setup: 9500, monthly: 1400, usagePct: 1 },
+    fees: { setup: 9500, monthly: 1400, platformFeeBps: 100 },
     offering: {
       id: "off_avista",
       code: "P-03",

@@ -17,6 +17,7 @@ import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { keccak256, toHex } from "viem";
 import { evidenceHash } from "@rwaxi/blockchain-sdk/canonical";
+import { PLATFORM_FEE_BPS_MAX, PLATFORM_FEE_BPS_MIN, parsePlatformFeeBps, platformFeePercent } from "@rwaxi/blockchain-sdk/platform-fee";
 import { objectKey } from "@rwaxi/document-vault";
 import {
   isUniqueViolation,
@@ -30,12 +31,13 @@ import {
   type Prisma,
 } from "@rwaxi/database";
 import { LEGAL_COMPLIANCE, LEGAL_NDA } from "@/app/_lib/data/legal";
-import { ExecutionError, executeChainTx } from "@/app/_lib/server/chain-executor";
+import { ExecutionError, executeChainTx, executionMode, operatorAddress, readTokenSupply } from "@/app/_lib/server/chain-executor";
+import { READINESS_GAP, officialWallets, readinessGaps } from "@/app/_lib/server/raising-readiness";
 import { issueInvitation, type InvitedRole } from "@/app/_lib/server/staff-invitations";
 import { TenantAccessError, requestMeta } from "@/app/_lib/server/tenant-context";
 import { vault, verifyReceipt } from "@/app/_lib/server/vault";
 import { parseOnboarding } from "./_lib/onboarding";
-import { RESERVED_SLUGS, SLUG_RULE } from "./_lib/onboarding-shared";
+import { RESERVED_SLUGS, SLUG_RULE, WALLET_RULE } from "./_lib/onboarding-shared";
 import { requirePlatformSession, type PlatformSession } from "./_lib/session";
 import type { PlatformActionResult } from "./_lib/types";
 
@@ -217,7 +219,6 @@ export async function setOfferingCapture(offeringId: string, paused: boolean, re
 // ───────────────────────────────────────────────────────── Module C · billing
 
 const MONEY = /^\d{1,7}(?:\.\d{1,2})?$/;
-const PCT = /^\d{1,2}(?:\.\d{1,3})?$/;
 
 function amountOf(raw: unknown, label: string, max: number): string {
   const v = clean(String(raw ?? "")).replace(",", ".");
@@ -225,18 +226,18 @@ function amountOf(raw: unknown, label: string, max: number): string {
   return Number(v).toFixed(2);
 }
 
-/** Agreed terms of a developer: setup fee, monthly SaaS and % of infrastructure usage (future accruals). */
+/**
+ * Agreed fixed terms of a developer: setup fee and monthly SaaS (future accruals). The platform fee per payment is
+ * not changed here: only with a signed agreement (setCommercialTerms, module A).
+ */
 export async function updateFeeTerms(
   organizationId: string,
-  terms: { setupUsd: unknown; monthlyUsd: unknown; usagePct: unknown },
+  terms: { setupUsd: unknown; monthlyUsd: unknown },
 ): Promise<PlatformActionResult> {
   try {
     if (typeof organizationId !== "string" || !ID.test(organizationId)) throw new PlatformError("Organización inválida.");
     const setupUsd = amountOf(terms?.setupUsd, "Setup", 1_000_000);
     const monthlyUsd = amountOf(terms?.monthlyUsd, "SaaS mensual", 100_000);
-    const pct = clean(String(terms?.usagePct ?? "")).replace(",", ".");
-    if (!PCT.test(pct) || Number(pct) > 10) throw new PlatformError("Uso de infraestructura: porcentaje entre 0 y 10 (hasta 3 decimales).");
-    const usagePct = Number(pct).toFixed(3);
     const session = await requirePlatformSession();
     const meta = await requestMeta();
 
@@ -244,17 +245,17 @@ export async function updateFeeTerms(
       await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE`;
       const org = await tx.organization.findUnique({
         where: { id: organizationId },
-        select: { displayName: true, feeSetupUsd: true, feeMonthlyUsd: true, feeUsagePct: true },
+        select: { displayName: true, feeSetupUsd: true, feeMonthlyUsd: true },
       });
       if (!org) throw new PlatformError("Organización no encontrada.");
-      const from = { setupUsd: org.feeSetupUsd.toFixed(2), monthlyUsd: org.feeMonthlyUsd.toFixed(2), usagePct: org.feeUsagePct.toFixed(3) };
-      const to = { setupUsd, monthlyUsd, usagePct };
-      if (from.setupUsd === to.setupUsd && from.monthlyUsd === to.monthlyUsd && from.usagePct === to.usagePct) {
+      const from = { setupUsd: org.feeSetupUsd.toFixed(2), monthlyUsd: org.feeMonthlyUsd.toFixed(2) };
+      const to = { setupUsd, monthlyUsd };
+      if (from.setupUsd === to.setupUsd && from.monthlyUsd === to.monthlyUsd) {
         throw new PlatformError("Las tarifas no cambiaron.");
       }
       await tx.organization.update({
         where: { id: organizationId },
-        data: { feeSetupUsd: setupUsd, feeMonthlyUsd: monthlyUsd, feeUsagePct: usagePct },
+        data: { feeSetupUsd: setupUsd, feeMonthlyUsd: monthlyUsd },
       });
       await audit(tx, session, meta, {
         organizationId,
@@ -264,6 +265,121 @@ export async function updateFeeTerms(
         payload: { tenant: org.displayName, from, to, appliesTo: "devengos futuros; los asientos existentes no cambian" },
       });
       return `${org.displayName}: tarifas actualizadas (aplican a los próximos devengos)`;
+    });
+    refresh();
+    return { ok: true, message };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+const AGREEMENT_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9 ._/#-]{2,63}$/;
+
+/**
+ * Module A · registers a commercial agreement signed with a developer and the platform fee it sets, in basis points
+ * (25–500: 0.25 %–5 %, the range RwaxiPropertyToken enforces). The signed PDF was verified in staging by this console
+ * session (POST /api/vault/upload, purpose "onboarding": its receipt); it is copied into the developer's vault and
+ * kept by its SHA-256. In one transaction: the agreement (append-only), its vault object, Organization.platformFeeBps
+ * and a COMMERCIAL_TERMS_UPDATED AuditEvent citing the document's hash. The fee is the one the factory writes into
+ * every token deployed from now on, and the usage fee of tokens deployed without one; deployed tokens keep theirs
+ * (immutable on-chain).
+ */
+export async function setCommercialTerms(
+  organizationId: string,
+  input: {
+    platformFeeBps: unknown;
+    reference: unknown;
+    signedOn: unknown;
+    document: { receipt: unknown; sha256: unknown; sizeBytes: unknown; fileName: unknown };
+  },
+): Promise<PlatformActionResult> {
+  try {
+    if (typeof organizationId !== "string" || !ID.test(organizationId)) throw new PlatformError("Organización inválida.");
+    const platformFeeBps = parsePlatformFeeBps(input?.platformFeeBps);
+    if (platformFeeBps === null) {
+      throw new PlatformError(
+        `Comisión de plataforma: un número entero de puntos básicos entre ${PLATFORM_FEE_BPS_MIN} (0,25 %) y ${PLATFORM_FEE_BPS_MAX} (5 %).`,
+      );
+    }
+    const reference = clean(input?.reference);
+    if (!AGREEMENT_REFERENCE.test(reference)) {
+      throw new PlatformError("Referencia del acuerdo: 3 a 64 caracteres (letras, números, espacio y . _ / # -).");
+    }
+    const signedOn = clean(input?.signedOn);
+    const signed = DATE.test(signedOn) ? new Date(`${signedOn}T00:00:00Z`) : null;
+    if (!signed || Number.isNaN(signed.getTime()) || signed.toISOString().slice(0, 10) !== signedOn) {
+      throw new PlatformError("Fecha de firma del acuerdo inválida (AAAA-MM-DD).");
+    }
+    // "future" in Colombia, where the agreements are signed (after 19:00 there the UTC date is already tomorrow)
+    const todayInBogota = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+    if (signedOn > todayInBogota) throw new PlatformError("La fecha de firma no puede ser futura.");
+    const session = await requirePlatformSession();
+    const document = input?.document;
+    const claims = verifyReceipt(document?.receipt, { scope: "staging", subject: `usr:${session.admin.id}` });
+    if (!claims || claims.sha256 !== document?.sha256 || claims.sizeBytes !== document?.sizeBytes) {
+      throw new PlatformError("El acuerdo firmado no fue verificado por el servidor: vuelve a adjuntarlo.");
+    }
+    if (claims.mimeType !== "application/pdf") throw new PlatformError("El acuerdo firmado debe ser un PDF.");
+    const fileName =
+      (typeof document.fileName === "string" ? document.fileName : "")
+        .replace(/[\\/\u0000-\u001f]/g, "_")
+        .trim()
+        .slice(0, 160) || "acuerdo-comercial.pdf";
+    const meta = await requestMeta();
+
+    // The file goes into the developer's vault before its row exists, so no agreement is ever left without it; a
+    // copy that a failed transaction leaves unreferenced is removed by the vault GC after its grace period.
+    const storageKey = objectKey({ organizationId }, claims.sha256);
+    await vault()
+      .copy(objectKey("staging", claims.sha256), storageKey)
+      .catch(() => {
+        throw new PlatformError("El archivo del acuerdo ya no está en la bóveda temporal: vuelve a adjuntarlo.");
+      });
+
+    const message = await platformTx(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE`;
+      const org = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: { displayName: true, platformFeeBps: true },
+      });
+      if (!org) throw new PlatformError("Organización no encontrada.");
+      await tx.vaultObject.createMany({
+        data: [{ organizationId, sha256: claims.sha256, sizeBytes: claims.sizeBytes, mimeType: claims.mimeType, storageKey }],
+        skipDuplicates: true,
+      });
+      const agreement = await tx.commercialAgreement.create({
+        data: {
+          organizationId,
+          reference,
+          signedOn: signed,
+          platformFeeBps,
+          sha256: claims.sha256,
+          sizeBytes: claims.sizeBytes,
+          fileName,
+          storageKey,
+          recordedByEmail: session.admin.email,
+        },
+      });
+      await tx.organization.update({ where: { id: organizationId }, data: { platformFeeBps } });
+      await audit(tx, session, meta, {
+        organizationId,
+        action: "COMMERCIAL_TERMS_UPDATED",
+        entityType: "CommercialAgreement",
+        entityId: agreement.id,
+        payload: {
+          tenant: org.displayName,
+          from: { platformFeeBps: org.platformFeeBps },
+          to: { platformFeeBps },
+          agreement: { reference, signedOn, sha256: claims.sha256, fileName, sizeBytes: claims.sizeBytes },
+          appliesTo:
+            "tokens desplegados desde ahora y devengos de tokens sin comisión fijada; los tokens ya desplegados conservan la suya (inmutable on-chain)",
+        },
+      });
+      const change =
+        org.platformFeeBps === platformFeeBps
+          ? `se mantiene en ${platformFeePercent(platformFeeBps)} (${platformFeeBps} pb)`
+          : `${org.platformFeeBps} → ${platformFeeBps} pb (${platformFeePercent(platformFeeBps)})`;
+      return `${org.displayName}: acuerdo ${reference} registrado (SHA-256 ${claims.sha256.slice(0, 10)}…) · comisión de plataforma ${change} · aplica a los tokens que se desplieguen desde ahora`;
     });
     refresh();
     return { ok: true, message };
@@ -485,7 +601,7 @@ export async function onboardDeveloper(input: unknown): Promise<PlatformActionRe
             complianceTemplate: { [regimeKey]: (LEGAL_COMPLIANCE as Record<string, unknown>)[regimeKey] } as Prisma.InputJsonValue,
             feeSetupUsd: fees.setupUsd,
             feeMonthlyUsd: fees.monthlyUsd,
-            feeUsagePct: fees.usagePct,
+            platformFeeBps: fees.platformFeeBps,
             onboardedAt: now,
           },
         });
@@ -720,6 +836,122 @@ export async function resendStaffInvitation(userId: string): Promise<PlatformAct
   }
 }
 
+/**
+ * Module A · completes an onboarding whose registry was deferred (staff wallets not declared): validates both
+ * wallets, records them on the developer's TENANT_ADMIN and COMPLIANCE_OFFICER, queues deployTenantRegistry() —
+ * the registry is administered by those wallets, never by RWAXI's — with REGISTRY_WALLETS_DECLARED, and then
+ * has RWAXI's operator execute it. If the execution fails the call stays PENDING for «Desplegar registro».
+ */
+export async function declareRegistryWallets(organizationId: string, adminWallet: string, officerWallet: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof organizationId !== "string" || !ID.test(organizationId)) throw new PlatformError("Organización inválida.");
+    const tenantAdmin = clean(adminWallet).toLowerCase();
+    const complianceOfficer = clean(officerWallet).toLowerCase();
+    if (!WALLET_RULE.test(tenantAdmin)) throw new PlatformError("Administrador: wallet EVM inválida (0x + 40 hex).");
+    if (!WALLET_RULE.test(complianceOfficer)) throw new PlatformError("Oficial de Cumplimiento: wallet EVM inválida (0x + 40 hex).");
+    if (tenantAdmin === complianceOfficer) throw new PlatformError("El administrador y el oficial de cumplimiento deben tener wallets distintas.");
+    // RWAXI holds no role on the tenant's registry: its operator key may never be one of them.
+    const operator = operatorAddress()?.toLowerCase();
+    if (operator && (tenantAdmin === operator || complianceOfficer === operator)) {
+      throw new PlatformError("Esa es la wallet del operador RWAXI: el registro debe quedar con las wallets del desarrollador.");
+    }
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+
+    const queued = await platformTx(async (tx) => {
+      // One declaration at a time per developer: a concurrent one waits here and then sees the queued row.
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${organizationId} FOR UPDATE`;
+      const org = await tx.organization.findUnique({
+        where: { id: organizationId },
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+          taxId: true,
+          complianceRegime: true,
+          complianceRegistry: true,
+          onchainId: true,
+          offerings: { orderBy: { createdAt: "asc" }, take: 1, select: { id: true, network: true } },
+        },
+      });
+      if (!org) throw new PlatformError("Desarrollador no encontrado.");
+      if (org.complianceRegistry) throw new PlatformError(`${org.displayName} ya tiene su registro de cumplimiento desplegado.`);
+      const offering = org.offerings[0];
+      if (!offering || !org.onchainId) throw new PlatformError(`${org.displayName} no tiene una oferta ni identificador on-chain.`);
+      const queuedTx = await tx.chainTransaction.findFirst({
+        where: { organizationId: org.id, kind: "TENANT_REGISTRY_DEPLOYED", status: { in: ["PENDING", "CONFIRMED"] } },
+        select: { status: true },
+      });
+      if (queuedTx) throw new PlatformError(`El registro de ${org.displayName} ya está en cola: usa «Desplegar registro».`);
+
+      const staff = await tx.user.findMany({
+        where: { organizationId: org.id, role: { in: ["TENANT_ADMIN", "COMPLIANCE_OFFICER"] } },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, role: true, email: true, walletAddress: true },
+      });
+      const admin = staff.find((u) => u.role === "TENANT_ADMIN");
+      const officer = staff.find((u) => u.role === "COMPLIANCE_OFFICER");
+      if (!admin || !officer) throw new PlatformError(`${org.displayName} no tiene administrador y oficial de cumplimiento.`);
+      await tx.user.update({ where: { id: admin.id }, data: { walletAddress: tenantAdmin } });
+      await tx.user.update({ where: { id: officer.id }, data: { walletAddress: complianceOfficer } });
+
+      const factory = await factoryFor(tx, offering.network);
+      const registryTx = await tx.chainTransaction.create({
+        data: {
+          organizationId: org.id,
+          offeringId: offering.id,
+          network: offering.network,
+          kind: "TENANT_REGISTRY_DEPLOYED",
+          contractAddress: factory,
+          method: DEPLOY_REGISTRY,
+          args: {
+            organizationId: org.onchainId,
+            organizationTaxId: org.taxId,
+            complianceRegime: org.complianceRegime,
+            tenantAdmin,
+            complianceOfficer,
+          },
+          status: "PENDING",
+        },
+      });
+      await audit(tx, session, meta, {
+        organizationId: org.id,
+        action: "REGISTRY_WALLETS_DECLARED",
+        entityType: "Organization",
+        entityId: org.id,
+        payload: {
+          tenant: org.displayName,
+          slug: org.slug,
+          tenantAdmin,
+          complianceOfficer,
+          previous: { tenantAdmin: admin.walletAddress, complianceOfficer: officer.walletAddress },
+          users: [
+            { role: "TENANT_ADMIN", email: admin.email },
+            { role: "COMPLIANCE_OFFICER", email: officer.email },
+          ],
+          network: offering.network,
+          factory,
+          registryChainTransactionId: registryTx.id,
+        },
+      });
+      return org.displayName;
+    });
+    refresh();
+
+    // The deployment itself: RWAXI's operator through the factory (RWAXI_OPERATOR_ROLE), as «Desplegar registro».
+    const deployed = await deployTenantRegistry(organizationId);
+    return deployed.ok
+      ? { ok: true, message: `Wallets de ${queued} declaradas · ${deployed.message}` }
+      : {
+          ok: true,
+          warning: true,
+          message: `Wallets de ${queued} declaradas y despliegue en cola, pero la ejecución falló: ${deployed.error} Reinténtalo con «Desplegar registro».`,
+        };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
 /** RWAXI's operator executes the queued deployTenantRegistry() of a developer (RWAXI_OPERATOR_ROLE). */
 export async function deployTenantRegistry(organizationId: string): Promise<PlatformActionResult> {
   try {
@@ -734,13 +966,221 @@ export async function deployTenantRegistry(organizationId: string): Promise<Plat
       }),
     );
     if (!pending) throw new PlatformError("Este desarrollador no tiene un despliegue de registro pendiente.");
-    const ex = await executeChainTx(organizationId, pending.id, { id: session.admin.id, email: session.admin.email }, meta, "platform");
+    let ex: Awaited<ReturnType<typeof executeChainTx>>;
+    try {
+      ex = await executeChainTx(organizationId, pending.id, { id: session.admin.id, email: session.admin.email }, meta, "platform");
+    } catch (e) {
+      // The row stays PENDING for «Desplegar registro»; why this attempt failed is kept on it for Module A
+      // (a successful execution clears it).
+      const failed = failure(e);
+      const reason = failed.ok ? "" : failed.error;
+      await withTenant(organizationId, (db) =>
+        db.chainTransaction.updateMany({
+          where: { id: pending.id, status: "PENDING" },
+          data: { error: `${new Date().toISOString()} · ${reason}`.slice(0, 500) },
+        }),
+      ).catch((err) => console.error("[superadmin] could not record the failed registry deployment", err));
+      refresh();
+      return failed;
+    }
     refresh();
     return {
       ok: true,
-      message: `RwaxiComplianceRegistry desplegado en ${ex.created} · ${ex.mode === "SIMULATION" ? `simulación firmada, nonce ${ex.nonce}` : "confirmado en red"}`,
+      message:
+        ex.mode === "SIMULATION"
+          ? `Registro de cumplimiento ERC-3643 (RwaxiComplianceRegistry) activo en ${ex.created} · simulación firmada, no difundida, nonce ${ex.nonce}`
+          : `Registro de cumplimiento ERC-3643 (RwaxiComplianceRegistry) activo en red en ${ex.created} · tx ${ex.txHash}`,
     };
   } catch (e) {
     return failure(e);
+  }
+}
+
+const DEPLOY_TOKEN = "deployOfferingToken(bytes32,bytes32,(string,string,string,string,uint256,bytes32,uint16),address,address)";
+
+/**
+ * Module A · deploys an offering's ERC-3643 token through RwaxiTenantFactory (RWAXI_OPERATOR_ROLE). It requires what
+ * opening the raise requires (raising-readiness.ts): the tenant's compliance registry deployed, the official wallets
+ * declared and an active compliance officer assigned. The token is created with those wallets as its administrators,
+ * the Data Room's Merkle root and the developer's agreed platform fee, fixed in it for good. Queued with
+ * OFFERING_TOKEN_DEPLOYMENT_QUEUED and executed at once by RWAXI's operator; once confirmed, the offering's pre-sale
+ * reservations become payable (SUBSCRIPTION_PAYMENT_OPENED). A failed execution stays PENDING with its error, and
+ * «Desplegar token» retries that same row.
+ */
+export async function deployOfferingToken(offeringId: string): Promise<PlatformActionResult> {
+  try {
+    if (typeof offeringId !== "string" || !ID.test(offeringId)) throw new PlatformError("Oferta inválida.");
+    const session = await requirePlatformSession();
+    const meta = await requestMeta();
+    const operator = operatorAddress();
+
+    const queued = await platformTx(async (tx) => {
+      const offering = await tx.offering.findUnique({
+        where: { id: offeringId },
+        select: {
+          id: true,
+          organizationId: true,
+          code: true,
+          assetName: true,
+          network: true,
+          legalWrapperType: true,
+          legalEntityName: true,
+          dataRoomRoot: true,
+          token: { select: { id: true, status: true, name: true, symbol: true, maxSupply: true, onchainId: true } },
+        },
+      });
+      if (!offering?.token) throw new PlatformError("Oferta no encontrada.");
+      // One deployment at a time per developer: a concurrent request waits here and then finds the queued row.
+      await tx.$queryRaw`SELECT id FROM organizations WHERE id = ${offering.organizationId} FOR UPDATE`;
+      const org = await tx.organization.findUniqueOrThrow({
+        where: { id: offering.organizationId },
+        select: { id: true, displayName: true, onchainId: true, complianceRegistry: true, platformFeeBps: true },
+      });
+      const base = { orgId: org.id, code: offering.code, symbol: offering.token.symbol };
+      const pending = await tx.chainTransaction.findFirst({
+        where: { offeringId: offering.id, kind: "OFFERING_TOKEN_DEPLOYED", status: "PENDING" },
+        select: { id: true },
+      });
+      if (pending) return { ...base, chainTxId: pending.id, retry: true };
+      if (offering.token.status === "DEPLOYED" || offering.token.status === "PAUSED") {
+        throw new PlatformError(`El token de ${offering.code} ya está desplegado.`);
+      }
+      const staff = await tx.user.findMany({
+        where: { organizationId: org.id, role: { in: ["TENANT_ADMIN", "COMPLIANCE_OFFICER"] } },
+        orderBy: { createdAt: "asc" },
+        select: { role: true, active: true, walletAddress: true },
+      });
+      const gaps = readinessGaps({ complianceRegistry: org.complianceRegistry, staff, operator });
+      const wallets = officialWallets(staff);
+      if (gaps.length || !wallets) {
+        throw new PlatformError(`No se puede desplegar el token de ${offering.code}: ${gaps.map((g) => READINESS_GAP[g]).join(" ")}`);
+      }
+      if (!org.onchainId || !offering.token.onchainId) throw new PlatformError(`${offering.code} no tiene identificadores on-chain.`);
+      if (!offering.dataRoomRoot) {
+        throw new PlatformError(`${offering.code} no tiene Data Room: el token ancla su Merkle Root al desplegarse.`);
+      }
+      const factory = await factoryFor(tx, offering.network);
+      const cfg = {
+        name: offering.token.name,
+        symbol: offering.token.symbol,
+        legalWrapperType: offering.legalWrapperType,
+        legalEntityName: offering.legalEntityName,
+        maxSupplyCap: offering.token.maxSupply,
+        dataRoomMerkleRoot: offering.dataRoomRoot,
+        platformFeeBps: org.platformFeeBps,
+      };
+      const chainTx = await tx.chainTransaction.create({
+        data: {
+          organizationId: org.id,
+          offeringId: offering.id,
+          network: offering.network,
+          kind: "OFFERING_TOKEN_DEPLOYED",
+          contractAddress: factory,
+          method: DEPLOY_TOKEN,
+          args: { organizationId: org.onchainId, offeringId: offering.token.onchainId, cfg, ...wallets },
+          status: "PENDING",
+        },
+      });
+      await tx.tokenDeployment.update({ where: { id: offering.token.id }, data: { status: "DEPLOYING", platformFeeBps: org.platformFeeBps } });
+      const reservations = await tx.subscription.count({ where: { offeringId: offering.id, status: "RESERVED" } });
+      await audit(tx, session, meta, {
+        organizationId: org.id,
+        action: "OFFERING_TOKEN_DEPLOYMENT_QUEUED",
+        entityType: "Offering",
+        entityId: offering.id,
+        payload: {
+          tenant: org.displayName,
+          offeringCode: offering.code,
+          assetName: offering.assetName,
+          network: offering.network,
+          factory,
+          symbol: offering.token.symbol,
+          maxSupply: offering.token.maxSupply,
+          dataRoomRoot: offering.dataRoomRoot,
+          platformFeeBps: org.platformFeeBps,
+          ...wallets,
+          reservations,
+          chainTransactionId: chainTx.id,
+        },
+      });
+      return { ...base, chainTxId: chainTx.id, retry: false };
+    });
+    refresh();
+
+    // The deployment itself: RWAXI's operator through the factory, as «Desplegar registro».
+    let ex: Awaited<ReturnType<typeof executeChainTx>>;
+    try {
+      ex = await executeChainTx(queued.orgId, queued.chainTxId, { id: session.admin.id, email: session.admin.email }, meta, "platform");
+    } catch (e) {
+      const failed = failure(e);
+      const reason = failed.ok ? "" : failed.error;
+      await withTenant(queued.orgId, (db) =>
+        db.chainTransaction.updateMany({
+          where: { id: queued.chainTxId, status: "PENDING" },
+          data: { error: `${new Date().toISOString()} · ${reason}`.slice(0, 500) },
+        }),
+      ).catch((err) => console.error("[superadmin] could not record the failed token deployment", err));
+      refresh();
+      if (queued.retry) return failed;
+      return {
+        ok: true,
+        warning: true,
+        message: `Token de ${queued.code} en cola, pero la ejecución falló: ${reason} Reinténtalo con «Desplegar token».`,
+      };
+    }
+    refresh();
+    const opened = await withTenant(queued.orgId, (db) =>
+      db.auditEvent.count({ where: { action: "SUBSCRIPTION_PAYMENT_OPENED", payload: { path: ["chainTransactionId"], equals: queued.chainTxId } } }),
+    );
+    const where =
+      ex.mode === "SIMULATION" ? `simulación firmada, no difundida, nonce ${ex.nonce}` : `confirmado en red · tx ${ex.txHash}`;
+    return {
+      ok: true,
+      message: `Token ${queued.symbol} de ${queued.code} desplegado en ${ex.created} (${where}) · reservas abiertas a pago: ${opened}`,
+    };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+// ───────────────────────────────────────────────────────── module G: on-chain census (read-only)
+
+export type OnchainCensusResult =
+  | { ok: true; mode: "SIMULATION" | "RPC"; checkedAt: string; supplies: Record<string, { supply: number } | { error: string }> }
+  | { ok: false; error: string };
+
+/**
+ * Module G · in RPC mode, the totalSupply() each deployed token reports on its network right now, to set against the
+ * census of the platform (MINTED subscriptions and confirmed mints). In SIMULATION nothing is broadcast: there is no
+ * network to ask. Read-only; keyed by the token address in lowercase.
+ */
+export async function checkOnchainCensus(): Promise<OnchainCensusResult> {
+  try {
+    await requirePlatformSession();
+    const mode = executionMode();
+    const checkedAt = new Date().toISOString();
+    if (mode !== "RPC") return { ok: true, mode, checkedAt, supplies: {} };
+    const tokens = await retryTransient(
+      () =>
+        platformPrisma().tokenDeployment.findMany({
+          where: { status: { in: ["DEPLOYED", "PAUSED"] }, contractAddress: { not: null } },
+          select: { network: true, contractAddress: true },
+        }),
+      { repeatable: true },
+    );
+    const supplies: Record<string, { supply: number } | { error: string }> = {};
+    await Promise.all(
+      tokens.map(async (t) => {
+        const key = t.contractAddress!.toLowerCase();
+        try {
+          supplies[key] = { supply: await readTokenSupply(t.network, t.contractAddress!) };
+        } catch (e) {
+          supplies[key] = { error: e instanceof ExecutionError ? e.message : e instanceof Error ? e.message.split("\n")[0]! : "error" };
+        }
+      }),
+    );
+    return { ok: true, mode, checkedAt, supplies };
+  } catch (e) {
+    return failure(e) as { ok: false; error: string };
   }
 }

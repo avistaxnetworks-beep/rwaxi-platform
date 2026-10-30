@@ -10,10 +10,12 @@ import { useI18n } from "@/app/_i18n/provider";
 import { WALLET_SIGNER_ROLE, type ChainQueueItem } from "@/app/_lib/chain-queue-types";
 import { executeChainTransaction, processChainQueue, registerOfficerTransaction, requestIssuerMinterRole } from "../chain-actions";
 import { confirmPayment } from "../payment-actions";
+import { setOfferingStatus } from "../offering-actions";
 import type {
   DeskSession,
   IssuerMintPanel,
   IssuerMinterState,
+  OfferingRaisingRow,
   SubscriptionRow,
   SubscriptionsDeskData,
   SubscriptionsDeskResult,
@@ -24,7 +26,7 @@ import { WalletSign } from "./wallet-sign";
 
 type Currency = "COP" | "USD";
 type Toast = (message: string) => void;
-type Busy = { id: string; kind: "pay" | "exec" | "queue" | "grant" } | null;
+type Busy = { id: string; kind: "pay" | "exec" | "queue" | "grant" | "status" } | null;
 
 const brandVars = (color: string) => ({ "--tc": color, "--tc-on": onColor(color) }) as CSSProperties;
 const hash = (h: string) => shortHash(h, 12, 6);
@@ -129,7 +131,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
       "fee",
       tr("Fee RWAXI devengado"),
       money(data.fees.accruedUsd, currency, true),
-      tr("{pct}% · {n} asiento(s)", { pct: org.feeUsagePct, n: data.fees.entries, count: data.fees.entries }),
+      tr("{pct}% · {n} asiento(s)", { pct: (org.platformFeeBps / 100).toFixed(2), n: data.fees.entries, count: data.fees.entries }),
     ],
   ];
   const paying = payId ? subs.find((s) => s.id === payId) : undefined;
@@ -146,6 +148,15 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
           </div>
         ))}
       </div>
+
+      <RaisingPanel
+        raising={data.raising}
+        busy={busy}
+        canAct={canAct}
+        onChange={(offeringId, status, reason) =>
+          run({ id: offeringId, kind: "status" }, () => setOfferingStatus(offeringId, status, reason))
+        }
+      />
 
       {error && !paying && (
         <p role="alert" className="border border-[#F3C5C0] bg-[#FDECEA] text-[#B42318] text-[12.5px] px-4 py-3">
@@ -351,7 +362,7 @@ function DeskView({ data, currency, toast }: { data: SubscriptionsDeskData; curr
                   status: <span className="font-mono text-rxPurple">MINT_PENDING</span>,
                   ref: <span className="font-mono text-rxPurple">paymentEvidenceRef</span>,
                   call: <span className="font-mono text-rxPurple">mintSubscription(subscriptionId, investor, amount, paymentEvidenceRef)</span>,
-                  pct: org.feeUsagePct,
+                  pct: ((paying?.platformFeeBps ?? org.platformFeeBps) / 100).toFixed(2),
                 },
               )}
             </p>
@@ -650,6 +661,159 @@ function OfficerHashForm({
       >
         {signer === "Oficial" ? tr("Registrar tx del Oficial") : tr("Registrar tx del emisor")}
       </button>
+    </div>
+  );
+}
+
+type RaisingStatus = OfferingRaisingRow["status"];
+const RAISING: Record<RaisingStatus, [string, string]> = {
+  STRUCTURING: [msg("En estructuración · próximamente"), "bg-rxDeep text-lav"],
+  ACTIVE: [msg("Captación abierta"), "bg-aquaTint text-aquaInk"],
+  FUNDED: [msg("Captación completada"), "bg-cloud text-muted"],
+};
+/** Transitions offered per status (offering-actions.ts enforces the same list). */
+const RAISING_NEXT: Record<RaisingStatus, [RaisingStatus, string][]> = {
+  STRUCTURING: [["ACTIVE", msg("Abrir captación")]],
+  ACTIVE: [
+    ["FUNDED", msg("Marcar captación completada")],
+    ["STRUCTURING", msg("Volver a estructuración")],
+  ],
+  FUNDED: [["ACTIVE", msg("Reabrir captación")]],
+};
+
+/**
+ * "Estado de captación": the developer decides when each offering raises capital (Offering.status). Only ACTIVE
+ * takes subscriptions; STRUCTURING is listed in the vitrina as "coming soon". Leaving ACTIVE needs a reason.
+ */
+function RaisingPanel({
+  raising,
+  busy,
+  canAct,
+  onChange,
+}: {
+  raising: SubscriptionsDeskData["raising"];
+  busy: Busy;
+  canAct: boolean;
+  onChange: (offeringId: string, status: RaisingStatus, reason: string) => void;
+}) {
+  const { tr } = useI18n();
+  const [pending, setPending] = useState<{ offering: OfferingRaisingRow; to: RaisingStatus } | null>(null);
+  const [reason, setReason] = useState("");
+  const needsReason = pending?.offering.status === "ACTIVE";
+  const reasonOk = !needsReason || (reason.trim().length >= 10 && reason.trim().length <= 300);
+
+  return (
+    <div className="bg-white border border-line" data-raising-panel>
+      <div className="px-5 py-3.5 border-b border-line">
+        <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">{tr("Estado de captación")}</p>
+        <p className="text-[11.5px] text-muted mt-1 leading-relaxed max-w-[880px]">
+          {tr(
+            "Sólo una oferta con la captación abierta (ACTIVE) recibe suscripciones. En estructuración, la vitrina la muestra como «próximamente» y el portal no permite suscribir; las suscripciones ya firmadas siguen su curso.",
+          )}
+        </p>
+      </div>
+      {raising.gaps.length > 0 && (
+        <div className="px-5 py-3 border-b border-line text-[12px] text-goldInk flex gap-2 items-start" data-raising-gaps={raising.gaps.length}>
+          <Icon name="AlertTriangle" size={14} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">{tr("La captación no puede abrirse todavía:")}</p>
+            <ul className="mt-1 list-disc ps-4">
+              {raising.gaps.map((g) => (
+                <li key={g} data-raising-gap>
+                  {g}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+      <ul>
+        {raising.offerings.map((o) => (
+          <li
+            key={o.id}
+            data-raising-offering={o.code}
+            data-offering-status={o.status}
+            className="px-5 py-3 border-b border-line last:border-b-0 flex flex-wrap gap-x-4 gap-y-2 items-center justify-between"
+          >
+            <div className="min-w-0">
+              <p className="font-mono text-[12px] text-rxPurple break-words">
+                {o.code}
+                <span className="text-muted">{` · ${o.assetName}`}</span>
+              </p>
+              <p className="text-[11px] text-muted mt-0.5 font-mono tnum">
+                {tr("{committed} / {total} unidades", { committed: o.unitsSubscribed, total: o.totalUnits, count: o.totalUnits })}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`text-[10.5px] font-semibold px-2 py-0.5 ${RAISING[o.status][1]}`}>{tr(RAISING[o.status][0])}</span>
+              {RAISING_NEXT[o.status].map(([to, label]) => {
+                const blocked = to === "ACTIVE" && raising.gaps.length > 0;
+                return (
+                  <button
+                    key={to}
+                    data-set-status={`${o.code}:${to}`}
+                    disabled={!!busy || !canAct || blocked}
+                    onClick={() => {
+                      setReason("");
+                      setPending({ offering: o, to });
+                    }}
+                    className={`${to === "ACTIVE" ? "tc-btn" : "border border-line text-rxBlue"} px-2.5 py-1.5 text-[11.5px] font-semibold inline-flex items-center gap-1.5 focus-ring disabled:opacity-50`}
+                  >
+                    {busy?.id === o.id && busy.kind === "status" && <Icon name="Loader2" size={13} className="spin" />}
+                    {tr(label)}
+                  </button>
+                );
+              })}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {pending && (
+        <Modal
+          title={tr("{code} · {from} → {to}", { code: pending.offering.code, from: pending.offering.status, to: pending.to })}
+          onClose={() => setPending(null)}
+          wide={false}
+        >
+          <div className="flex flex-col gap-4">
+            <p className="text-[12.5px] text-inkBody leading-relaxed">
+              {pending.to === "ACTIVE"
+                ? tr("La oferta empezará a recibir suscripciones en el portal y la vitrina enlazará a él.")
+                : pending.to === "FUNDED"
+                  ? tr("La oferta dejará de recibir suscripciones: la vitrina la mostrará con la captación completada.")
+                  : tr("La oferta dejará de recibir suscripciones: la vitrina la mostrará como «próximamente».")}
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="raising-reason" className="text-[11px] font-semibold tracking-[0.06em] uppercase text-muted">
+                {needsReason ? tr("Motivo (obligatorio, 10 a 300 caracteres)") : tr("Motivo (opcional)")}
+              </label>
+              <textarea
+                id="raising-reason"
+                rows={3}
+                maxLength={300}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className={fieldCls(false)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPending(null)} className="border border-line px-3.5 py-2 text-[12.5px] font-semibold text-inkBody focus-ring">
+                {tr("Cancelar")}
+              </button>
+              <button
+                data-confirm-status
+                disabled={!reasonOk || !!busy}
+                onClick={() => {
+                  onChange(pending.offering.id, pending.to, reason);
+                  setPending(null);
+                }}
+                className="tc-btn px-3.5 py-2 text-[12.5px] font-semibold focus-ring disabled:opacity-50"
+              >
+                {tr(RAISING_NEXT[pending.offering.status].find(([to]) => to === pending.to)![1])}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

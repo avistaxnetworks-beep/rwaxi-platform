@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, ProjectStatus } from "@prisma/client";
 import { prisma } from "./client";
 import { retryTransient } from "./pool";
 
@@ -44,6 +44,8 @@ export interface PublicOffering {
   /** capital raising paused by the platform (off-chain): shown, but no new subscriptions */
   capturePaused: boolean;
   translations: OfferingTranslations;
+  /** lifecycle of the offering (Offering.status): only ACTIVE raises capital */
+  status: ProjectStatus;
 }
 
 interface Row {
@@ -81,9 +83,12 @@ interface Row {
   token_address: string | null;
   capture_paused: boolean;
   translations: unknown;
+  offering_status: string;
 }
 
 const n = (v: unknown) => Number(v ?? 0);
+/** Offering.status as text → the enum; an unknown value is the safe one (no capital raising). */
+const projectStatus = (v: string): ProjectStatus => (v === "ACTIVE" || v === "FUNDED" ? v : "STRUCTURING");
 
 /**
  * Public catalogue for the vitrina, through the SECURITY DEFINER function
@@ -129,6 +134,7 @@ export async function listPublicOfferings(base: PrismaClient = prisma): Promise<
     token: r.token_status ? { status: r.token_status, symbol: r.token_symbol ?? "", address: r.token_address } : null,
     capturePaused: r.capture_paused === true,
     translations: offeringTranslations(r.translations),
+    status: projectStatus(r.offering_status),
   }));
 }
 
@@ -148,4 +154,35 @@ export function offeringTranslations(raw: unknown): OfferingTranslations {
     out[locale] = clean;
   }
   return out;
+}
+
+/** One acceptance of the vitrina's legal wall, as rwaxi_record_vitrina_access() stores it. */
+export interface VitrinaAccessInput {
+  /** lowercase */
+  email: string;
+  termsVersion: string;
+  /** SHA-256 (hex) of the exact text of each consent as shown: terms + liability disclaimer, personal data, cookies */
+  termsSha256: string;
+  privacySha256: string;
+  cookiesSha256: string;
+  language: string;
+  /** SHA-256 (hex) of the visitor's IP address; never the address itself */
+  ipHash: string | null;
+}
+
+/**
+ * Records an acceptance of the vitrina's legal wall through the SECURITY DEFINER function
+ * `rwaxi_record_vitrina_access()` (the app role has no privileges on the table) and returns its id.
+ */
+export async function recordVitrinaAccess(input: VitrinaAccessInput, base: PrismaClient = prisma): Promise<string> {
+  const [row] = await retryTransient(
+    () =>
+      base.$queryRaw<{ id: string }[]>`
+        SELECT rwaxi_record_vitrina_access(${input.email}::text, ${input.termsVersion}::text, ${input.termsSha256}::text,
+                                           ${input.privacySha256}::text, ${input.cookiesSha256}::text,
+                                           ${input.language}::text, ${input.ipHash}::text) AS id`,
+    { repeatable: false }, // it inserts: repeated only if it never reached the database
+  );
+  if (!row?.id) throw new Error("rwaxi_record_vitrina_access returned no id");
+  return row.id;
 }

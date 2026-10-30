@@ -120,8 +120,8 @@ const waitSlug = (page, state) => page.waitForFunction((s) => document.querySele
     });
     ok("Organization creada: razón social, NIT, slug, color, régimen · REVIEW y fuera de la vitrina", !!org && org.legalName === legalName && org.taxId === nit && org.displayName === displayName && org.brandColor === brand && org.portalStatus === "REVIEW" && !org.published, toast);
     ok(
-      "tarifas pactadas persistidas (setup 9.000 · SaaS 1.200 · uso 1,2 %) y onchainId = keccak256(id)",
-      Number(org.feeSetupUsd) === 9000 && Number(org.feeMonthlyUsd) === 1200 && Number(org.feeUsagePct) === 1.2 && org.onchainId === viem.keccak256(viem.toHex(org.id)) && org.complianceRegistry === null,
+      "tarifas pactadas persistidas (setup 9.000 · SaaS 1.200 · comisión de plataforma 120 pb) y onchainId = keccak256(id)",
+      Number(org.feeSetupUsd) === 9000 && Number(org.feeMonthlyUsd) === 1200 && org.platformFeeBps === 120 && org.onchainId === viem.keccak256(viem.toHex(org.id)) && org.complianceRegistry === null,
     );
     const admin = org.users.find((u) => u.role === "TENANT_ADMIN");
     const officer = org.users.find((u) => u.role === "COMPLIANCE_OFFICER");
@@ -303,9 +303,29 @@ const waitSlug = (page, state) => page.waitForFunction((s) => document.querySele
     await lib.approveInvestor(b, slug, investor.id);
     const wl = await db.chainTransaction.findFirstOrThrow({ where: { organizationId: org.id, kind: "INVESTOR_WHITELISTED" } });
     ok("KYC aprobado tras el despliegue: approveInvestor() en cola contra el registro del tenant", wl.status === "PENDING" && wl.contractAddress === expected && wl.args.wallet === investor.walletAddress);
+    // The first offering of an onboarding is born STRUCTURING: an approved investor still cannot subscribe.
+    await inv.goto(url(slug), { waitUntil: "domcontentloaded" });
+    await inv.waitForSelector('[data-subscribe-locked="structuring"]', { timeout: 180000 });
+    ok(
+      "portal: KYC aprobado pero la oferta nace en estructuración (STRUCTURING): sin botón de suscripción",
+      !(await lib.has(inv, "Firmar contrato y reservar unidades")),
+    );
+    // The developer opens raising from its backoffice (its registry is deployed now): STRUCTURING → ACTIVE.
+    await openBackofficeTab(b, slug, "Suscripciones y Pagos");
+    await b.waitForSelector(`[data-set-status="${code}:ACTIVE"]:not([disabled])`, { timeout: 90000 });
+    await b.click(`[data-set-status="${code}:ACTIVE"]`);
+    await b.waitForSelector("[data-confirm-status]", { timeout: 30000 });
+    await b.click("[data-confirm-status]");
+    await b.waitForSelector(`[data-raising-offering="${code}"][data-offering-status="ACTIVE"]`, { timeout: 90000 });
+    const opened = await db.offering.findUniqueOrThrow({ where: { id: offering.id } });
+    const statusAudit = await db.auditEvent.findFirst({ where: { organizationId: org.id, action: "OFFERING_STATUS_CHANGED" } });
+    ok(
+      "backoffice: «Abrir captación» → Offering ACTIVE y AuditEvent OFFERING_STATUS_CHANGED",
+      opened.status === "ACTIVE" && statusAudit?.payload.from === "STRUCTURING" && statusAudit.payload.to === "ACTIVE",
+    );
     await inv.goto(url(slug), { waitUntil: "domcontentloaded" });
     await waitText(inv, "Firmar contrato y reservar unidades");
-    ok("portal: KYC aprobado y suscripción como reserva de pre-venta (token aún sin emitir)", await lib.has(inv, "Firmar contrato y reservar unidades"));
+    ok("portal: con la captación abierta, suscripción como reserva de pre-venta (token aún sin emitir)", await lib.has(inv, "Firmar contrato y reservar unidades"));
 
     // ── 10 · Activated and published, it joins the live vitrina ──
     await db.organization.update({ where: { id: org.id }, data: { portalStatus: "ACTIVE", published: true } });

@@ -31,6 +31,7 @@ import {
   rwaxiTenantFactoryBytecode,
 } from "./abi";
 import type { Bytes32 } from "./merkle";
+import { PLATFORM_FEE_BPS_MAX, PLATFORM_FEE_BPS_MIN, isPlatformFeeBps } from "./platform-fee";
 
 export type RwaxiNetwork = "POLYGON" | "BASE" | "POLYGON_AMOY" | "BASE_SEPOLIA" | "HARDHAT";
 
@@ -58,6 +59,8 @@ export interface OfferingTokenConfig {
   /** Whole units of the vehicle (token has 0 decimals). */
   maxSupplyCap: bigint;
   dataRoomMerkleRoot: Bytes32;
+  /** Platform fee agreed with the developer, in basis points (25–500): fixed in the token for good. */
+  platformFeeBps: number;
 }
 
 export interface TxResult<T = void> {
@@ -89,7 +92,7 @@ export interface ITokenizationAdapter {
     config: OfferingTokenConfig;
     tenantAdmin: Address;
     complianceOfficer: Address;
-  }): Promise<TxResult<{ token: Address }>>;
+  }): Promise<TxResult<{ token: Address; platformFeeBps: number }>>;
   approveInvestor(input: {
     registry: Address;
     wallet: Address;
@@ -202,6 +205,10 @@ export class EvmTokenizationAdapter implements ITokenizationAdapter {
   }
 
   async deployOfferingToken(input: Parameters<ITokenizationAdapter["deployOfferingToken"]>[0]) {
+    // The token refuses it too (InvalidPlatformFee): failing here spares a reverted transaction.
+    if (!isPlatformFeeBps(input.config.platformFeeBps)) {
+      throw new RangeError(`platformFeeBps must be a whole number within ${PLATFORM_FEE_BPS_MIN}–${PLATFORM_FEE_BPS_MAX}`);
+    }
     const hash = await this.opts.signer.writeContract({
       ...this.tx,
       address: this.opts.factoryAddress,
@@ -222,7 +229,11 @@ export class EvmTokenizationAdapter implements ITokenizationAdapter {
       eventName: "OfferingTokenDeployed",
     });
     if (!event) throw new Error(`OfferingTokenDeployed not emitted: ${hash}`);
-    return { hash, blockNumber: receipt.blockNumber, result: { token: event.args.token } };
+    return {
+      hash,
+      blockNumber: receipt.blockNumber,
+      result: { token: event.args.token, platformFeeBps: event.args.platformFeeBps },
+    };
   }
 
   async approveInvestor(input: Parameters<ITokenizationAdapter["approveInvestor"]>[0]) {

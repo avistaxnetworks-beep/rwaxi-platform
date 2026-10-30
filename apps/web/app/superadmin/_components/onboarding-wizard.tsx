@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { computeDataRoomRoot } from "@rwaxi/blockchain-sdk/merkle";
+import { parsePlatformFeeBps, platformFeePercent } from "@rwaxi/blockchain-sdk/platform-fee";
 import { Icon } from "@/app/_components/ui/icon";
 import { Modal } from "@/app/_components/ui/modal";
 import { fieldCls } from "@/app/_components/ui/form";
@@ -66,7 +67,7 @@ function emptyInput(code: string, network: string): OnboardingInput {
       tokenSymbol: "",
     },
     documents: [],
-    fees: { setupUsd: "8000", monthlyUsd: "1200", usagePct: "1.2" },
+    fees: { setupUsd: "8000", monthlyUsd: "1200", platformFeeBps: "120" },
   };
 }
 
@@ -226,7 +227,7 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
       if (failed && !failed.ok) setError(failed.error);
       setForm((f) => ({ ...f, documents: results.flatMap((r) => (r.ok ? [r.doc] : [])) }));
     } else {
-      set("fees", { setupUsd: "8000", monthlyUsd: "1200", usagePct: "1.2" });
+      set("fees", { setupUsd: "8000", monthlyUsd: "1200", platformFeeBps: "120" });
     }
   };
 
@@ -465,10 +466,22 @@ function Wizard({ defaults, onClose, toast }: { defaults: PlatformMetrics["onboa
           {step === 4 && (
             <div className="flex flex-col gap-4">
               <fieldset className="border border-line p-4 grid sm:grid-cols-3 gap-3">
-                <legend className="px-1 text-[12px] font-semibold text-inkBody">Tarifas pactadas (USD)</legend>
-                <Text id="ob-setup" title="Setup / Onboarding" value={form.fees.setupUsd} onChange={(v) => set("fees", { setupUsd: v })} mono inputMode="decimal" />
-                <Text id="ob-monthly" title="SaaS mensual" value={form.fees.monthlyUsd} onChange={(v) => set("fees", { monthlyUsd: v })} mono inputMode="decimal" />
-                <Text id="ob-usage" title="Uso (% del capital verificado)" value={form.fees.usagePct} onChange={(v) => set("fees", { usagePct: v })} mono inputMode="decimal" />
+                <legend className="px-1 text-[12px] font-semibold text-inkBody">Tarifas pactadas</legend>
+                <Text id="ob-setup" title="Setup / Onboarding (USD)" value={form.fees.setupUsd} onChange={(v) => set("fees", { setupUsd: v })} mono inputMode="decimal" />
+                <Text id="ob-monthly" title="SaaS mensual (USD)" value={form.fees.monthlyUsd} onChange={(v) => set("fees", { monthlyUsd: v })} mono inputMode="decimal" />
+                <Text
+                  id="ob-fee-bps"
+                  title="Comisión de plataforma (pb, 25–500)"
+                  value={form.fees.platformFeeBps}
+                  onChange={(v) => set("fees", { platformFeeBps: v })}
+                  mono
+                  inputMode="numeric"
+                />
+                <p className="sm:col-span-3 text-[11px] text-muted" data-fee-preview>
+                  {parsePlatformFeeBps(form.fees.platformFeeBps) === null
+                    ? "Puntos básicos enteros entre 25 (0,25 %) y 500 (5 %), según el acuerdo comercial."
+                    : `${platformFeePercent(Number(form.fees.platformFeeBps))} del capital de cada pago conciliado · queda fijada en cada token que se despliegue.`}
+                </p>
               </fieldset>
               <dl className="grid sm:grid-cols-2 gap-px bg-line border border-line text-[12.5px]">
                 {(

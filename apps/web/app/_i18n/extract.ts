@@ -5,11 +5,11 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-export type MessageScope = "vitrina" | "tenant";
+/** vitrina and portal: needed in the 10 public languages; backoffice (internal panels): in es · en · pt. */
+export type MessageScope = "vitrina" | "portal" | "backoffice";
 
 export interface SourceMessage {
   source: string;
-  /** vitrina: needed in its 10 languages; tenant: in Spanish, English and Portuguese */
   scope: MessageScope;
   files: string[];
 }
@@ -20,6 +20,30 @@ const SPANISH_ONLY = ["superadmin/"];
 
 /** Files whose texts the vitrina shows (with vmsg() anywhere else). */
 const VITRINA_PATHS = ["_components/vitrina/", "vitrina/", "_components/ui/", "_components/shell/", "_i18n/"];
+
+/**
+ * Files whose texts the investor portal shows: its screens and actions, and the shared modules behind them (KYC
+ * form options, project data, the pitch video, RWAXI's legal notices, session recovery, the document vault and its
+ * upload and download routes). The rest of a tenant host — backoffice, On-Chain Inspector, staff sign-in — is an
+ * internal panel (es · en · pt; the Inspector reads in English from the other languages).
+ */
+const PORTAL_PATHS = [
+  "_components/portal/",
+  "tenant/[slug]/",
+  "_lib/data/kyc.ts",
+  "_lib/data/projects.ts",
+  "_lib/data/video.ts",
+  "_lib/data/legal.ts",
+  "_lib/server/investor-recovery.ts",
+  "_lib/server/investor-session.ts",
+  "_lib/server/tenant-context.ts",
+  "_lib/server/vault.ts",
+  "_lib/server/vault-access.ts",
+  "_lib/server/vault-uploads.ts",
+  "api/vault/",
+];
+const BACKOFFICE_PATHS = ["tenant/[slug]/backoffice/"];
+const RANK: Record<MessageScope, number> = { backoffice: 0, portal: 1, vitrina: 2 };
 
 function unescape(raw: string): string {
   return raw.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)/gs, (_, esc: string) => {
@@ -47,16 +71,18 @@ export function extractMessages(appDir: string): Map<string, SourceMessage> {
     const rel = path.relative(appDir, file).split(path.sep).join("/");
     if (SPANISH_ONLY.some((p) => rel.startsWith(p))) continue;
     const inVitrina = VITRINA_PATHS.some((p) => rel.startsWith(p));
+    const inPortal = PORTAL_PATHS.some((p) => rel.startsWith(p)) && !BACKOFFICE_PATHS.some((p) => rel.startsWith(p));
     const text = readFileSync(file, "utf8");
     for (const m of text.matchAll(CALL)) {
       const [, fn, dq, sq, tpl] = m;
       if (tpl !== undefined && tpl.includes("${"))
         throw new Error(`${rel}: ${fn}() with an interpolated template literal: use {placeholders}`);
       const source = unescape(dq ?? sq ?? tpl ?? "");
-      const scope: MessageScope = fn === "vmsg" || inVitrina ? "vitrina" : "tenant";
+      const scope: MessageScope = fn === "vmsg" || inVitrina ? "vitrina" : inPortal ? "portal" : "backoffice";
       const known = messages.get(source);
       if (known) {
-        if (scope === "vitrina") known.scope = "vitrina";
+        // a text shown in several environments needs the languages of the widest one
+        if (RANK[scope] > RANK[known.scope]) known.scope = scope;
         if (!known.files.includes(rel)) known.files.push(rel);
       } else messages.set(source, { source, scope, files: [rel] });
     }

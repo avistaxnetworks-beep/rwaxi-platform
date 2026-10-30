@@ -328,7 +328,7 @@ export function VideoPitch({ t: e, p: a, photos: t, currency: o, toast: n, onPho
             key={C.at}
             onClick={() => z(C.at)}
             aria-pressed={I === S && _}
-            className={`text-left px-3.5 py-3 border bg-white focus-ring transition-colors ${I === S && _ ? "tc-border shadow-[inset_0_-3px_0_var(--tc)]" : "border-line hover:border-[#B9B2CC]"}`}
+            className={`text-start px-3.5 py-3 border bg-white focus-ring transition-colors ${I === S && _ ? "tc-border shadow-[inset_0_-3px_0_var(--tc)]" : "border-line hover:border-[#B9B2CC]"}`}
           >
             <span className="font-mono text-[11.5px] tc-text tnum">{mmss(C.at)}</span>
             <span className="block text-[12.5px] font-semibold text-rxPurple leading-snug mt-0.5">

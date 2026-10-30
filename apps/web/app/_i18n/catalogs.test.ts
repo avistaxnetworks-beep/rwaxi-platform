@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { VITRINA_LOCALES, type Locale } from "./config";
+import { BACKOFFICE_LOCALES, LOCALE_COOKIE, SCOPE_LOCALES, VITRINA_LOCALES, localeFrom, type Locale } from "./config";
 import { extractMessages, placeholders } from "./extract";
 import ar from "./messages/ar";
 import de from "./messages/de";
@@ -18,11 +18,11 @@ const CATALOGS: Record<Exclude<Locale, "es">, Catalog> = { en, pt, fr, de, ru, a
 const sources = extractMessages(path.join(process.cwd(), "app"));
 const forms = (entry: Catalog[string]) => (typeof entry === "string" ? [entry] : Object.values(entry));
 
-test("every language has every message it shows (portal and backoffice: en, pt; vitrina: all 10)", () => {
+test("every language has every message it shows (vitrina and portal: all 10; backoffice: en, pt)", () => {
   for (const locale of VITRINA_LOCALES.filter((l) => l !== "es")) {
     const catalog = CATALOGS[locale as Exclude<Locale, "es">];
     const missing = [...sources.values()]
-      .filter((m) => (m.scope === "vitrina" || locale === "en" || locale === "pt") && !(m.source in catalog))
+      .filter((m) => (m.scope !== "backoffice" || (BACKOFFICE_LOCALES as readonly string[]).includes(locale)) && !(m.source in catalog))
       .map((m) => `${m.source.slice(0, 70)} (${m.files[0]})`);
     assert.deepEqual(missing, [], `${locale}: ${missing.length} message(s) without translation`);
   }
@@ -66,4 +66,13 @@ test("Spanish is the source itself, a missing message falls back to it, plural f
   assert.equal(ru("{n} unidades", { n: 3, count: 3 }), "3 единицы");
   assert.equal(ru("{n} unidades", { n: 25, count: 25 }), "25 единиц");
   assert.equal(ru("Sin traducción"), "Sin traducción");
+});
+
+test("public surfaces speak the 10 languages; the internal panels only es · en · pt, each with its own cookie", () => {
+  assert.deepEqual([...SCOPE_LOCALES.portal], [...VITRINA_LOCALES]);
+  assert.deepEqual([...SCOPE_LOCALES.backoffice], ["es", "en", "pt"]);
+  assert.equal(new Set(Object.values(LOCALE_COOKIE)).size, 3);
+  assert.equal(localeFrom("ja", "portal"), "ja");
+  assert.equal(localeFrom("ja", "backoffice"), "es");
+  assert.equal(localeFrom("xx", "portal"), "es");
 });

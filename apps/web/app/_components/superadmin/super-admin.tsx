@@ -28,6 +28,12 @@ export function SuperAdmin({
   governanceSlot: G,
   attributionSlot: Q,
   feesSlot: R,
+  // Module D: supervision of the developers' yield distributions (read-only)
+  distributionsSlot: D,
+  // Modules E, F and G: global audit trail, B2B financial reports and operational health
+  auditSlot: E,
+  financeSlot: F,
+  healthSlot: H,
   // Signed-in RWAXI direction member (or the demo session) and «Cerrar sesión».
   accountSlot: K,
 }) {
@@ -94,6 +100,10 @@ export function SuperAdmin({
             ["A", "gobierno", "Gobierno de Tenants"],
             ["B", "atribucion", "Atribución LeadReferral"],
             ["C", "tarifas", "Tarifas y Libro Mayor"],
+            ...(D ? [["D", "distribuciones", "Supervisión de Distribuciones"]] : []),
+            ...(E ? [["E", "auditoria", "Auditoría Global"]] : []),
+            ...(F ? [["F", "finanzas", "Reportes Financieros"]] : []),
+            ...(H ? [["G", "salud", "Salud Operativa"]] : []),
           ].map(([A, P, z]) => (
             <button
               key={P}
@@ -132,6 +142,10 @@ export function SuperAdmin({
         )}
         {u === "atribucion" && Q}
         {u === "tarifas" && R}
+        {u === "distribuciones" && D}
+        {u === "auditoria" && E}
+        {u === "finanzas" && F}
+        {u === "salud" && H}
       </main>
     </div>
   );

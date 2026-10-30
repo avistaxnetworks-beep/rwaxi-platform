@@ -7,12 +7,16 @@ import { useDemo } from "@/app/_components/shell/demo-provider";
 import { SuperAdmin } from "@/app/_components/superadmin/super-admin";
 import type { PlatformMetricsResult } from "../_lib/types";
 import { PlatformGovernance } from "./governance-panel";
+import { AuditConsole } from "./audit-console";
+import { PlatformDistributions } from "./distributions-panel";
+import { FinancePanel } from "./finance-panel";
+import { HealthPanel } from "./health-panel";
 import { PlatformLedger } from "./ledger-panel";
 import { OnboardingWizard } from "./onboarding-wizard";
 import { PlatformAttribution, PlatformOverview } from "./platform-panels";
 import { consoleLogout } from "../auth-actions";
 
-/** The consolidated header, the onboarding and modules A, B and C read and write PostgreSQL (platform role). */
+/** The consolidated header, the onboarding and modules A–G read PostgreSQL (platform role); A, C and F also write. */
 export function SuperAdminScreen({ metrics, account }: { metrics: PlatformMetricsResult; account: AccountView }) {
   const d = useDemo();
   return (
@@ -39,6 +43,10 @@ export function SuperAdminScreen({ metrics, account }: { metrics: PlatformMetric
         governanceSlot={<PlatformGovernance metrics={metrics} currency={d.currency} toast={d.toast} onboarding={<OnboardingWizard metrics={metrics} toast={d.toast} />} />}
         attributionSlot={<PlatformAttribution metrics={metrics} currency={d.currency} />}
         feesSlot={<PlatformLedger metrics={metrics} currency={d.currency} toast={d.toast} />}
+        distributionsSlot={<PlatformDistributions metrics={metrics} />}
+        auditSlot={<AuditConsole metrics={metrics} toast={d.toast} />}
+        financeSlot={<FinancePanel metrics={metrics} toast={d.toast} />}
+        healthSlot={<HealthPanel metrics={metrics} />}
         accountSlot={<AccountBadge account={account} logout={consoleLogout} loginHref="/login" dark />}
       />
     </EnvironmentFrame>

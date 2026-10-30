@@ -23,6 +23,9 @@ const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   FEE_PAYMENT_RECORDED: msg("Pago a RWAXI registrado"),
   ORGANIZATION_ONBOARDED: msg("Alta en la red RWAXI"),
   DISTRIBUTION_DECLARED: msg("Distribución declarada"),
+  DISTRIBUTION_PAYOUT_INSTRUCTED: msg("Instrucción de pago de la distribución"),
+  DISTRIBUTION_SUPPORT_DOWNLOADED: msg("Soporte de la distribución consultado"),
+  PLATFORM_REPORT_EXPORTED: msg("Reporte exportado desde la consola RWAXI"),
   LOGIN_SUCCEEDED: msg("Inicio de sesión (contraseña + TOTP)"),
   LOGIN_FAILED: msg("Intento de acceso fallido"),
   MFA_FAILED: msg("Código TOTP incorrecto"),
@@ -42,6 +45,12 @@ const AUDIT_LABEL: Record<AuditEntry["action"], string> = {
   SUBSCRIPTION_CANCELLED: msg("Suscripción cancelada"),
   INVESTOR_FREEZE_REQUESTED: msg("Congelamiento de wallet solicitado"),
   MINTER_ROLE_REQUESTED: msg("MINTER_ROLE solicitado para el emisor"),
+  OFFERING_STATUS_CHANGED: msg("Estado de captación de la oferta"),
+  REGISTRY_WALLETS_DECLARED: msg("Gobierno RWAXI · wallets declaradas y registro en cola"),
+  COMMERCIAL_TERMS_UPDATED: msg("Gobierno RWAXI · acuerdo comercial y comisión de plataforma"),
+  COMMERCIAL_AGREEMENT_DOWNLOADED: msg("Gobierno RWAXI · acuerdo comercial consultado"),
+  OFFERING_TOKEN_DEPLOYMENT_QUEUED: msg("Gobierno RWAXI · despliegue del token de la oferta"),
+  SUBSCRIPTION_PAYMENT_OPENED: msg("Reserva abierta a pago"),
 };
 const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: "text-aquaInk",
@@ -59,6 +68,9 @@ const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   FEE_PAYMENT_RECORDED: "text-aquaInk",
   ORGANIZATION_ONBOARDED: "text-rxPurple",
   DISTRIBUTION_DECLARED: "text-goldInk",
+  DISTRIBUTION_PAYOUT_INSTRUCTED: "text-aquaInk",
+  DISTRIBUTION_SUPPORT_DOWNLOADED: "text-muted",
+  PLATFORM_REPORT_EXPORTED: "text-muted",
   LOGIN_SUCCEEDED: "text-aquaInk",
   LOGIN_FAILED: "text-[#B42318]",
   MFA_FAILED: "text-[#B42318]",
@@ -78,6 +90,12 @@ const AUDIT_TONE: Record<AuditEntry["action"], string> = {
   SUBSCRIPTION_CANCELLED: "text-goldInk",
   INVESTOR_FREEZE_REQUESTED: "text-goldInk",
   MINTER_ROLE_REQUESTED: "text-rxBlue",
+  OFFERING_STATUS_CHANGED: "text-rxPurple",
+  REGISTRY_WALLETS_DECLARED: "text-rxPurple",
+  COMMERCIAL_TERMS_UPDATED: "text-rxPurple",
+  COMMERCIAL_AGREEMENT_DOWNLOADED: "text-muted",
+  OFFERING_TOKEN_DEPLOYMENT_QUEUED: "text-rxPurple",
+  SUBSCRIPTION_PAYMENT_OPENED: "text-rxBlue",
 };
 const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   KYC_APPROVED: msg("SHA-256 expediente"),
@@ -95,6 +113,9 @@ const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   FEE_PAYMENT_RECORDED: msg("SHA-256 pago"),
   ORGANIZATION_ONBOARDED: msg("SHA-256 alta"),
   DISTRIBUTION_DECLARED: "Merkle root",
+  DISTRIBUTION_PAYOUT_INSTRUCTED: msg("SHA-256 instrucción de pago"),
+  DISTRIBUTION_SUPPORT_DOWNLOADED: msg("SHA-256 documento"),
+  PLATFORM_REPORT_EXPORTED: msg("SHA-256 archivo exportado"),
   LOGIN_SUCCEEDED: msg("SHA-256 evento"),
   LOGIN_FAILED: msg("SHA-256 evento"),
   MFA_FAILED: msg("SHA-256 evento"),
@@ -114,6 +135,12 @@ const AUDIT_HASH_LABEL: Record<AuditEntry["action"], string> = {
   SUBSCRIPTION_CANCELLED: msg("SHA-256 decisión"),
   INVESTOR_FREEZE_REQUESTED: msg("SHA-256 decisión"),
   MINTER_ROLE_REQUESTED: msg("SHA-256 solicitud"),
+  OFFERING_STATUS_CHANGED: msg("SHA-256 decisión"),
+  REGISTRY_WALLETS_DECLARED: msg("SHA-256 decisión"),
+  COMMERCIAL_TERMS_UPDATED: msg("SHA-256 decisión"),
+  COMMERCIAL_AGREEMENT_DOWNLOADED: msg("SHA-256 documento"),
+  OFFERING_TOKEN_DEPLOYMENT_QUEUED: msg("SHA-256 decisión"),
+  SUBSCRIPTION_PAYMENT_OPENED: msg("SHA-256 contrato de suscripción"),
 };
 
 export function AuditTrail({ entries, empty }: { entries: AuditEntry[]; empty?: string }) {

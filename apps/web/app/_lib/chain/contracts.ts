@@ -8,9 +8,9 @@ export type ContractName = (typeof CONTRACTS)[number];
 
 /** Runtime bytecode sizes of contracts/artifacts (pnpm contracts:compile); sol-sources.test.ts checks them. */
 export const RUNTIME_SIZES: Record<ContractName, number> = {
-  RwaxiTenantFactory: 14509,
+  RwaxiTenantFactory: 16916,
   RwaxiComplianceRegistry: 2870,
-  RwaxiPropertyToken: 5857,
+  RwaxiPropertyToken: 8030,
 };
 
 /** What each contract guarantees, stated without its source (every item is enforced by its code). */
@@ -24,6 +24,9 @@ export const INVARIANTS: Record<ContractName, string[]> = {
     ),
     msg(
       "Los roles de administración del registro y del token quedan en las wallets del tenant, no en las de RWAXI.",
+    ),
+    msg(
+      "Cada token se despliega con la comisión de plataforma pactada con su desarrollador (platformFeeBps), que el evento OfferingTokenDeployed publica.",
     ),
   ],
   RwaxiComplianceRegistry: [
@@ -53,7 +56,13 @@ export const INVARIANTS: Record<ContractName, string[]> = {
       "La recuperación forzosa exige LEGAL_ENFORCEMENT_ROLE del emisor y el hash del acto legal que la respalda (LegalActHashRequired); el receptor debe estar en la whitelist.",
     ),
     msg(
-      "Cada raíz de distribución la ancla el emisor (DISTRIBUTION_ROLE) una sola vez y nunca vacía (DistributionAlreadyAnchored, EmptyDistributionRoot).",
+      "Cada raíz de distribución la ancla el emisor (DISTRIBUTION_ROLE) una sola vez y nunca vacía (DistributionAlreadyAnchored, EmptyDistributionRoot, EmptyDistribution).",
+    ),
+    msg(
+      "El token guarda el historial de saldos (balanceOfAt, totalSupplyAt): una distribución solo se ancla si su oferta total coincide con la del token a la fecha de corte, ya transcurrida (SnapshotSupplyMismatch, FutureLookup), y con el SHA-256 de su soporte documental (DistributionEvidenceRequired).",
+    ),
+    msg(
+      "La comisión de plataforma (platformFeeBps) queda fijada al desplegar el token, solo entre 25 y 500 puntos básicos (InvalidPlatformFee), y cada emisión la declara en PlatformFeeAccrued: el token nunca transfiere unidades ni valor a RWAXI.",
     ),
   ],
 };

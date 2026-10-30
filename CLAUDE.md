@@ -23,34 +23,49 @@ apps/web                 Next.js 15 (App Router, Tailwind 3.4, lucide-react) —
     _lib/tenant-view.ts  tenants dados de alta en la BD (no del prototipo): vista leída bajo RLS para el estado demo
     backoffice/          actions.ts (KYC: aprobar, rechazar, revocar; congelar wallets) · payment-actions.ts
                          (confirmPayment) · chain-actions.ts (ejecutar la cola, firmar con wallet EIP-1193 y pedir
-                         MINTER_ROLE para la wallet del emisor) · distribution-actions.ts (declareDistribution) ·
+                         MINTER_ROLE para la wallet del emisor) · distribution-actions.ts (declareDistribution,
+                         instructDistributionPayout) ·
                          _lib/queries.ts (bandeja de cumplimiento) · _lib/subscriptions-desk.ts (Suscripciones y Pagos)
                          _lib/distributions-desk.ts (Distribuciones) · _components/wallet-sign.tsx (firma en el navegador)
   app/_lib/server/       tenant-context, staff-auth (contraseña + TOTP, sesiones), staff-invitations + staff-activation
-                         (cuentas del alta B2B), investor-session (HMAC), investor-recovery (código por correo) +
+                         (cuentas del alta B2B), investor-session (HMAC), vitrina-access + vitrina-notify (muro legal y
+                         aviso de leads), investor-recovery (código por correo) +
                          mail-outbox (MailDispatcher, redacción), vault + vault-access + vault-uploads (bóveda documental:
                          quién sube qué, subida directa prefirmada), rate-limit (límites en PostgreSQL), chain-queue
                          (calldata viem, puro), chain-invariants (prelación + reverts de los contratos + cotejo de la tx
-                         de una wallet, puro), chain-executor (firma, confirma y verifica las firmas de wallet),
+                         de una wallet, puro), chain-executor (firma, confirma y verifica las firmas de wallet; lee el
+                         historial de saldos del token y el registro en RPC), distribution-payout (whitelist del pago e
+                         instrucción de pago, puro),
                          cron-auth (Bearer CRON_SECRET en tiempo constante, puro) y maintenance (lote correo + GC)
   app/_components/auth/  login del personal (contraseña → TOTP o enrolamiento) y cuenta en la cabecera
   app/_lib/referral.ts   tokens de referido firmados (HMAC-SHA256, Web Crypto: middleware y Server Actions)
+  app/_lib/distribution-snapshot.ts  fecha de corte (Bogotá) y saldos a esa fecha replicados de las emisiones
+                         confirmadas (puro: servidor, mesa del backoffice e invariantes)
   app/_i18n/             i18n: config (idiomas, cookies), provider (useI18n), server (requestTranslate, render),
                          marks (msg, vmsg, reason, LocalizedError), messages/<idioma>.ts, extract.ts + catalogs.test.ts
-  app/superadmin/_lib/   métricas consolidadas con platformPrisma() (rol BYPASSRLS, sólo host admin)
+  app/superadmin/_lib/   métricas consolidadas con platformPrisma() (rol BYPASSRLS, sólo host admin) · distributions.ts
+                         (módulo D: supervisión de distribuciones, sólo lectura) · audit-catalog + audit-integrity
+                         (módulo E: categorías y sellos recalculables, puros) · finance.ts (módulo F) · health.ts
+                         (módulo G) · report-export.ts (CSV con SHA-256 auditado)
+  app/api/platform/      audit (rastro global, filtros, en vivo y CSV) · finance (libro de comisiones en CSV); sólo
+                         host admin con sesión de plataforma
   app/api/chain/transactions  cola ChainTransaction del tenant del host (Inspector On-Chain, pestaña 4)
   app/api/inspector/sources   fuente .sol de los contratos, sólo con sesión de backoffice/consola (inspector-access.ts)
   app/api/vault/         upload (KYC, staging del alta, Data Room; + upload/presign y upload/confirm: subida directa al
-                         bucket) · kyc/[caso]/[lado] · data-room/[id] (bóveda documental)
+                         bucket) · kyc/[caso]/[lado] · data-room/[id] · agreement/[id] (acuerdo comercial, sólo consola)
+                         · distribution/[id] (soporte de una distribución: personal del tenant y consola)
+                         (bóveda documental)
   app/api/internal/maintenance  lote de mail:dispatch + vault:gc por HTTP (Vercel Cron; Authorization: Bearer CRON_SECRET)
   app/_components/       UI portada del prototipo (ui, shell, vitrina, portal, backoffice, superadmin, inspector, legal)
   app/_lib/              datos, formato, renders canvas, simulador on-chain del prototipo
-packages/database        Prisma 6 · esquema multi-tenant (23 entidades) · RLS · cliente con tenant · seed
+packages/database        Prisma 6 · esquema multi-tenant (27 entidades) · RLS · cliente con tenant · seed
                          credentials.ts (scrypt, TOTP RFC 6238, AES-256-GCM, tokens y códigos de un solo uso)
   scripts/               provision-app-role.ts (rol de la app sujeto a RLS, idempotente) · vault-gc.ts (pnpm vault:gc)
-packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · distribution.ts (prorrata en centavos + árbol de asignaciones)
-                         canonical.ts (evidenceHash) · evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
-packages/document-vault  DocumentVault: políticas (tipo por magic bytes, tamaño, SHA-256), claves por contenido y
+packages/blockchain-sdk  merkle.ts (SHA-256 Data Room) · distribution.ts (monedas de pago, prorrata en centésimas + árbol
+                         de asignaciones, hojas v2 con la moneda)
+                         canonical.ts (evidenceHash) · platform-fee.ts (comisión de plataforma 25–500 pb) ·
+                         evm-adapter.ts (Viem, ITokenizationAdapter) · abi/ (generado)
+packages/document-vault  DocumentVault: políticas kyc · dataRoom · evidence (tipo por magic bytes, tamaño, SHA-256), claves por contenido y
                          tenant, drivers local (disco privado) y s3 (S3/R2 con SigV4; URLs prefirmadas PUT/GET con
                          presignV4, ListObjectsV2) · gc.ts (purgeUnreferencedBlobs) · sample.ts (PDF deterministas)
 packages/mail            MailDispatcher (entrega y redacción de mail_outbox) · drivers Resend, Postmark, webhook firmado
@@ -86,8 +101,10 @@ Reglas:
    Las Server Actions reciben únicamente ids de registros y los buscan bajo RLS: un id de otro tenant es "no encontrado".
    Subdominios reservados: ver `RESERVED_SUBDOMAINS`. Las únicas lecturas sin contexto de tenant son funciones
    SECURITY DEFINER acotadas: `rwaxi_resolve_tenant` (enrutado), `rwaxi_public_offerings()` (vitrina: campos de
-   marketing y sus traducciones, progreso y pausa de captación de ofertas publicadas de desarrolladores publicados,
-   sin datos de inversionistas), `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global),
+   marketing y sus traducciones, progreso, `Offering.status` y pausa de captación de ofertas publicadas de
+   desarrolladores publicados, sin datos de inversionistas), `rwaxi_record_vitrina_access` (sólo inserta una
+   aceptación del muro legal de la vitrina: `vitrina_access_acceptances` no es accesible de otro modo, RLS sin
+   política y sin privilegios), `rwaxi_next_simulated_nonce` (siguiente nonce del operador RWAXI, un contador global),
    `rwaxi_factory_creations` (contratos que la factory ya creó en simulación: el nonce de su próximo `CREATE`),
    `rwaxi_rate_limit_hit` (límites de tasa de la plataforma: `rate_limit_hits` no es accesible de otro modo, RLS sin
    política y sin privilegios), `rwaxi_redact_expired_mail` (sólo borra cuerpos de correo cuyo código o enlace venció)
@@ -113,7 +130,10 @@ Reglas:
    `SubscriptionAlreadyProcessed`, `SupplyCapExceeded`). `executionMode` dice cómo: `RPC` (recibo de la red) o
    `SIMULATION` (`CHAIN_EXECUTION` por defecto: tx EIP-1559 firmada con `OPERATOR_PRIVATE_KEY`, nonce global
    secuencial, **nunca difundida**; `txHash = keccak256(signedTransaction)`). Toda vista que muestre un hash debe
-   mostrar también el modo.
+   mostrar también el modo. Cada ejecución fallida de una fila (el nodo la rechazó, revirtió —también la de una wallet—,
+   falló un paso posterior) suma `attempts` con `last_attempt_at` y su motivo en `error`; lo que una precondición
+   bloquea (`BlockedError`: prelación, revert previsto, llamada que firma el tenant) o un recibo aún pendiente no cuenta.
+   La consola levanta con ello sus alertas de reintentos (módulo G).
 5. **Autenticación institucional** (`app/_lib/server/staff-auth.ts`, credenciales en `@rwaxi/database/credentials`).
    El personal entra con contraseña (scrypt) + TOTP RFC 6238 (6 dígitos, 30 s, ±1 paso, `totpLastStep` impide reusar
    un código; secreto cifrado AES-256-GCM con `AUTH_ENCRYPTION_KEY`, AAD = id del usuario; una cuenta sin MFA enrola
@@ -125,7 +145,7 @@ Reglas:
    inactividad 60 / 30 min). «Cerrar sesión» la revoca. 5 fallos seguidos (contraseña o código) bloquean la cuenta
    15 min; 30 fallos por IP en 15 min se rechazan. Cada resultado es un `AuditEvent` (`LOGIN_SUCCEEDED`,
    `LOGIN_FAILED`, `MFA_FAILED`, `MFA_ENROLLED`, `ACCOUNT_LOCKED`, `LOGOUT`); los de la consola van sin organización
-   (sólo esas acciones: CHECK `audit_events_platform_auth`). **Roles**: `COMPLIANCE_OFFICER` (KYC y llamadas al
+   (sólo esas acciones y `PLATFORM_REPORT_EXPORTED`: CHECK `audit_events_platform_auth`). **Roles**: `COMPLIANCE_OFFICER` (KYC y llamadas al
    registro), `TENANT_ADMIN` (conciliación, mint, distribuciones), `TENANT_ANALYST` (sólo lectura). Una sesión real
    actúa sólo con su rol (`requireBackofficeSession(role)`; las mesas se leen con `{ view: true }` y muestran «Solo
    lectura»); cada fila de la cola la ejecuta el rol que la firma. **Sesión demo** (`RWAXI_DEMO_AUTH`: por defecto
@@ -175,9 +195,11 @@ Reglas:
 6. **RWAXI no custodia el valor emitido.** En contratos, RWAXI sólo tiene `RWAXI_OPERATOR_ROLE` (factory) y
    `MINTER_ROLE`; pausa, Data Room, raíces de distribución (`DISTRIBUTION_ROLE`) y recuperación forzosa son del
    emisor; la whitelist es del oficial de cumplimiento del tenant. No añadir roles a RWAXI sin revisión legal. En modo
-   `RPC` el operador sólo envía `mintSubscription` y, desde la consola Super-Admin, `deployTenantRegistry` (el registro
-   creado queda con el admin y el oficial del tenant); `approveInvestor`/`revokeInvestor`/`setFrozen` los firma el
-   oficial y `anchorDistributionRoot` el emisor, igual que `updateDataRoomMerkleRoot`, cada uno con su propia wallet:
+   `RPC` el operador sólo envía `mintSubscription` y, desde la consola Super-Admin, `deployTenantRegistry` y
+   `deployOfferingToken` (el registro y el token creados quedan con el admin y el oficial del tenant); `approveInvestor`/`revokeInvestor`/`setFrozen` los firma el
+   oficial y `anchorDistributionRoot` el emisor (que el token sólo acepta si su oferta total es la de su propio
+   historial de saldos a la fecha de corte, `totalSupplyAt`, y con el SHA-256 del soporte documental), igual que
+   `updateDataRoomMerkleRoot`, cada uno con su propia wallet:
    - **en el navegador (EIP-1193, «Firmar con mi wallet»** en la cola on-chain y en la mesa de distribuciones):
      `prepareWalletTransaction` devuelve la llamada exacta (`to` = contrato del tenant, `data` = calldata de los ABI
      del SDK, `chainId`, cuenta autorizada = wallet registrada del usuario, que el servidor comprueba on-chain con
@@ -198,6 +220,12 @@ Reglas:
    del operador ni para otra cuenta: `prepareWalletCall` lo vuelve a exigir) que firma esa misma wallet con su
    `DEFAULT_ADMIN_ROLE`. Desde entonces puede firmar sus mint por EIP-1193; RWAXI no recibe ningún rol y conserva sólo
    el `MINTER_ROLE` que ya tenía (en `SIMULATION` no aplica).
+   **Comisión de plataforma** (`platformFeeBps`, 25–500 puntos básicos = 0,25 %–5 %, pactada con cada desarrollador):
+   la factoría la recibe en el `TokenConfig` de `deployOfferingToken` y la publica en `OfferingTokenDeployed`; el token
+   la fija en su despliegue (inmutable, `InvalidPlatformFee` fuera de rango) y cada `mintSubscription` la declara en
+   `PlatformFeeAccrued`. Se cobra **fuera de la cadena** (facturación B2B): el token nunca transfiere unidades ni valor
+   a RWAXI y RWAXI no recibe ningún rol nuevo (decisión del 2026-10-29: los pagos son fiduciarios, sin flujo de fondos
+   on-chain que dividir).
    En `SIMULATION` la clave del operador firma todo, sólo como demostración (sin firma por wallet). Los controles de
    gobierno de la consola (suspender un portal, pausar la captación de una oferta, retirar de la vitrina) son
    **off-chain**: nunca pausan el token del emisor.
@@ -279,9 +307,18 @@ Tipografía: **Cormorant Garamond** (display, `font-display`), **Montserrat** (t
 
 ## Internacionalización (i18n)
 
-Dos alcances: la **vitrina** en 10 idiomas (es, en, pt, fr, de, ru, ar, zh, ja, ko; cookie `rwaxi_vitrina_lang`,
-selector en el header) y **portal + backoffice** de cada tenant en es | en | pt (cookie `rwaxi_portal_lang`, por host:
-la comparten portal y backoffice). La consola Super-Admin es sólo español. El layout lee la cookie en servidor
+Tres alcances (`I18nScope`, `app/_i18n/config.ts`): la **vitrina** y el **portal** White Label de cada tenant en los 10
+idiomas públicos (es, en, pt, fr, de, ru, ar, zh, ja, ko; cookies `rwaxi_vitrina_lang` y `rwaxi_portal_lang`, menú
+`LanguageMenu` en el header; en el portal, con el color del tenant) y el **backoffice** restringido a es | en | pt (`BACKOFFICE_LOCALES`, cookie propia
+`rwaxi_backoffice_lang`; sin elección propia sigue al portal del host si está en esos tres, si no español; selector
+`LanguageToggle`). La consola Super-Admin es sólo español. El portal **hereda el idioma de la vitrina**: al abrirlo
+(lead firmado o barra de arquitectura) la vitrina añade `?lang=xx`, que el middleware guarda en `rwaxi_portal_lang` y
+quita de la URL con un 307 (uno desconocido se descarta). El layout del tenant da el proveedor del portal y
+`tenant/[slug]/backoffice/layout.tsx` anida el del backoffice (el más interno fija `<html lang>`). En el servidor,
+`requestTranslate("tenant")` resuelve la superficie de la petición: el middleware fija `x-rwaxi-surface` (portal |
+backoffice) por la ruta y, en `/api/*`, por el `Referer` de la página que llama (las rutas sólo del personal
+—documentos KYC, `?as=backoffice`— son del backoffice); en los idiomas del portal fuera de
+es/en/pt, un texto que sólo traducen los paneles internos sale en inglés. El layout lee la cookie en servidor
 (`requestI18n`) y entrega el catálogo al `I18nProvider`: el primer render ya sale en el idioma, y cambiarlo no recarga.
 
 - **La clave es el texto español** (estilo gettext): en español la salida es byte a byte la fuente, así que selectores
@@ -292,18 +329,21 @@ la comparten portal y backoffice). La consola Super-Admin es sólo español. El 
   datos (`vmsg` = también en la vitrina); en servidor `reason("…", vars)` y errores que extienden `LocalizedError`
   (`new XxxError("…", vars)`), que se muestran con `render(tr, e.reason)` y `tr = await requestTranslate(scope)`.
   Placeholders `{nombre}`, nunca template literals interpolados dentro del marcador. Plurales: pasar `count` y el
-  catálogo da las formas CLDR. Ámbito por ruta: `_components/{vitrina,ui,shell}`, `vitrina/`, `_i18n/` son de la
-  vitrina; el resto, de es/en/pt; `superadmin/` no se extrae. Tras añadir textos:
+  catálogo da las formas CLDR. Ámbito por ruta (`extract.ts`): `_components/{vitrina,ui,shell}`, `vitrina/`, `_i18n/`
+  son de la vitrina; `PORTAL_PATHS` (`_components/portal/`, `tenant/[slug]/` salvo `backoffice/`, y los módulos
+  compartidos que ve el inversionista: `_lib/data/{kyc,projects,video,legal}`, recuperación de sesión, bóveda y
+  `api/vault/`) son del portal; el resto, del backoffice (es/en/pt); `superadmin/` no se extrae. Un texto en varios
+  ámbitos toma el más amplio. Tras añadir textos:
   `pnpm --filter @rwaxi/web exec tsx app/_i18n/extract.ts > sources.json` y completar `app/_i18n/messages/<idioma>.ts`
-  (en y pt: todas las claves; los demás: las de la vitrina).
-- **Maquetación**: `lang`/`dir` van en la raíz de `EnvironmentFrame` (`data-env`); el árabe (sólo vitrina) es `rtl`.
+  (en y pt: todas las claves; los demás: las de la vitrina y el portal).
+- **Maquetación**: `lang`/`dir` van en la raíz de `EnvironmentFrame` (`data-env`); el árabe (vitrina y portal) es `rtl`.
   Usar utilidades lógicas (`ms-`, `me-`, `ps-`, `start-`, `end-`, `text-start`, `border-s`) y `rtl:-scale-x-100` en
   iconos direccionales; cifras, porcentajes y códigos en `<Num>` (`<bdi dir="ltr">` + `tabular-nums`, dígitos
   latinos) y nombres legales en `<bdi>`. `globals.css` ajusta alemán (guiones, `overflow-wrap`), coreano
   (`word-break: keep-all`), japonés/chino (`line-break: strict`), quita el tracking en ar/zh/ja/ko y, como IBM Plex
   Mono no tiene glifos árabes, da a `font-mono` en árabe la sans árabe del sistema de respaldo. Los números
   siguen el idioma (`format.ts`, `setNumberLocale`, sólo en el navegador). El Inspector On-Chain es es/en/pt: desde la
-  vitrina en otro idioma se abre en inglés (`TenantLanguages`), siempre `ltr`.
+  vitrina o el portal en otro idioma se abre en inglés (`TenantLanguages`), siempre `ltr`.
 - **Frontera legal**: los avisos propios de RWAXI se traducen; las plantillas legales del tenant (NDA, plantillas de
   cumplimiento) se muestran en su original español vinculante (`lang="es"`) con un aviso traducido. La evidencia KYC
   y el acuerdo de suscripción (versión 2) registran el `language` en que el inversionista los vio.
@@ -338,8 +378,9 @@ pnpm contracts:test                            # tests de cumplimiento (whitelis
 
 pnpm e2e                                       # suites E2E (Chrome headless) contra pnpm dev + la BD de .env; reseedea
 pnpm e2e portal onboarding                     # sólo esas (backoffice, portal, referrals-subscriptions, payments-queue,
-                                               #   superadmin-ops, onboarding, distributions, revocation, i18n, auth,
-                                               #   activation, vault, maintenance)
+                                               #   superadmin-ops, onboarding, registry-deferred, subscription-flow, distributions,
+                                               #   platform-reports,
+                                               #   revocation, i18n, auth, activation, vault, maintenance)
 pnpm e2e:rpc                                   # modo RPC: nodo Hardhat local (registry, token y factory) + next dev con
                                                #   CHAIN_EXECUTION=rpc y RWAXI_FACTORY_ADDRESS; suites rpc (operador y
                                                #   hashes registrados) y wallet (EIP-1193 inyectado: `pnpm e2e:rpc wallet`)
@@ -363,7 +404,12 @@ Dobles de prueba propios: `fake-s3.cjs` (bucket S3 que verifica SigV4 por su cue
 contrato, otro firmante, una tx revertida o sin minar) para probar que nada se confirma. `revocation` cubre congelar,
 descongelar y revocar desde la bandeja (simulación) y lo que ve el portal; `wallet` firma con la wallet del Oficial
 `setFrozen` y el `revokeInvestor` de una revocación, y con la del Administrador su `grantRole(MINTER_ROLE)` y su mint;
-`maintenance` llama al endpoint con `CRON_SECRET` como lo haría Vercel Cron.
+`maintenance` llama al endpoint con `CRON_SECRET` como lo haría Vercel Cron. `platform-reports` recorre los módulos E, F y
+G de la consola (alertas de reintentos y de censo, facturar un ciclo y su pago, sellos verificados y uno alterado, un
+evento en vivo y las exportaciones con su SHA-256). `distributions` declara en COP y USDC a
+distintas fechas de corte con su soporte, recalcula hojas v2, raíz y calldata, retiene el pago de una wallet
+congelada y lo paga en una segunda instrucción, y revisa el portal y el módulo D; `rpc` coteja el registro con
+`totalSupplyAt` del token en Hardhat y rechaza una declaración tras un mint fuera de la plataforma.
 
 Entornos en local (Chrome/Edge resuelven `*.localhost` a 127.0.0.1):
 `http://localhost:3000` (vitrina) · `http://admin.localhost:3000` · `http://avista.localhost:3000` ·
@@ -405,8 +451,9 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   Migrado a BD: catálogo de la vitrina, portal del inversionista (Lead, NDA, KYC, AccessGrant, suscripción y
   portafolio), pestañas "Cumplimiento y Leads" y "Suscripciones y Pagos" del backoffice, Inspector pestaña 4 (cola
   `ChainTransaction` y su ejecución), pestaña "Distribuciones y Rendimientos" del backoffice y su reflejo en el
-  portafolio, Super-Admin (consolidado, alta de desarrolladores, módulo A Gobierno, B Atribución y C Tarifas, libro
-  mayor y facturación), login del personal con MFA, activación de cuentas invitadas, recuperación de sesión del
+  portafolio, Super-Admin (consolidado, alta de desarrolladores, módulo A Gobierno, B Atribución, C Tarifas, libro
+  mayor y facturación, D Supervisión de Distribuciones, E Auditoría Global, F Reportes Financieros y G Salud
+  Operativa), login del personal con MFA, activación de cuentas invitadas, recuperación de sesión del
   inversionista y bóveda documental (Data Room del backoffice y del portal, documentos KYC). Siguen en estado demo:
   configuración White Label, emisión del token (minting) del backoffice y pestañas 1–3 del inspector. Tipados ya:
   los paneles del portal (`portal`, `funnel-stepper`, `portal-header`, `nda-panel`, `kyc-panel`, `subscription-panel`,
@@ -430,20 +477,59 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   custodio, emisor autónomo, sin oferta pública ni asesoría, riesgos y proyecciones) en lugar de la antigua sección
   «Frontera legal». La suite `i18n` mide en los 10 idiomas, a 1360 y 390 px, textos desbordados, scroll horizontal y
   solapamientos de la cabecera.
+  **Muro legal** (`vitrina/_components/access-gate.tsx`, en el layout de la vitrina): sin la cookie
+  `rwaxi_vitrina_access` (HttpOnly, HMAC con una clave derivada de `INVESTOR_SESSION_SECRET`, ligada a
+  `VITRINA_ACCESS_TERMS_VERSION`: subir la versión vuelve a pedir la aceptación; `_lib/server/vitrina-access.ts`) la
+  vitrina queda desenfocada e `inert` tras un diálogo sin cierre: correo + **consentimiento granular**, tres casillas
+  independientes y obligatorias (`VITRINA_CONSENTS`, `vitrina/_lib/access-terms.ts`: términos + exención de
+  responsabilidad, tratamiento de datos personales, cookies), cada una con el enlace a su documento (nueva pestaña).
+  `acceptVitrinaAccess()` (sólo host `www`, 30 por IP cada 15 min; exige las tres en `true`) guarda correo, versión,
+  el SHA-256 de cada texto tal como se mostró (`terms_sha256`, `privacy_sha256`, `cookies_sha256`; `consentText()`),
+  idioma y SHA-256 de la IP con `rwaxi_record_vitrina_access()` y emite la cookie. Después de responder (`after()`), `vitrina-notify.ts` avisa del lead a `admin@rwaxi.com` (correo, fecha y hora, idioma, origen «Vitrina Pública RWAXI - Muro Legal»; textos en `vitrina-mail.ts`, puro) con el driver de `@rwaxi/mail` y reintentos acotados, sin `mail_outbox` (tabla de tenant bajo RLS): un fallo de entrega va al log y nunca deshace la aceptación. La bienvenida del inversionista (`welcomeMail`: acceso + sus tres consentimientos con su SHA-256) está lista y apagada (`VITRINA_WELCOME_MAIL = false`). Los documentos están en
+  `www/legal/{terms,privacy,cookies}` (`app/legal/[doc]`, hoy «Documento legal en redacción»): `internalPath()`
+  (`LEGAL_PATH` en `hosts.ts`) los reescribe a `/legal` y no a `/vitrina`, así que quedan fuera del muro. Es una aceptación declarativa: el correo no se verifica y no crea un `User` (esa tabla es del personal).
+  `Investor.tenantNdaAccepted`/`tenantNdaDate` (la mitad del tenant del muro legal doble) los escribe `signNda()` y
+  `subscribe()` los exige; `User.acceptedRwaxiLiability`/`rwaxiAcceptanceDate` existen en el esquema pero aún no se
+  escriben. Las suites E2E entran con una cookie firmada que pone `launch()` (`lib.cjs`;
+  `E2E_VITRINA_GATE=1` la omite).
+- **Estado de la oferta** (`Offering.status`, `ProjectStatus`): `STRUCTURING` (por defecto; la vitrina muestra la
+  banda «PROYECTO EN ESTRUCTURACIÓN - PRÓXIMAMENTE» y no enlaza al portal; el portal deja ver NDA, Data Room y KYC pero
+  no suscribir) → `ACTIVE` (única que capta) → `FUNDED` (captación completada). Lo decide el desarrollador en
+  «Suscripciones y Pagos» → «Estado de captación» (`setOfferingStatus()`, `offering-actions.ts`, `TENANT_ADMIN`):
+  STRUCTURING→ACTIVE (exige lo mismo que desplegar el token, `raising-readiness.ts`: registro de cumplimiento
+  desplegado, wallets oficiales del Administrador y del Oficial declaradas, distintas y nunca la del operador, y un
+  Oficial de Cumplimiento activo; el panel los lista y el servidor los revalida), ACTIVE→FUNDED|STRUCTURING (motivo 10–300),
+  FUNDED→ACTIVE; transición condicional + `OFFERING_STATUS_CHANGED`. El seed deja `ACTIVE` las ofertas demo.
 - **Suscripciones**, en tres pasos, cada uno una transacción `withTenant` con transición condicional y `AuditEvent`:
-  1. `subscribe()` (portal): KYC `APPROVED` + wallet; capital recalculado en servidor (`unitPriceUsd × units`, ticket
+  1. `subscribe()` (portal): oferta `ACTIVE` (también dentro del `UPDATE` atómico) + KYC `APPROVED` + wallet; capital recalculado en servidor (`unitPriceUsd × units`, ticket
      mínimo, máx. 250.000 USD); unidades comprometidas con `UPDATE` condicional + `CHECK
      offerings_units_subscribed_range`. Token desplegado → `PAYMENT_PENDING` (referencia de transferencia
      `SUB-XXXXXXXX`, `paymentCodeOf`); pre-venta → `RESERVED`, sin pago, mint ni comisión hasta desplegar el token.
-     `agreementHash = evidenceHash(acuerdo)`; el acuerdo queda en `AuditEvent SUBSCRIPTION_CREATED`. Sin mint ni fee.
+     Exige el NDA de la oferta firmado (`NdaAcceptance` con su SHA-256 e `Investor.tenantNdaAccepted`); el acuerdo
+     (versión 3) lo cita (`nda.documentHash`). `agreementHash = evidenceHash(acuerdo)`; el acuerdo queda en
+     `AuditEvent SUBSCRIPTION_CREATED`. Sin mint ni fee devengado: la suscripción guarda la **comisión de plataforma
+     estimada** (`platformFeeBps` = la fijada en el token o, en pre-venta, la pactada; `platformFeeUsd` = capital ×
+     bps / 10.000), que `SUBSCRIPTION_CREATED` cita en `payload.platformFee`; nunca entra en el acuerdo que firma el
+     inversionista (es B2B: la paga el desarrollador).
+     **Despliegue del token** (consola, módulo A, «Desplegar token», `deployOfferingToken()`): exige los mismos
+     requisitos que abrir la captación (revalidados en el servidor) y la raíz del Data Room; encola
+     `deployOfferingToken(organizationId, offeringId, cfg, tenantAdmin, complianceOfficer)` (`cfg` = `TokenConfig` con
+     la comisión pactada vigente) con `OFFERING_TOKEN_DEPLOYMENT_QUEUED` y lo ejecuta el operador RWAXI (simulación:
+     `CREATE(factory, 1 + rwaxi_factory_creations)`; RPC: el evento `OfferingTokenDeployed`). Al confirmarse, el token
+     queda `DEPLOYED` con su dirección y su comisión, y cada reserva de la oferta pasa a `PAYMENT_PENDING` con la
+     comisión del token (`SUBSCRIPTION_PAYMENT_OPENED` por suscripción). Si falla, la fila queda `PENDING` con su error.
   2. `confirmPayment()` (backoffice, `TENANT_ADMIN`, "Confirmar Pago Fiduciario"): referencia del comprobante
      normalizada (mayúsculas, 4–64) y única por tenant; `MINT_PENDING` + `paymentEvidenceRef = evidenceHash({ version,
      kind: "rwaxi.subscription.payment", subscriptionId, agreementHash, paymentReference })` + `ChainTransaction`
      `mintSubscription(subscriptionId, investor, amount, paymentEvidenceRef)` (el contrato no tiene
-     `mint(wallet, amount)`) + `FeeLedgerEntry INFRASTRUCTURE_USAGE` (`feeUsagePct`, ACCRUED) + `PAYMENT_CONFIRMED`.
+     `mint(wallet, amount)`) + `FeeLedgerEntry INFRASTRUCTURE_USAGE` (capital × `platformFeeBps` / 10.000, ACCRUED: la
+     comisión fijada en el token —la que su mint declara on-chain— o, si el token es anterior, la pactada; el asiento
+     guarda los bps aplicados) + `PAYMENT_CONFIRMED`.
   3. Ejecución de la cola (`chain-actions.ts`, desde backoffice o inspector): registro → `COMPLIANCE_OFFICER`, mint →
      `TENANT_ADMIN` (en modo RPC también con su propia wallet, regla 6). Al confirmar: `CHAIN_TX_CONFIRMED`;
-     whitelist → `KycCase.whitelistTxHash`; mint → `MINTED` + `mintTxHash` + `SUBSCRIPTION_MINTED`. Una revocación
+     whitelist → `KycCase.whitelistTxHash`; mint → `MINTED` + `mintTxHash` + `SUBSCRIPTION_MINTED`, cuyo
+     `payload.platformFee` registra el evento `PlatformFeeAccrued` (bps declarados: en RPC leídos del recibo,
+     `observedOnChain`; en simulación los del token) junto al asiento del libro mayor (`matchesLedger`). Una revocación
      cancela las suscripciones aún sin emitir (ver «Revocación y congelamiento»).
 - **Revocación y congelamiento** (bandeja de cumplimiento, `COMPLIANCE_OFFICER`, ES/EN/PT; justificación 10–300
   caracteres, revalidada en servidor):
@@ -472,14 +558,50 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   pausada» sin enlace y `subscribe()` lo rechaza (también dentro del `UPDATE` atómico de unidades); las suscripciones
   ya firmadas siguen (conciliación y mint). `Organization.published` = isPublishedInRwaxi. La vitrina sólo emite
   referidos hacia portales ACTIVE, publicados y con alguna oferta captando.
+- **Reportes globales de la consola** (Super-Admin, `platformPrisma()`, sólo host admin; sólo lectura salvo la
+  facturación del módulo F, que reutiliza las acciones del módulo C):
+  - **E · Auditoría Global** (`GET /api/platform/audit`): todos los `AuditEvent` de todos los desarrolladores y de la
+    consola, filtrados en el servidor (desarrollador o «consola», categoría —`audit-catalog.ts`: una `CHAIN_TX_CONFIRMED`
+    toma la de la llamada que confirma—, «solo críticos» = comisiones, despliegues, bóveda y wallets de cumplimiento más
+    integridad, bloqueos, revocaciones y estado del portal, acción, texto, fechas UTC), paginados por cursor
+    (`?before=`) y **en vivo** (la pantalla pide cada 8 s `?after=` lo posterior al evento más nuevo que tiene).
+    Cada fila dice si su **sello se verifica** (`audit-integrity.ts`, recalculado del propio evento: decisiones de la
+    consola, acuerdo de suscripción, `paymentEvidenceRef`, raíz de una distribución, instrucción de pago, tx simulada):
+    «no coincide» delata una fila alterada fuera de la app (la tabla es append-only sólo para sus roles). `?format=csv`
+    exporta hasta 10.000 filas.
+  - **F · Reportes Financieros** (`finance.ts`): por desarrollador, la comisión pactada (`platform_fee_bps` y su
+    acuerdo) y la fijada en cada token, emisiones, base fiduciaria (capital de los inversionistas en la fiducia del
+    emisor: sólo base de cálculo, nunca ingreso), comisión devengada y bps efectivos, por estado (por facturar, por
+    cobrar, cobrado, anulado) y el cotejo con lo que cada mint declaró en `PlatformFeeAccrued` (`matchesLedger`);
+    ciclos mensuales (mes de devengo) con «Facturar ciclo» (`issueInvoice` de sus asientos `ACCRUED`, hasta 50) y el
+    seguimiento de facturas por antigüedad con «Registrar pago»; `GET /api/platform/finance?format=csv` exporta el
+    libro de comisiones (por ciclo o completo).
+  - **G · Salud Operativa** (`health.ts`): registros y tokens ERC-3643 de cada desarrollador con su estado y modo,
+    factorías, **censo** de cada token (unidades `MINTED` del registro frente a los `mintSubscription` confirmados
+    en su dirección; en `RPC`, a pedido, su `totalSupply` en la red: `checkOnchainCensus()`), la cola on-chain por
+    desarrollador con cada fila pendiente y por qué espera (`blockerReason`), y las **alertas**: crítica con ≥ 3
+    intentos fallidos, un revert, un censo descuadrado o un recibo esperado más de 2 h; de atención con 1–2 intentos,
+    un recibo esperado más de 15 min, una fila en cola más de 24 h o correos sin entregar o reintentándose.
+  Toda exportación es un CSV (UTF-8 con BOM) cuyo SHA-256 (`X-Content-SHA256`) queda en un `PLATFORM_REPORT_EXPORTED`
+  sin organización con el reporte, los filtros y las filas (`report-export.ts`).
 - **Facturación B2B** (`FeeInvoice`, número único en la plataforma): una factura agrupa asientos `ACCRUED` de un solo
   desarrollador → `INVOICED`; registrar el pago (fecha ≤ hoy y ≥ emisión + comprobante) → la factura y sus asientos
   `PAID`; un asiento cuya emisión no ocurrió (revocación) queda `VOIDED`, sin factura. CHECK: `(status IN (ACCRUED,
   VOIDED)) = (invoice_id IS NULL)`, `VOIDED` con su `voided_at`, y pago con fecha y comprobante juntos. Las tarifas
-  pactadas (`fee_setup_usd`, `fee_monthly_usd` ≥ 0, `fee_usage_pct` 0–10, CHECK) aplican a devengos futuros.
+  fijas pactadas (`fee_setup_usd`, `fee_monthly_usd` ≥ 0, CHECK; módulo C, `updateFeeTerms`) aplican a devengos
+  futuros. La comisión por transacción es `Organization.platform_fee_bps` (25–500, CHECK; sustituyó a `fee_usage_pct`)
+  y sólo cambia con un **acuerdo comercial firmado** (módulo A, «Registrar acuerdo y comisión», `setCommercialTerms()`):
+  el PDF se sube a staging (`uploadToVault`, propósito `onboarding`, recibo HMAC), debe ser PDF y se copia a la bóveda
+  del tenant; una transacción crea `CommercialAgreement` (append-only: referencia, fecha de firma, bps, SHA-256, clave
+  de la bóveda con CHECK de su tenant), su `vault_objects`, actualiza la comisión y escribe `COMMERCIAL_TERMS_UPDATED`
+  citando el SHA-256 del acuerdo. La nueva comisión aplica a los tokens que se desplieguen desde entonces (y a los
+  devengos de tokens sin comisión fijada); los ya desplegados conservan la suya (`TokenDeployment.platform_fee_bps`).
+  El PDF sólo se sirve en la consola (`GET /api/vault/agreement/{id}`, host admin + sesión de plataforma), re-hasheado
+  y auditado (`COMMERCIAL_AGREEMENT_DOWNLOADED` en el registro del desarrollador).
 - **Alta B2B** (`onboardDeveloper()`, una transacción `platformPrisma()`; el servidor revalida todo con
   `parseOnboarding`): `Organization` en `REVIEW` y fuera de la vitrina (NIT con dígito de verificación DIAN, slug
-  único fuera de `RESERVED_SLUGS`, color con contraste AA, tarifas pactadas), su `TENANT_ADMIN` y su
+  único fuera de `RESERVED_SLUGS`, color con contraste AA, tarifas pactadas: setup, SaaS y comisión de plataforma en
+  puntos básicos 25–500), su `TENANT_ADMIN` y su
   `COMPLIANCE_OFFICER` (correos distintos; wallets opcionales en el alta y, si se dan, válidas y distintas), la primera
   oferta (`PRESALE` o `STRUCTURING`, código único en la plataforma; `Offering.status` nace `STRUCTURING`) con su token
   `NOT_DEPLOYED` y su Data Room base (SHA-256 en el navegador, raíz recalculada con el SDK), el asiento
@@ -487,15 +609,57 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   difiere: `registryDeferred` en la auditoría; factory: `RWAXI_FACTORY_ADDRESS` o la ya usada en la red) y
   `ORGANIZATION_ONBOARDED`. «Desplegar registro» (módulo A) lo ejecuta el operador RWAXI
   (`origin: "platform"`; desde el tenant está bloqueado); en `SIMULATION` la dirección es
-  `CREATE(factory, 1 + rwaxi_factory_creations)`. Hasta entonces el oficial no puede aprobar KYC.
-- **Distribuciones** (`declareDistribution()`, backoffice, `TENANT_ADMIN`): snapshot de tokens `MINTED` por
-  inversionista; monto en USD o en COP a la tasa declarada → centavos USD; prorrata por mayor residuo y árbol de
-  Merkle de `@rwaxi/blockchain-sdk/distribution` (hoja = `evidenceHash({ v: 1, kind: "rwaxi.distribution.allocation",
-  distributionId, wallet, units, amountCents })`). Una transacción `withTenant`: `Distribution` (una por oferta y
-  periodo; `distributionId = keccak256("rwaxi.distribution:{offeringId}:{periodo}")`), `DistributionAllocation`
-  (append-only, con su `merkleProof`), `anchorDistributionRoot(distributionId, root, totalAmountCents,
-  snapshotSupply)` `PENDING` y `DISTRIBUTION_DECLARED` (subjectHash = raíz). Al confirmarse → `ANCHORED`. El
-  portafolio muestra las asignaciones del inversionista y verifica su prueba en el navegador.
+  `CREATE(factory, 1 + rwaxi_factory_creations)`. Hasta entonces el oficial no puede aprobar KYC. Un registro
+  diferido (`DEFERRED` en el módulo A) se completa con «Declarar wallets y desplegar» (`declareRegistryWallets()`):
+  valida ambas wallets (distintas, nunca la del operador RWAXI), las guarda en el `TENANT_ADMIN` y el
+  `COMPLIANCE_OFFICER`, encola `deployTenantRegistry()` con `REGISTRY_WALLETS_DECLARED` y lo ejecuta en el acto; si
+  la ejecución falla, las wallets quedan guardadas, la consola lo avisa y la fila queda `PENDING` para «Desplegar registro»
+  (el motivo de cada intento fallido queda en `ChainTransaction.error`, que el módulo A muestra como «Último intento
+  fallido» y una ejecución exitosa borra; dos declaraciones simultáneas se serializan con `FOR UPDATE`). Estados del
+  registro en el módulo A (`PlatformRegistry`): `DEFERRED`, `PENDING` (o «Enviado a la red · esperando recibo»),
+  `REVERTED` (vuelve a ofrecer «Declarar wallets y desplegar») y `DEPLOYED` («ERC-3643 activo» con su modo: en red
+  con `RPC`, «simulación firmada, no difundida» con `SIMULATION`, «dato ilustrativo del seed» sin modo).
+- **Distribuciones** (backoffice, `TENANT_ADMIN`, «Distribuciones y Rendimientos»; las declara y paga el emisor,
+  RWAXI no custodia ni mueve los fondos ni tiene `DISTRIBUTION_ROLE`):
+  1. `declareDistribution()`: periodo (mes o trimestre, uno por oferta), **fecha de corte** (`recordDate`, Bogotá;
+     su instante `snapshotAt` es el 23:59:59 de ese día o, si es hoy, el segundo anterior a declarar:
+     `app/_lib/distribution-snapshot.ts`), **moneda de pago** (`PAYOUT_CURRENCIES`: COP o USD por la fiduciaria,
+     USDC o USDT desde la tesorería del emisor; COP con su tasa para el equivalente en USD) y **soporte documental**
+     (certificación fiduciaria o comprobante: PDF o imagen, política `evidence` de 10 MB, propósito de carga
+     `distribution` → bóveda del tenant + recibo HMAC que la acción exige). El registro de tenedores son los saldos
+     del token a ese instante, replicados de sus `mintSubscription` confirmados (el token guarda el mismo historial,
+     `balanceOfAt`/`totalSupplyAt`); en `RPC` se coteja antes con el token (oferta total y saldo de cada wallet) y
+     una diferencia rechaza la declaración. Prorrata por mayor residuo en centésimas de la moneda de pago y árbol de
+     Merkle de `@rwaxi/blockchain-sdk/distribution` (hoja v2 = `evidenceHash({ v: 2, kind:
+     "rwaxi.distribution.allocation", distributionId, wallet, units, currency, amountCents })`; las distribuciones
+     anteriores son v1, en centavos USD, y siguen verificándose). Una transacción `withTenant`: `Distribution`
+     (`distributionId = keccak256("rwaxi.distribution:{offeringId}:{periodo}")`, `leafVersion` 2, soporte con su
+     SHA-256 y clave de su tenant, CHECK `distributions_record_support_check`), su `vault_objects`,
+     `DistributionAllocation` (append-only, monto en la moneda de pago y su equivalente USD, con su `merkleProof`),
+     `anchorDistributionRoot(distributionId, root, totalAmountCents, snapshotSupply, recordTimestamp, currency,
+     evidenceHash)` `PENDING` y `DISTRIBUTION_DECLARED` (subjectHash = raíz; montos, beneficiarios con su hoja y su
+     estado en la whitelist, fecha de corte y soporte). El token revierte sin soporte (`DistributionEvidenceRequired`),
+     con una fecha de corte no transcurrida (`FutureLookup`) o con otra oferta total (`SnapshotSupplyMismatch`): la
+     cola lo replica (`chain-invariants.ts`). Al confirmarse → `ANCHORED`.
+  2. `instructDistributionPayout()` (sólo con la raíz anclada): instrucción de pago para la fiduciaria (fiat) o la
+     tesorería del emisor (stablecoin, con unidades base de 6 decimales) con las asignaciones aún sin instruir cuyas
+     wallets **la whitelist habilita en ese momento** (`RPC`: `investor(wallet)` del registro; `SIMULATION`: la cola
+     confirmada) y sin KYC revocado ni `revokeInvestor`/`setFrozen(true)` en cola (`distribution-payout.ts`). Cada
+     tenedor conserva su asignación: la retenida no se reparte, espera a otra instrucción. `DistributionPayoutBatch`
+     (secuencia por distribución, documento canónico con su `instructionHash` = `evidenceHash`, descargable en JSON
+     —su SHA-256 es ese hash— y CSV) + `DistributionPayout` (una por asignación, como mucho una vez), ambas
+     append-only, y `DISTRIBUTION_PAYOUT_INSTRUCTED` (subjectHash = instructionHash, beneficiarios y retenidos con
+     su motivo).
+  **Inmutables en PostgreSQL** (para cualquier rol, también el owner; migración `distribution_immutability`): una
+  distribución declarada nunca se elimina y lo declarado (monto, moneda, tasa, fecha e instante de corte, unidades,
+  tenedores, raíz, soporte y su SHA-256) no cambia —trigger `distributions_immutable`: sólo admite su anclaje,
+  `DECLARED` → `ANCHORED` con su tx, una vez—; asignaciones, instrucciones de pago y sus líneas son de solo inserción
+  (trigger `append_only`). Los roles de la app tampoco tienen `DELETE` sobre `distributions`.
+  El soporte se sirve re-hasheado y auditado (`GET /api/vault/distribution/{id}`, personal del tenant o consola;
+  `DISTRIBUTION_SUPPORT_DOWNLOADED`). El portafolio muestra la asignación en su moneda, la fecha de corte, el SHA-256
+  del soporte y si el pago está instruido —nunca por qué se retiene (sin *tipping-off*)— y verifica su prueba en el
+  navegador. La consola Super-Admin lo **supervisa** en el módulo D (sólo lectura: todas las distribuciones, su
+  soporte, raíz e instrucciones, y sus eventos).
 - **Conexiones con Neon** (`packages/database/src/pool.ts`): `poolUrl()` añade a las URL de Prisma
   `pool_timeout=15` y `max_idle_connection_lifetime=30` salvo que la URL los fije (igual `connection_limit`; por
   defecto 2×CPU+1). Tras un fallo transitorio —pool agotado (P2024), servidor inalcanzable, conexión caída (P1017,

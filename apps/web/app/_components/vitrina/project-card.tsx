@@ -34,8 +34,18 @@ export function ProjectCard({ p: e, currency: a, onOpen: t, photos: o, dev: n })
       data-stage={e.stage}
       data-portal-status={n.portalStatus}
       data-capture={e.capturePaused ? "paused" : "open"}
+      data-offering-status={e.status ?? "ACTIVE"}
       className="bg-white border border-line flex flex-col min-w-0 hover:border-[#B9B2CC] transition-colors"
     >
+      {e.status === "STRUCTURING" && (
+        <p
+          data-coming-soon
+          className="bg-rxDeep text-lav text-center text-[11.5px] font-bold tracking-[0.12em] uppercase px-4 py-2.5 inline-flex items-center justify-center gap-2"
+        >
+          <Icon name="Clock" size={14} />
+          {tr("PROYECTO EN ESTRUCTURACIÓN - PRÓXIMAMENTE")}
+        </p>
+      )}
       <CardGallery p={e} photos={o} st={l} />
       <div className="p-6 flex flex-col gap-5 flex-1">
         <div>
@@ -127,6 +137,16 @@ export function ProjectCard({ p: e, currency: a, onOpen: t, photos: o, dev: n })
             {n.portalStatus === "SUSPENDED"
               ? tr("Portal suspendido temporalmente")
               : tr("Portal del desarrollador en revisión")}
+          </p>
+        ) : e.status === "STRUCTURING" ? (
+          <p className="mt-auto text-center text-[12.5px] font-semibold py-3 border border-rxDeep bg-rxDeep text-lav inline-flex items-center justify-center gap-2">
+            <Icon name="Clock" size={15} />
+            {tr("Próximamente: captación aún no abierta")}
+          </p>
+        ) : e.status === "FUNDED" ? (
+          <p className="mt-auto text-center text-[12.5px] font-semibold py-3 border border-line bg-aquaTint text-aquaInk inline-flex items-center justify-center gap-2">
+            <Icon name="CheckCircle2" size={15} />
+            {tr("Captación completada")}
           </p>
         ) : e.capturePaused ? (
           <p className="mt-auto text-center text-[12.5px] font-semibold py-3 border border-line bg-goldTint text-goldInk inline-flex items-center justify-center gap-2">

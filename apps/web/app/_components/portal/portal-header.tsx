@@ -1,7 +1,7 @@
 "use client";
 import { PoweredSeal, TenantLogo } from "@/app/_components/portal/tenant-brand";
 import { Icon } from "@/app/_components/ui/icon";
-import { LanguageToggle } from "@/app/_i18n/language-switcher";
+import { LanguageMenu } from "@/app/_i18n/language-switcher";
 import { useI18n } from "@/app/_i18n/provider";
 import type { PortalJourney, PortalTenant } from "./portal-types";
 
@@ -66,7 +66,7 @@ export function PortalHeader({ t: e, journey: a, go: t }: { t: PortalTenant; jou
           <Icon name={n[2]} size={14} />
           {n[0]}
         </span>
-        <LanguageToggle />
+        <LanguageMenu tenant />
         <div className="w-full md:w-auto flex md:block">
           <PoweredSeal dark={false} />
         </div>

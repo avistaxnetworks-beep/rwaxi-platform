@@ -33,6 +33,11 @@ export const rwaxiPropertyTokenAbi = [
             "internalType": "bytes32",
             "name": "dataRoomMerkleRoot",
             "type": "bytes32"
+          },
+          {
+            "internalType": "uint16",
+            "name": "platformFeeBps",
+            "type": "uint16"
           }
         ],
         "internalType": "struct RwaxiPropertyToken.TokenConfig",
@@ -85,6 +90,11 @@ export const rwaxiPropertyTokenAbi = [
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "CheckpointUnorderedInsertion",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -93,6 +103,11 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "name": "DistributionAlreadyAnchored",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DistributionEvidenceRequired",
     "type": "error"
   },
   {
@@ -183,6 +198,11 @@ export const rwaxiPropertyTokenAbi = [
   },
   {
     "inputs": [],
+    "name": "EmptyDistribution",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "EmptyDistributionRoot",
     "type": "error"
   },
@@ -194,6 +214,33 @@ export const rwaxiPropertyTokenAbi = [
   {
     "inputs": [],
     "name": "ExpectedPause",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "current",
+        "type": "uint256"
+      }
+    ],
+    "name": "FutureLookup",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint16",
+        "name": "platformFeeBps",
+        "type": "uint16"
+      }
+    ],
+    "name": "InvalidPlatformFee",
     "type": "error"
   },
   {
@@ -210,6 +257,38 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "name": "NotIssuerOrComplianceOfficer",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "bits",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
+      }
+    ],
+    "name": "SafeCastOverflowedUintDowncast",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "declared",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "recorded",
+        "type": "uint256"
+      }
+    ],
+    "name": "SnapshotSupplyMismatch",
     "type": "error"
   },
   {
@@ -309,6 +388,24 @@ export const rwaxiPropertyTokenAbi = [
         "internalType": "uint256",
         "name": "snapshotSupply",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "recordTimestamp",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "currency",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "evidenceHash",
+        "type": "bytes32"
       }
     ],
     "name": "DistributionRootAnchored",
@@ -356,6 +453,37 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "subscriptionId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "investor",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "platformFeeBps",
+        "type": "uint16"
+      }
+    ],
+    "name": "PlatformFeeAccrued",
     "type": "event"
   },
   {
@@ -582,12 +710,38 @@ export const rwaxiPropertyTokenAbi = [
   },
   {
     "inputs": [],
+    "name": "MAX_PLATFORM_FEE_BPS",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "MINTER_ROLE",
     "outputs": [
       {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MIN_PLATFORM_FEE_BPS",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
       }
     ],
     "stateMutability": "view",
@@ -638,6 +792,21 @@ export const rwaxiPropertyTokenAbi = [
         "internalType": "uint256",
         "name": "snapshotSupply",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "recordTimestamp",
+        "type": "uint64"
+      },
+      {
+        "internalType": "string",
+        "name": "currency",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "evidenceHash",
+        "type": "bytes32"
       }
     ],
     "name": "anchorDistributionRoot",
@@ -678,6 +847,30 @@ export const rwaxiPropertyTokenAbi = [
       }
     ],
     "name": "balanceOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "balanceOfAt",
     "outputs": [
       {
         "internalType": "uint256",
@@ -936,6 +1129,19 @@ export const rwaxiPropertyTokenAbi = [
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "platformFeeBps",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -1025,6 +1231,25 @@ export const rwaxiPropertyTokenAbi = [
   {
     "inputs": [],
     "name": "totalSupply",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "totalSupplyAt",
     "outputs": [
       {
         "internalType": "uint256",

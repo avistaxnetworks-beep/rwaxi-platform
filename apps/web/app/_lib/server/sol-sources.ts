@@ -24,7 +24,8 @@ contract RwaxiTenantFactory is AccessControl {
     mapping(bytes32 offeringId => bytes32 organizationId) public offeringOrganization;
 
     event TenantRegistryDeployed(bytes32 indexed organizationId, address registry, string organizationTaxId);
-    event OfferingTokenDeployed(bytes32 indexed organizationId, bytes32 indexed offeringId, address token);
+    /// @param platformFeeBps comisión de plataforma pactada con el desarrollador, fijada en el token desplegado
+    event OfferingTokenDeployed(bytes32 indexed organizationId, bytes32 indexed offeringId, address token, uint16 platformFeeBps);
 
     error TenantAlreadyRegistered(bytes32 organizationId);
     error UnknownTenant(bytes32 organizationId);
@@ -50,6 +51,8 @@ contract RwaxiTenantFactory is AccessControl {
         emit TenantRegistryDeployed(organizationId, registry, organizationTaxId);
     }
 
+    /// @param cfg incluye platformFeeBps, la comisión pactada con el desarrollador (25–500 puntos básicos): el token
+    ///            la fija para siempre y la declara en cada emisión; fuera de rango, InvalidPlatformFee.
     function deployOfferingToken(
         bytes32 organizationId,
         bytes32 offeringId,
@@ -63,7 +66,7 @@ contract RwaxiTenantFactory is AccessControl {
         token = address(new RwaxiPropertyToken(cfg, registry, tenantAdmin, complianceOfficer, msg.sender));
         offeringTokens[offeringId] = token;
         offeringOrganization[offeringId] = organizationId;
-        emit OfferingTokenDeployed(organizationId, offeringId, token);
+        emit OfferingTokenDeployed(organizationId, offeringId, token, cfg.platformFeeBps);
     }
 }
 `,
@@ -163,6 +166,8 @@ pragma solidity ^0.8.24;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Pausable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Checkpoints} from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 interface IRwaxiComplianceRegistry {
     function isEligible(address wallet) external view returns (bool);
@@ -171,17 +176,27 @@ interface IRwaxiComplianceRegistry {
 
 /// @title RwaxiPropertyToken
 /// @notice Unidad digital permisionada de un vehículo jurídico (Legal Wrapper). Solo circula
-///         entre wallets aprobadas en el registro de cumplimiento del desarrollador.
+///         entre wallets aprobadas en el registro de cumplimiento del desarrollador. Guarda el historial
+///         de saldos y de la oferta total, la base del snapshot de cada distribución de rendimientos.
 contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
+    using Checkpoints for Checkpoints.Trace208;
+
     bytes32 public constant ISSUER_ADMIN_ROLE = keccak256("ISSUER_ADMIN_ROLE");
     bytes32 public constant COMPLIANCE_OFFICER_ROLE = keccak256("COMPLIANCE_OFFICER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant DATA_ROOM_ROLE = keccak256("DATA_ROOM_ROLE");
     bytes32 public constant LEGAL_ENFORCEMENT_ROLE = keccak256("LEGAL_ENFORCEMENT_ROLE");
     bytes32 public constant DISTRIBUTION_ROLE = keccak256("DISTRIBUTION_ROLE");
+    /// @notice Rango de la comisión de plataforma pactada con cada desarrollador: 0,25 % a 5 %.
+    uint16 public constant MIN_PLATFORM_FEE_BPS = 25;
+    uint16 public constant MAX_PLATFORM_FEE_BPS = 500;
 
     IRwaxiComplianceRegistry public immutable complianceRegistry;
     uint256 public immutable maxSupplyCap;
+    /// @notice Comisión de plataforma pactada entre RWAXI y el desarrollador, en puntos básicos (120 = 1,20 %),
+    ///         fijada al desplegar el token y sin forma de cambiarla. Cada emisión la declara en PlatformFeeAccrued;
+    ///         RWAXI la factura al emisor fuera de la cadena: el token nunca transfiere unidades ni valor a RWAXI.
+    uint16 public immutable platformFeeBps;
     string public legalWrapperType;
     string public legalEntityName;
     bytes32 public dataRoomMerkleRoot;
@@ -190,15 +205,30 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
     /// @notice Raíz de Merkle (SHA-256) de las asignaciones de cada distribución de rendimientos.
     mapping(bytes32 distributionId => bytes32 merkleRoot) public distributionRoots;
 
+    /// @dev Saldo de cada wallet y oferta total por timestamp de bloque (balanceOfAt, totalSupplyAt).
+    mapping(address account => Checkpoints.Trace208) private _balanceHistory;
+    Checkpoints.Trace208 private _supplyHistory;
+
     bool private _forcedRecovery;
 
     event SubscriptionTokensMinted(
         bytes32 indexed subscriptionId, address indexed investor, uint256 amount, bytes32 paymentEvidenceRef
     );
+    /// @notice Comisión de plataforma devengada por una emisión: \`amount\` unidades a \`platformFeeBps\` puntos básicos.
+    event PlatformFeeAccrued(bytes32 indexed subscriptionId, address indexed investor, uint256 amount, uint16 platformFeeBps);
     event DataRoomMerkleRootAnchored(bytes32 previousRoot, bytes32 newRoot);
     event ForcedRecoveryExecuted(address indexed from, address indexed to, uint256 amount, bytes32 legalActHash);
+    /// @notice Distribución anclada por el emisor: raíz de las asignaciones, total en centavos de la moneda de pago,
+    ///         oferta total a la fecha de corte (verificada contra el historial del token), la moneda o stablecoin
+    ///         de pago y el SHA-256 de su soporte documental (comprobante fiduciario).
     event DistributionRootAnchored(
-        bytes32 indexed distributionId, bytes32 merkleRoot, uint256 totalAmountCents, uint256 snapshotSupply
+        bytes32 indexed distributionId,
+        bytes32 merkleRoot,
+        uint256 totalAmountCents,
+        uint256 snapshotSupply,
+        uint64 recordTimestamp,
+        string currency,
+        bytes32 evidenceHash
     );
 
     error SubscriptionAlreadyProcessed(bytes32 subscriptionId);
@@ -206,7 +236,12 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
     error LegalActHashRequired();
     error NotIssuerOrComplianceOfficer(address account);
     error EmptyDistributionRoot();
+    error EmptyDistribution();
+    error DistributionEvidenceRequired();
     error DistributionAlreadyAnchored(bytes32 distributionId);
+    error SnapshotSupplyMismatch(uint256 declared, uint256 recorded);
+    error FutureLookup(uint256 timestamp, uint256 current);
+    error InvalidPlatformFee(uint16 platformFeeBps);
 
     struct TokenConfig {
         string name;
@@ -215,6 +250,8 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
         string legalEntityName;
         uint256 maxSupplyCap;
         bytes32 dataRoomMerkleRoot;
+        /// comisión de plataforma pactada con el desarrollador, en puntos básicos (25–500)
+        uint16 platformFeeBps;
     }
 
     /// @param tenantAdmin       administrador del emisor (desarrollador)
@@ -223,8 +260,12 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
     constructor(TokenConfig memory cfg, address registry, address tenantAdmin, address complianceOfficer, address rwaxiMinter)
         ERC20(cfg.name, cfg.symbol)
     {
+        if (cfg.platformFeeBps < MIN_PLATFORM_FEE_BPS || cfg.platformFeeBps > MAX_PLATFORM_FEE_BPS) {
+            revert InvalidPlatformFee(cfg.platformFeeBps);
+        }
         complianceRegistry = IRwaxiComplianceRegistry(registry);
         maxSupplyCap = cfg.maxSupplyCap;
+        platformFeeBps = cfg.platformFeeBps;
         legalWrapperType = cfg.legalWrapperType;
         legalEntityName = cfg.legalEntityName;
         dataRoomMerkleRoot = cfg.dataRoomMerkleRoot;
@@ -253,18 +294,49 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
         processedSubscriptionIds[subscriptionId] = true;
         _mint(investor, amount); // _update valida la whitelist del receptor
         emit SubscriptionTokensMinted(subscriptionId, investor, amount, paymentEvidenceRef);
+        emit PlatformFeeAccrued(subscriptionId, investor, amount, platformFeeBps);
     }
 
-    /// @notice El emisor ancla la raíz de las asignaciones prorrata de una distribución (pagada off-chain por
-    ///         el vehículo). Cada inversionista verifica su asignación con su prueba de Merkle contra esta raíz.
-    function anchorDistributionRoot(bytes32 distributionId, bytes32 merkleRoot, uint256 totalAmountCents, uint256 snapshotSupply)
-        external
-        onlyRole(DISTRIBUTION_ROLE)
-    {
+    /// @notice El emisor ancla la raíz de las asignaciones prorrata de una distribución, que paga fuera de la
+    ///         cadena el vehículo (o la tesorería del emisor, en stablecoin). \`snapshotSupply\` debe ser la oferta
+    ///         total del token a la fecha de corte \`recordTimestamp\`, ya transcurrida, según su propio historial;
+    ///         \`evidenceHash\` es el SHA-256 del soporte documental. Cada inversionista verifica su asignación con
+    ///         su prueba de Merkle contra esta raíz.
+    function anchorDistributionRoot(
+        bytes32 distributionId,
+        bytes32 merkleRoot,
+        uint256 totalAmountCents,
+        uint256 snapshotSupply,
+        uint64 recordTimestamp,
+        string calldata currency,
+        bytes32 evidenceHash
+    ) external onlyRole(DISTRIBUTION_ROLE) {
         if (merkleRoot == bytes32(0)) revert EmptyDistributionRoot();
+        if (totalAmountCents == 0 || snapshotSupply == 0) revert EmptyDistribution();
+        if (evidenceHash == bytes32(0)) revert DistributionEvidenceRequired();
         if (distributionRoots[distributionId] != bytes32(0)) revert DistributionAlreadyAnchored(distributionId);
+        uint256 recorded = totalSupplyAt(recordTimestamp);
+        if (snapshotSupply != recorded) revert SnapshotSupplyMismatch(snapshotSupply, recorded);
         distributionRoots[distributionId] = merkleRoot;
-        emit DistributionRootAnchored(distributionId, merkleRoot, totalAmountCents, snapshotSupply);
+        emit DistributionRootAnchored(
+            distributionId, merkleRoot, totalAmountCents, snapshotSupply, recordTimestamp, currency, evidenceHash
+        );
+    }
+
+    /// @notice Saldo de \`account\` al cierre del instante \`timestamp\`, ya transcurrido (snapshot de una distribución).
+    function balanceOfAt(address account, uint256 timestamp) external view returns (uint256) {
+        return _balanceHistory[account].upperLookupRecent(_pastKey(timestamp));
+    }
+
+    /// @notice Oferta total del token al cierre del instante \`timestamp\`, ya transcurrido.
+    function totalSupplyAt(uint256 timestamp) public view returns (uint256) {
+        return _supplyHistory.upperLookupRecent(_pastKey(timestamp));
+    }
+
+    /// @dev Solo instantes ya transcurridos: en el bloque en curso aún pueden entrar movimientos.
+    function _pastKey(uint256 timestamp) private view returns (uint48) {
+        if (timestamp >= block.timestamp) revert FutureLookup(timestamp, block.timestamp);
+        return SafeCast.toUint48(timestamp);
     }
 
     function updateDataRoomMerkleRoot(bytes32 newRoot) external onlyRole(DATA_ROOM_ROLE) {
@@ -301,7 +373,7 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
         _unpause();
     }
 
-    /// @dev Hook único de OpenZeppelin v5 para mint, transfer y burn.
+    /// @dev Hook único de OpenZeppelin v5 para mint, transfer y burn; deja constancia de los saldos resultantes.
     function _update(address from, address to, uint256 value) internal override(ERC20, ERC20Pausable) {
         if (to != address(0)) {
             require(
@@ -312,6 +384,10 @@ contract RwaxiPropertyToken is ERC20, ERC20Pausable, AccessControl {
             require(!complianceRegistry.isFrozen(from), "RWAXI Compliance: Sender wallet is frozen");
         }
         super._update(from, to, value);
+        uint48 at = SafeCast.toUint48(block.timestamp);
+        if (from == address(0) || to == address(0)) _supplyHistory.push(at, SafeCast.toUint208(totalSupply()));
+        if (from != address(0)) _balanceHistory[from].push(at, SafeCast.toUint208(balanceOf(from)));
+        if (to != address(0)) _balanceHistory[to].push(at, SafeCast.toUint208(balanceOf(to)));
     }
 }
 `,

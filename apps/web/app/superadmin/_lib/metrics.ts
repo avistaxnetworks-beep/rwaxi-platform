@@ -1,8 +1,13 @@
 import "server-only";
 import { platformPrisma, retryTransient, type Prisma } from "@rwaxi/database";
+import { executionMode, operatorAddress } from "@/app/_lib/server/chain-executor";
+import { READINESS_GAP, readinessGaps } from "@/app/_lib/server/raising-readiness";
 import { PLATFORM_AUDIT_ACTIONS, platformAuditSummary } from "@/app/_lib/server/platform-audit";
 import { requirePlatformAccess } from "@/app/_lib/server/staff-auth";
 import { TenantAccessError } from "@/app/_lib/server/tenant-context";
+import { readPlatformDistributions } from "./distributions";
+import { readFinanceReport } from "./finance";
+import { readOperationalHealth } from "./health";
 import { onboardingNetworks } from "./onboarding";
 import { requirePlatformSession } from "./session";
 import type {
@@ -49,7 +54,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
     await requirePlatformAccess();
     const session = await requirePlatformSession().catch(() => null); // actions need it; reading does not
     const db = platformPrisma();
-    const [orgs, leadGroups, ndaGroups, kycGroups, investorGroups, subGroups, feeGroups, referralLeads, ledger, invoices, audit, registryTxs, codes] =
+    const [orgs, leadGroups, ndaGroups, kycGroups, investorGroups, subGroups, feeGroups, referralLeads, ledger, invoices, audit, registryTxs, codes, tokenTxs, reservedGroups] =
       await retryTransient(() => Promise.all([
         db.organization.findMany({
           orderBy: { onboardedAt: "asc" },
@@ -68,7 +73,22 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
             onboardedAt: true,
             feeSetupUsd: true,
             feeMonthlyUsd: true,
-            feeUsagePct: true,
+            platformFeeBps: true,
+            agreements: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: {
+                id: true,
+                reference: true,
+                signedOn: true,
+                platformFeeBps: true,
+                sha256: true,
+                fileName: true,
+                sizeBytes: true,
+                createdAt: true,
+                recordedByEmail: true,
+              },
+            },
             offerings: {
               orderBy: { code: "asc" },
               select: {
@@ -79,7 +99,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
                 unitsSubscribed: true,
                 published: true,
                 capturePausedAt: true,
-                token: { select: { status: true, symbol: true } },
+                token: { select: { status: true, symbol: true, platformFeeBps: true, contractAddress: true } },
               },
             },
             users: {
@@ -92,6 +112,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
                 role: true,
                 active: true,
                 passwordHash: true,
+                walletAddress: true,
                 invitations: { orderBy: { createdAt: "desc" }, take: 1, select: { expiresAt: true, consumedAt: true, revokedAt: true } },
               },
             },
@@ -149,9 +170,15 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         db.chainTransaction.findMany({
           where: { kind: "TENANT_REGISTRY_DEPLOYED" },
           orderBy: { createdAt: "desc" },
-          select: { organizationId: true, status: true, network: true },
+          select: { organizationId: true, status: true, network: true, executionMode: true, txHash: true, error: true },
         }),
         db.offering.findMany({ select: { code: true } }),
+        db.chainTransaction.findMany({
+          where: { kind: "OFFERING_TOKEN_DEPLOYED" },
+          orderBy: { createdAt: "desc" },
+          select: { offeringId: true, status: true, error: true, executionMode: true, txHash: true },
+        }),
+        db.subscription.groupBy({ by: ["offeringId"], where: { status: "RESERVED" }, _count: { _all: true } }),
       ]), { repeatable: true });
 
     const count = <T extends { organizationId: string; _count: { _all: number } }>(rows: T[], orgId: string, pick?: (r: T) => boolean) =>
@@ -202,8 +229,19 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         onboardedAt: o.onboardedAt.toISOString().slice(0, 10),
         registry: {
           address: o.complianceRegistry,
-          status: o.complianceRegistry ? "DEPLOYED" : registryTx?.status === "PENDING" ? "PENDING" : "NONE",
+          // DEFERRED: onboarded without both staff wallets, so deployTenantRegistry() was never queued
+          status: o.complianceRegistry
+            ? "DEPLOYED"
+            : registryTx?.status === "PENDING"
+              ? "PENDING"
+              : registryTx?.status === "REVERTED"
+                ? "REVERTED"
+                : "DEFERRED",
           network: registryTx?.network ?? null,
+          mode: registryTx?.executionMode ?? null,
+          txHash: registryTx?.txHash ?? null,
+          lastError: registryTx?.status === "PENDING" ? registryTx.error : null,
+          awaitingReceipt: registryTx?.status === "PENDING" && registryTx.executionMode === "RPC" && !!registryTx.txHash,
         },
         offerings: o.offerings.map((f) => ({
           id: f.id,
@@ -213,6 +251,15 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
           capturePausedAt: f.capturePausedAt?.toISOString() ?? null,
           tokenStatus: f.token?.status ?? null,
           tokenSymbol: f.token?.symbol ?? null,
+          tokenFeeBps: f.token?.platformFeeBps ?? null,
+          tokenAddress: f.token?.contractAddress ?? null,
+          tokenTx: (() => {
+            const t = tokenTxs.find((x) => x.offeringId === f.id);
+            return t
+              ? { status: t.status, error: t.status === "PENDING" ? t.error : null, awaitingReceipt: t.status === "PENDING" && t.executionMode === "RPC" && !!t.txHash }
+              : null;
+          })(),
+          reservations: reservedGroups.find((g) => g.offeringId === f.id)?._count._all ?? 0,
         })),
         // Activation of the developer's staff: never the password hash itself, only whether there is one.
         staff: o.users.map((u) => {
@@ -230,6 +277,7 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
             fullName: u.fullName,
             role: u.role as PlatformStaffRow["role"],
             active: u.active,
+            wallet: u.walletAddress,
             status,
             invitationExpiresAt: last && !u.passwordHash ? last.expiresAt.toISOString() : null,
           };
@@ -246,10 +294,36 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         offering: offering
           ? { code: offering.code, assetName: offering.assetName, totalUnits: offering.totalUnits, unitsSubscribed: offering.unitsSubscribed }
           : null,
-        feeRules: { setupUsd: num(o.feeSetupUsd), monthlyUsd: num(o.feeMonthlyUsd), usagePct: Number(o.feeUsagePct) },
+        feeRules: { setupUsd: num(o.feeSetupUsd), monthlyUsd: num(o.feeMonthlyUsd), platformFeeBps: o.platformFeeBps },
+        tokenGaps: readinessGaps({
+          complianceRegistry: o.complianceRegistry,
+          staff: o.users.map((u) => ({ role: u.role, active: u.active, walletAddress: u.walletAddress })),
+          operator: operatorAddress(),
+        }).map((g) => READINESS_GAP[g]),
+        agreement: o.agreements[0]
+          ? {
+              id: o.agreements[0].id,
+              reference: o.agreements[0].reference,
+              signedOn: o.agreements[0].signedOn.toISOString().slice(0, 10),
+              platformFeeBps: o.agreements[0].platformFeeBps,
+              sha256: o.agreements[0].sha256,
+              fileName: o.agreements[0].fileName,
+              sizeBytes: o.agreements[0].sizeBytes,
+              recordedAt: o.agreements[0].createdAt.toISOString(),
+              recordedBy: o.agreements[0].recordedByEmail,
+            }
+          : null,
         feesUsd: round2(feeGroups.filter((g) => g.organizationId === o.id).reduce((s, g) => s + num(g._sum.amountUsd), 0)),
       };
     });
+
+    // module D: supervision of every developer's yield distributions (read-only)
+    const distributions = await retryTransient(() => readPlatformDistributions(db), { repeatable: true });
+    // modules F and G: the B2B fee report and the operational health of contracts and queues
+    const [finance, health] = await Promise.all([
+      retryTransient(() => readFinanceReport(db), { repeatable: true }),
+      retryTransient(() => readOperationalHealth(db, executionMode()), { repeatable: true }),
+    ]);
 
     const data: PlatformMetrics = {
       generatedAt: new Date().toISOString(),
@@ -312,7 +386,12 @@ export async function loadPlatformMetrics(): Promise<PlatformMetricsResult> {
         summary: platformAuditSummary(e.action as PlatformAuditRow["action"], e.payload),
         subjectHash: e.subjectHash,
       })),
+      distributions: distributions.rows,
+      distributionEvents: distributions.events,
+      finance,
+      health,
       admin: session ? { name: session.admin.fullName, email: session.admin.email } : null,
+      operatorWallet: operatorAddress()?.toLowerCase() ?? null,
       onboarding: {
         networks: onboardingNetworks(),
         nextOfferingCode: `P-${String(Math.max(0, ...codes.map((c) => Number(/^P-(\d+)$/.exec(c.code)?.[1] ?? 0))) + 1).padStart(2, "0")}`,

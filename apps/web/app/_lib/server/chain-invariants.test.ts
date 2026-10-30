@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { ChainTransaction } from "@rwaxi/database";
 import { interpolate } from "@/app/_i18n/translate";
+import { toFunctionSelector } from "viem";
 import { MINTER_ROLE_ID, blockerFor, registryEntry, walletFrozen, walletTxMismatch, type ChainState, type SentTransaction } from "./chain-invariants";
+import { calldataOf } from "./chain-queue";
 
 const REGISTRY = `0x${"1".repeat(40)}`;
 const TOKEN = `0x${"2".repeat(40)}`;
@@ -26,7 +28,8 @@ function row(kind: ChainTransaction["kind"], args: Record<string, unknown>, extr
     SUBSCRIPTION_MINTED: "mintSubscription(bytes32,address,uint256,bytes32)",
     DATA_ROOM_ROOT_ANCHORED: "updateDataRoomMerkleRoot(bytes32)",
     TENANT_REGISTRY_DEPLOYED: "deployTenantRegistry(bytes32,string,string,address,address)",
-    DISTRIBUTION_ROOT_ANCHORED: "anchorDistributionRoot(bytes32,bytes32,uint256,uint256)",
+    OFFERING_TOKEN_DEPLOYED: "deployOfferingToken(bytes32,bytes32,(string,string,string,string,uint256,bytes32,uint16),address,address)",
+    DISTRIBUTION_ROOT_ANCHORED: "anchorDistributionRoot(bytes32,bytes32,uint256,uint256,uint64,string,bytes32)",
     MINTER_ROLE_GRANTED: "grantRole(bytes32,address)",
   };
   seq += 1;
@@ -48,6 +51,8 @@ function row(kind: ChainTransaction["kind"], args: Record<string, unknown>, extr
     nonce: null,
     signedTransaction: null,
     executedAt: null,
+    attempts: 0,
+    lastAttemptAt: null,
     createdAt: at(seq),
     ...extra,
   };
@@ -215,26 +220,81 @@ test("the tenant registry is deployed only by RWAXI's operator (platform console
   assert.match(blockerFor(deploy, state([earlier, deploy], fresh), "platform")!, /TenantAlreadyRegistered/);
 });
 
-test("a distribution root is anchored once, for a declared distribution, on a deployed token", () => {
+test("an offering token is deployed only by RWAXI's operator, on the tenant's registry, once, with an agreed fee", () => {
+  const cfg = {
+    name: "Unit",
+    symbol: "UNT",
+    legalWrapperType: "SPV",
+    legalEntityName: "Vehicle",
+    maxSupplyCap: 1000,
+    dataRoomMerkleRoot: DOSSIER,
+    platformFeeBps: 120,
+  };
+  const args = { organizationId: DISTRIBUTION, offeringId: SUB, cfg, tenantAdmin: WALLET, complianceOfficer: OTHER };
+  const deploy = row("OFFERING_TOKEN_DEPLOYED", args, { contractAddress: FACTORY, method: "deployOfferingToken(bytes32,bytes32,(string,string,string,string,uint256,bytes32,uint16),address,address)" });
+  assert.match(blockerFor(deploy, state([deploy]))!, /operador RWAXI/);
+  assert.equal(blockerFor(deploy, state([deploy]), "platform"), null);
+  assert.match(blockerFor(deploy, state([deploy], { registry: null }), "platform")!, /UnknownTenant/);
+  const earlier = row("OFFERING_TOKEN_DEPLOYED", args, { contractAddress: FACTORY, status: "CONFIRMED" });
+  assert.match(blockerFor(deploy, state([earlier, deploy]), "platform")!, /OfferingAlreadyDeployed/);
+  const otherOffering = row("OFFERING_TOKEN_DEPLOYED", { ...args, offeringId: EVIDENCE }, { contractAddress: FACTORY, status: "CONFIRMED" });
+  assert.equal(blockerFor(deploy, state([otherOffering, deploy]), "platform"), null);
+  for (const bad of [24, 501, 0]) {
+    const outOfRange = row("OFFERING_TOKEN_DEPLOYED", { ...args, cfg: { ...cfg, platformFeeBps: bad } }, { contractAddress: FACTORY });
+    assert.match(blockerFor(outOfRange, state([outOfRange]), "platform")!, /InvalidPlatformFee/);
+  }
+  // the TokenConfig struct is encoded from the stored object: calldata exists and carries the selector of the method
+  assert.ok(calldataOf(deploy)?.calldata.startsWith(toFunctionSelector(deploy.method)));
+  assert.equal(calldataOf(row("OFFERING_TOKEN_DEPLOYED", { ...args, cfg: { ...cfg, symbol: undefined } }, { method: deploy.method })), null);
+});
+
+test("a distribution root is anchored once, with its evidence, for the supply the token recorded at the record date", () => {
+  // the token's history: 200 tokens confirmed at 12:01 and 250 more at 12:03 (2026-10-23, UTC)
+  const minted = [
+    mint({ ...confirmed, executedAt: at(1) }, { amount: 200 }),
+    mint({ ...confirmed, executedAt: at(3) }, { amount: 250, investor: OTHER, subscriptionId: `0x${"6".repeat(64)}` }),
+  ];
+  const seconds = (minute: number) => Math.floor(at(minute).getTime() / 1000);
   const anchor = (extra: Partial<ChainTransaction> = {}, args: Record<string, unknown> = {}) =>
     row(
       "DISTRIBUTION_ROOT_ANCHORED",
-      { distributionId: DISTRIBUTION, merkleRoot: EVIDENCE, totalAmountCents: "1000000", snapshotSupply: 450, ...args },
+      {
+        distributionId: DISTRIBUTION,
+        merkleRoot: EVIDENCE,
+        totalAmountCents: "1000000",
+        snapshotSupply: 450,
+        recordTimestamp: seconds(4),
+        currency: "COP",
+        evidenceHash: DOSSIER,
+        ...args,
+      },
       { contractAddress: TOKEN, ...extra },
     );
   const declared: Partial<ChainState> = { distributions: [{ onchainId: DISTRIBUTION, status: "DECLARED" }] };
   const a = anchor();
-  assert.equal(blockerFor(a, state([a], declared)), null);
+  assert.equal(blockerFor(a, state([...minted, a], declared)), null);
   const empty = anchor({}, { merkleRoot: ZERO32 });
-  assert.match(blockerFor(empty, state([empty], declared))!, /EmptyDistributionRoot/);
-  assert.match(blockerFor(a, state([a]))!, /No existe la distribución/);
-  assert.match(blockerFor(a, state([a], { distributions: [{ onchainId: DISTRIBUTION, status: "ANCHORED" }] }))!, /ya está anclada/);
-  assert.match(blockerFor(a, state([anchor(confirmed), a], declared))!, /DistributionAlreadyAnchored/);
-  assert.match(blockerFor(a, state([a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "NOT_DEPLOYED", maxSupply: 1000 }] }))!, /no está desplegado/);
+  assert.match(blockerFor(empty, state([...minted, empty], declared))!, /EmptyDistributionRoot/);
+  const nothing = anchor({}, { totalAmountCents: "0" });
+  assert.match(blockerFor(nothing, state([...minted, nothing], declared))!, /EmptyDistribution\(\)/);
+  const unsupported = anchor({}, { evidenceHash: ZERO32 });
+  assert.match(blockerFor(unsupported, state([...minted, unsupported], declared))!, /DistributionEvidenceRequired/);
+  assert.match(blockerFor(a, state([...minted, a]))!, /No existe la distribución/);
+  assert.match(blockerFor(a, state([...minted, a], { distributions: [{ onchainId: DISTRIBUTION, status: "ANCHORED" }] }))!, /ya está anclada/);
+  assert.match(blockerFor(a, state([...minted, anchor(confirmed), a], declared))!, /DistributionAlreadyAnchored/);
+  assert.match(
+    blockerFor(a, state([...minted, a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "NOT_DEPLOYED", maxSupply: 1000 }] }))!,
+    /no está desplegado/,
+  );
   // anchorDistributionRoot() has no whenNotPaused: the issuer may publish a root while transfers are paused
-  assert.equal(blockerFor(a, state([a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "PAUSED", maxSupply: 1000 }] })), null);
+  assert.equal(blockerFor(a, state([...minted, a], { ...declared, tokens: [{ contractAddress: TOKEN, status: "PAUSED", maxSupply: 1000 }] })), null);
+  // between both mints the token recorded 200: a snapshot of 450 at 12:02 would revert
+  const early = anchor({}, { recordTimestamp: seconds(2) });
+  assert.match(blockerFor(early, state([...minted, early], declared))!, /SnapshotSupplyMismatch\(450, 200\)/);
+  const future = anchor({}, { recordTimestamp: Math.floor(Date.now() / 1000) + 3600 });
+  assert.match(blockerFor(future, state([...minted, future], declared))!, /FutureLookup/);
   const broken = anchor({}, { totalAmountCents: "mil" });
-  assert.match(blockerFor(broken, state([broken], declared))!, /calldata/);
+  assert.match(blockerFor(broken, state([...minted, broken], declared))!, /calldata/);
 });
 
 test("the issuer grants only MINTER_ROLE from the queue, once per wallet and token, on a deployed token", () => {

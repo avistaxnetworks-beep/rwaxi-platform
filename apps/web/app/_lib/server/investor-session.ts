@@ -35,6 +35,9 @@ export const recoveryCodeKey = (): Buffer => crypto.createHmac("sha256", secret(
 /** Key of the DocumentVault upload receipts (vault.ts), derived from the same secret. */
 export const vaultReceiptKey = (): Buffer => crypto.createHmac("sha256", secret()).update("rwaxi.vault-receipt.v1").digest();
 
+/** Key of the vitrina legal-wall cookie (vitrina-access.ts), derived from the same secret. */
+export const vitrinaAccessKey = (): Buffer => crypto.createHmac("sha256", secret()).update("rwaxi.vitrina-access.v1").digest();
+
 export interface InvestorSession {
   investorId: string;
   organizationId: string;

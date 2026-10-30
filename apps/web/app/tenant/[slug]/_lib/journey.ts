@@ -47,6 +47,7 @@ export const OFFERING_STATE_SELECT = {
   unitPriceUsd: true,
   minTicketUsd: true,
   capturePausedAt: true,
+  status: true,
   translations: true,
   token: { select: { status: true, contractAddress: true, symbol: true } },
 } satisfies Prisma.OfferingSelect;
@@ -64,6 +65,7 @@ export function offeringState(o: OfferingStateRow): PortalOfferingState {
       !!o.token?.contractAddress && (o.token.status === "DEPLOYED" || o.token.status === "PAUSED"),
     tokenPaused: o.token?.status === "PAUSED",
     capturePaused: !!o.capturePausedAt,
+    status: o.status,
     translations: offeringTranslations(o.translations),
   };
 }
@@ -108,7 +110,11 @@ export function toHolding(s: HoldingSource): PersistedHolding | null {
 
 export const toHoldings = (subs: HoldingSource[]) => subs.flatMap((s) => toHolding(s) ?? []);
 
-/** Distributions allocated to an investor in an offering, with their proofs and how the root was anchored. */
+/**
+ * Distributions allocated to an investor in an offering, with their proofs, how the root was anchored and whether
+ * the payment was instructed. Only what the portal shows is read: never why a payment is withheld (no tipping-off),
+ * nor the vault key of the supporting document.
+ */
 async function investorDistributions(
   db: ReturnType<typeof forTenant>,
   investorId: string,
@@ -117,9 +123,32 @@ async function investorDistributions(
   const allocations = await db.distributionAllocation.findMany({
     where: { investorId, distribution: { offeringId } },
     orderBy: { createdAt: "desc" },
-    include: {
+    select: {
+      id: true,
+      wallet: true,
+      units: true,
+      amount: true,
+      amountUsd: true,
+      leafHash: true,
+      merkleProof: true,
+      payout: { select: { createdAt: true, batch: { select: { sequence: true } } } },
       distribution: {
-        include: {
+        select: {
+          onchainId: true,
+          period: true,
+          currency: true,
+          leafVersion: true,
+          amountDeclared: true,
+          fxRate: true,
+          totalUsd: true,
+          totalUnits: true,
+          holders: true,
+          recordDate: true,
+          merkleRoot: true,
+          supportSha256: true,
+          status: true,
+          anchorTxHash: true,
+          createdAt: true,
           offering: { select: { code: true, network: true, token: { select: { contractAddress: true } } } },
         },
       },
@@ -138,6 +167,7 @@ async function investorDistributions(
   );
   return allocations.map((a) => {
     const d = a.distribution;
+    const v2 = d.leafVersion >= 2;
     return {
       id: a.id,
       distributionId: d.onchainId,
@@ -145,20 +175,27 @@ async function investorDistributions(
       offeringCode: d.offering.code,
       wallet: a.wallet,
       units: a.units,
-      amount: Number(a.amountUsd),
-      amountCents: a.amountUsd.mul(100).toNumber(),
+      leafVersion: d.leafVersion,
+      // v1 distributions committed USD cents whatever the declared currency
+      currency: v2 ? (d.currency as PersistedDistribution["currency"]) : "USD",
+      amount: Number(a.amount),
+      amountCents: a.amount.mul(100).toNumber(),
+      totalAmount: v2 ? Number(d.amountDeclared) : Number(d.totalUsd),
       totalUsd: Number(d.totalUsd),
       totalUnits: d.totalUnits,
       holders: d.holders,
-      currency: d.currency === "COP" ? "COP" : "USD",
+      declaredCurrency: d.currency,
       amountDeclared: Number(d.amountDeclared),
       fxRate: d.fxRate === null ? null : Number(d.fxRate),
+      recordDate: d.recordDate?.toISOString().slice(0, 10) ?? null,
+      supportSha256: d.supportSha256,
       merkleRoot: d.merkleRoot,
       leafHash: a.leafHash,
       proof: Array.isArray(a.merkleProof) ? (a.merkleProof as string[]) : [],
       status: d.status,
       anchorTxHash: d.anchorTxHash,
       anchorMode: d.status === "ANCHORED" ? (modeOf.get(d.onchainId.toLowerCase()) ?? null) : null,
+      payout: a.payout ? { sequence: a.payout.batch.sequence, at: a.payout.createdAt.toISOString() } : null,
       token: { address: d.offering.token?.contractAddress ?? null, network: d.offering.network },
       declaredAt: d.createdAt.toISOString(),
     };

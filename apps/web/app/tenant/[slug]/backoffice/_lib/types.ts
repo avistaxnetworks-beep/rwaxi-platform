@@ -1,4 +1,5 @@
 // View models shared by the backoffice server code and its client components (no runtime imports).
+import type { PayoutCurrency } from "@rwaxi/blockchain-sdk/distribution";
 import type { ChainQueueItem, WalletCall } from "@/app/_lib/chain-queue-types";
 
 /** KYC status keys used by the prototype UI (KYC_LABEL). */
@@ -88,7 +89,21 @@ export interface AuditEntry {
     | "KYC_REVOKED"
     | "SUBSCRIPTION_CANCELLED"
     | "INVESTOR_FREEZE_REQUESTED"
-    | "MINTER_ROLE_REQUESTED";
+    | "MINTER_ROLE_REQUESTED"
+    // offering lifecycle (backoffice) and the registry the console queued once the team's wallets were declared
+    | "OFFERING_STATUS_CHANGED"
+    | "REGISTRY_WALLETS_DECLARED"
+    // the commercial agreement signed with RWAXI and the platform fee it sets (console, module A)
+    | "COMMERCIAL_TERMS_UPDATED"
+    | "COMMERCIAL_AGREEMENT_DOWNLOADED"
+    // the offering's token queued from the console, and the reservations its deployment opened to payment
+    | "OFFERING_TOKEN_DEPLOYMENT_QUEUED"
+    | "SUBSCRIPTION_PAYMENT_OPENED"
+    // yield distributions: the payment instruction (whitelist re-checked) and the audited reads of the support
+    | "DISTRIBUTION_PAYOUT_INSTRUCTED"
+    | "DISTRIBUTION_SUPPORT_DOWNLOADED"
+    // organization-less (console exports): never under a tenant's RLS, listed for exhaustiveness
+    | "PLATFORM_REPORT_EXPORTED";
   actorEmail: string;
   investorName: string;
   subjectHash: string | null;
@@ -149,6 +164,9 @@ export interface SubscriptionRow {
   mint: { chainTxId: string; status: ChainQueueItem["status"]; blockedReason: string | null } | null;
   /** why the payment cannot be confirmed yet (token not deployed or paused) */
   paymentBlocker: string | null;
+  /** platform fee its reconciliation accrues, in basis points: the one fixed in its offering's token on-chain (or,
+   * for a token deployed before the fee existed, the agreed one) */
+  platformFeeBps: number;
   /** a cancelled subscription (its units went back to the offering); refundDue = its payment had been reconciled */
   cancellation: { at: string; reason: string | null; refundDue: boolean } | null;
 }
@@ -186,7 +204,8 @@ export interface IssuerMintPanel {
 }
 
 export interface SubscriptionsDeskData {
-  organization: { slug: string; legalName: string; brandColor: string; feeUsagePct: number };
+  /** platformFeeBps: the platform fee agreed with RWAXI (basis points), the one tokens deployed from now on carry */
+  organization: { slug: string; legalName: string; brandColor: string; platformFeeBps: number };
   admin: { name: string; email: string };
   session: DeskSession;
   execution: { mode: "SIMULATION" | "RPC"; operator: string | null };
@@ -199,6 +218,19 @@ export interface SubscriptionsDeskData {
   audit: AuditEntry[];
   /** RPC mode: may the issuer sign its own mints? (null in simulation, where RWAXI's demo key signs the queue) */
   issuerMint: IssuerMintPanel | null;
+  /** capital raising of each offering (Offering.status): only ACTIVE takes subscriptions */
+  /** gaps: what opening the raise still requires (registry, official wallets, compliance officer), translated */
+  raising: { registryDeployed: boolean; gaps: string[]; offerings: OfferingRaisingRow[] };
+}
+
+/** An offering in the "Estado de captación" panel. */
+export interface OfferingRaisingRow {
+  id: string;
+  code: string;
+  assetName: string;
+  status: "STRUCTURING" | "ACTIVE" | "FUNDED";
+  unitsSubscribed: number;
+  totalUnits: number;
 }
 
 export type SubscriptionsDeskResult = { ok: true; data: SubscriptionsDeskData } | { ok: false; error: string };
@@ -208,10 +240,21 @@ export interface DistributionInput {
   offeringId: string;
   /** 2026-09 or 2026-Q3 */
   period: string;
-  currency: "USD" | "COP";
+  /** cut-off date (YYYY-MM-DD, Bogotá): the holders of record are the token balances at its end (today: now) */
+  recordDate: string;
+  /** payment currency: COP | USD through the fiduciary, USDC | USDT from the issuer's treasury */
+  currency: PayoutCurrency;
   amount: string;
-  /** COP per USD, only for COP declarations */
+  /** COP per USD, only for COP (its USD equivalent) */
   fxRate?: string;
+  /** the supporting document, verified by the vault (upload purpose "distribution"): its receipt */
+  support: { receipt: string; sha256: string; sizeBytes: number; fileName: string };
+}
+
+/** Why the whitelist withholds a payment today (staff only), with its label in the desk's language. */
+export interface WithholdView {
+  code: string;
+  label: string;
 }
 
 export interface DistributionHolderRow {
@@ -219,22 +262,59 @@ export interface DistributionHolderRow {
   name: string;
   wallet: string;
   units: number;
+  /** the whitelist today (confirmed outbox): null when it clears the wallet */
+  withhold: WithholdView | null;
+}
+
+/** A confirmed mint of the offering's token: the desk replays them up to the record date the issuer picks. */
+export interface DistributionMovementRow {
+  investorId: string;
+  name: string;
+  wallet: string;
+  units: number;
+  /** unix seconds it took effect */
+  at: number;
 }
 
 export interface DistributionAllocationRow {
+  id: string;
   investorName: string;
   wallet: string;
   units: number;
+  /** in the payment currency (v1: USD) */
+  amount: number;
   amountUsd: number;
   leafHash: string;
   proofLength: number;
+  /** the payment instruction that carries it */
+  payout: { sequence: number; at: string } | null;
+  /** not instructed yet: why the whitelist withholds it today (null: payable) */
+  withhold: WithholdView | null;
+}
+
+export interface DistributionPayoutBatchRow {
+  id: string;
+  sequence: number;
+  /** SHA-256 of the canonical JSON of `instruction` */
+  instructionHash: string;
+  /** the instruction as issued: the backoffice downloads it and anyone can re-hash it */
+  instruction: unknown;
+  total: number;
+  payees: number;
+  withheld: number;
+  registryMode: "SIMULATION" | "RPC";
+  createdAt: string;
+  createdBy: string | null;
 }
 
 export interface DistributionRow {
   id: string;
   onchainId: string;
   period: string;
-  currency: "USD" | "COP";
+  /** payment currency (v1: the declared one, with every amount in USD) */
+  currency: PayoutCurrency;
+  /** 1: amounts in USD cents (declared before the payment currency); 2: in the payment currency */
+  leafVersion: number;
   amountDeclared: number;
   fxRate: number | null;
   totalUsd: number;
@@ -245,6 +325,12 @@ export interface DistributionRow {
   anchorTxHash: string | null;
   declaredAt: string;
   declaredBy: string | null;
+  /** the cut-off date and its instant (v1: no date; the instant of the declaration) */
+  recordDate: string | null;
+  snapshotAt: string;
+  snapshotMode: "SIMULATION" | "RPC" | null;
+  /** the supporting document in the tenant's vault (GET /api/vault/distribution/{id}) */
+  support: { sha256: string; fileName: string; mimeType: string; sizeBytes: number } | null;
   /** the queued anchorDistributionRoot() and how it was (or can be) executed */
   anchor: {
     chainTxId: string;
@@ -256,6 +342,9 @@ export interface DistributionRow {
     signer: string | null;
   } | null;
   allocations: DistributionAllocationRow[];
+  payoutBatches: DistributionPayoutBatchRow[];
+  /** allocations still to instruct (with an amount), and how many the whitelist clears today */
+  pendingPayouts: { allocations: number; payable: number };
 }
 
 export interface DistributionOfferingRow {
@@ -264,9 +353,11 @@ export interface DistributionOfferingRow {
   assetName: string;
   network: string;
   token: { symbol: string; address: string; status: string };
-  /** current snapshot: MINTED units per investor */
+  /** holders today: the confirmed mints of the token, one row per investor, with the whitelist today */
   holders: DistributionHolderRow[];
   mintedUnits: number;
+  /** every confirmed mint of the token: the preview replays them at the record date */
+  movements: DistributionMovementRow[];
   distributions: DistributionRow[];
 }
 

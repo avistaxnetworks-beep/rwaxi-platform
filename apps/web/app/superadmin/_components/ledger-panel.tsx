@@ -5,7 +5,8 @@ import { Icon } from "@/app/_components/ui/icon";
 import { Modal } from "@/app/_components/ui/modal";
 import { fieldCls } from "@/app/_components/ui/form";
 import { FEE_STATUS } from "@/app/_lib/data/fees";
-import { money, pct, shortHash } from "@/app/_lib/format";
+import { platformFeePercent } from "@rwaxi/blockchain-sdk/platform-fee";
+import { money, shortHash } from "@/app/_lib/format";
 import { issueInvoice, recordInvoicePayment, updateFeeTerms } from "../actions";
 import type {
   FeeKindKey,
@@ -86,7 +87,7 @@ function LedgerView({ data, currency, toast }: { data: PlatformMetrics; currency
   const submit = () => {
     if (!dialog) return;
     if (dialog.kind === "terms") {
-      run(() => updateFeeTerms(dialog.tenant.id, { setupUsd: form.setup, monthlyUsd: form.monthly, usagePct: form.usage }));
+      run(() => updateFeeTerms(dialog.tenant.id, { setupUsd: form.setup, monthlyUsd: form.monthly }));
     } else if (dialog.kind === "invoice") {
       run(
         () => issueInvoice([...selected], form.number ?? ""),
@@ -163,7 +164,7 @@ function LedgerView({ data, currency, toast }: { data: PlatformMetrics; currency
               <th className="font-semibold px-5 py-3">Desarrollador</th>
               <th className="font-semibold px-3 py-3 text-right">Setup</th>
               <th className="font-semibold px-3 py-3 text-right">SaaS mensual</th>
-              <th className="font-semibold px-3 py-3 text-right">Uso de infraestructura</th>
+              <th className="font-semibold px-3 py-3 text-right">Comisión de plataforma</th>
               <th className="font-semibold px-5 py-3">
                 <span className="sr-only">Editar</span>
               </th>
@@ -175,14 +176,17 @@ function LedgerView({ data, currency, toast }: { data: PlatformMetrics; currency
                 <td className="px-5 py-3">{t.legalName}</td>
                 <td className="px-3 py-3 text-right font-mono">{money(t.feeRules.setupUsd, currency, false)}</td>
                 <td className="px-3 py-3 text-right font-mono">{money(t.feeRules.monthlyUsd, currency, false)}</td>
-                <td className="px-3 py-3 text-right font-mono">{`${pct(t.feeRules.usagePct, 2)} del capital emitido`}</td>
+                <td className="px-3 py-3 text-right font-mono" data-platform-fee-bps={t.feeRules.platformFeeBps}>
+                  {`${platformFeePercent(t.feeRules.platformFeeBps)} · ${t.feeRules.platformFeeBps} pb`}
+                  <span className="block font-sans text-[10.5px] text-muted">por pago conciliado · se pacta en el Módulo A</span>
+                </td>
                 <td className="px-5 py-3 text-right">
                   <button
                     disabled={!canAct}
                     onClick={() =>
                       openDialog(
                         { kind: "terms", tenant: t },
-                        { setup: String(t.feeRules.setupUsd), monthly: String(t.feeRules.monthlyUsd), usage: String(t.feeRules.usagePct) },
+                        { setup: String(t.feeRules.setupUsd), monthly: String(t.feeRules.monthlyUsd) },
                       )
                     }
                     className="text-rxBlue font-semibold text-[12px] inline-flex items-center gap-1 focus-ring disabled:opacity-40"
@@ -368,7 +372,7 @@ function LedgerView({ data, currency, toast }: { data: PlatformMetrics; currency
           <div className="flex flex-col gap-4" data-billing-dialog={dialog.kind}>
             {dialog.kind === "terms" && (
               <>
-                <div className="grid sm:grid-cols-3 gap-3">
+                <div className="grid sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="fee-setup" className={label}>
                       Setup (USD)
@@ -381,16 +385,11 @@ function LedgerView({ data, currency, toast }: { data: PlatformMetrics; currency
                     </label>
                     <input id="fee-monthly" inputMode="decimal" {...field("monthly")} className={fieldCls(false) + " font-mono"} />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="fee-usage" className={label}>
-                      Uso de infraestructura (%)
-                    </label>
-                    <input id="fee-usage" inputMode="decimal" {...field("usage")} className={fieldCls(false) + " font-mono"} />
-                  </div>
                 </div>
                 <p className="text-[12px] text-muted leading-relaxed">
-                  El % de uso se aplica al capital de cada suscripción al conciliar su pago fiduciario; el SaaS mensual y el setup, a los
-                  próximos devengos. Rango del % de uso: 0 a 10.
+                  {`El setup y el SaaS mensual aplican a los próximos devengos. La comisión de plataforma (${platformFeePercent(
+                    dialog.tenant.feeRules.platformFeeBps,
+                  )}) solo cambia registrando un acuerdo comercial firmado en el Módulo A.`}
                 </p>
               </>
             )}
