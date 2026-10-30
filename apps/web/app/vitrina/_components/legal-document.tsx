@@ -1,14 +1,29 @@
 // RWAXI's legal documents (www.rwaxirealestate.com/legal/*): public and outside the vitrina's legal wall, because
-// its consent checkboxes link to them. Placeholder until the legal team delivers the texts (server component).
+// its consent checkboxes link to them. Texts delivered by RWAXI (server component).
 import { vmsg } from "@/app/_i18n/marks";
 import { dirOf, type Locale } from "@/app/_i18n/config";
 import type { Translate } from "@/app/_i18n/translate";
 import type { ConsentKey } from "../_lib/access-terms";
 
-export const LEGAL_DOCUMENTS: Record<ConsentKey, { title: string }> = {
-  terms: { title: vmsg("Términos y Condiciones y Exención de Responsabilidad") },
-  privacy: { title: vmsg("Políticas de Tratamiento de Datos Personales") },
-  cookies: { title: vmsg("Política de Cookies") },
+export const LEGAL_DOCUMENTS: Record<ConsentKey, { title: string; body: string }> = {
+  terms: {
+    title: vmsg("Términos y Condiciones y Exención de Responsabilidad"),
+    body: vmsg(
+      "RWAXI Real Estate opera exclusivamente como proveedor tecnológico y canal de descubrimiento para la estructuración y tokenización de activos inmobiliarios mediante contratos inteligentes sobre tecnología de registro distribuido (DLT), operando bajo el marco legal de propiedad fraccionada y derechos fiduciarios en Colombia. RWAXI no capta, administra ni custodia recursos financieros del público, ni realiza ofertas públicas de valores. El usuario reconoce que toda inversión inmobiliaria conlleva riesgos inherentes, incluyendo la iliquidez y la posible pérdida de capital. La ejecución, gestión y proyecciones financieras de cada activo recaen exclusivamente en el desarrollador independiente de cada proyecto.",
+    ),
+  },
+  privacy: {
+    title: vmsg("Políticas de Tratamiento de Datos Personales"),
+    body: vmsg(
+      "De conformidad con la Ley 1581 de 2012 (Ley Estatutaria de Habeas Data) y sus decretos reglamentarios, el usuario autoriza de manera previa, expresa e informada a RWAXI Real Estate y a las entidades emisoras (desarrolladores) la recolección, almacenamiento, uso y circulación de sus datos personales. La finalidad exclusiva de este tratamiento es la ejecución de procesos de debida diligencia (KYC/AML), vinculación y verificación de billeteras de terceros, validación de acceso al muro legal de la vitrina y notificaciones operativas. El titular conserva en todo momento el derecho a conocer, actualizar, rectificar y suprimir su información.",
+    ),
+  },
+  cookies: {
+    title: vmsg("Política de Cookies"),
+    body: vmsg(
+      "Esta plataforma utiliza cookies técnicas, de sesión y de seguridad estrictamente necesarias para el funcionamiento del muro legal, la autenticación de usuarios (gestión del token de sesión de inversionista) y la protección contra accesos no autorizados. Al aceptar este documento y continuar la navegación, el usuario autoriza el almacenamiento de estos identificadores en su navegador, los cuales son indispensables para mantener su nivel de acceso (utilizando las cookies: rwaxi_vitrina_access, rwaxi_inv, rwaxi_session, rwaxi_vitrina_lang, rwaxi_portal_lang). Adicionalmente, la plataforma utiliza la cookie rwaxi_ref exclusivamente para fines de trazabilidad comercial y atribución de referidos.",
+    ),
+  },
 };
 
 export function LegalDocument({ doc, locale, tr }: { doc: ConsentKey; locale: Locale; tr: Translate }) {
@@ -40,11 +55,9 @@ export function LegalDocument({ doc, locale, tr }: { doc: ConsentKey; locale: Lo
         <article className="bg-white border border-line px-6 py-8 flex flex-col gap-4">
           <h1 className="font-display font-semibold text-rxPurple text-[34px] leading-[1.1] balance">{tr(LEGAL_DOCUMENTS[doc].title)}</h1>
           <p className="inline-flex self-start text-[11px] font-bold tracking-[0.12em] uppercase px-3 py-1.5 bg-goldTint text-goldInk">
-            {tr("Documento legal en redacción")}
+            {tr("Versión vigente")}
           </p>
-          <p className="text-[13.5px] text-inkBody leading-relaxed max-w-[70ch]">
-            {tr("El equipo legal de RWAXI está redactando este documento. Su versión vigente se publicará en esta misma dirección.")}
-          </p>
+          <p className="text-[13.5px] text-inkBody leading-relaxed max-w-[70ch]">{tr(LEGAL_DOCUMENTS[doc].body)}</p>
         </article>
         <a href="/" className="self-start text-[12.5px] font-semibold text-rxBlue focus-ring">
           <span aria-hidden="true" className="inline-block rtl:-scale-x-100">

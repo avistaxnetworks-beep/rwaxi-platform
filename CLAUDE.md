@@ -486,7 +486,7 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
   `acceptVitrinaAccess()` (sólo host `www`, 30 por IP cada 15 min; exige las tres en `true`) guarda correo, versión,
   el SHA-256 de cada texto tal como se mostró (`terms_sha256`, `privacy_sha256`, `cookies_sha256`; `consentText()`),
   idioma y SHA-256 de la IP con `rwaxi_record_vitrina_access()` y emite la cookie. Después de responder (`after()`), `vitrina-notify.ts` avisa del lead a `admin@rwaxi.com` (correo, fecha y hora, idioma, origen «Vitrina Pública RWAXI - Muro Legal»; textos en `vitrina-mail.ts`, puro) con el driver de `@rwaxi/mail` y reintentos acotados, sin `mail_outbox` (tabla de tenant bajo RLS): un fallo de entrega va al log y nunca deshace la aceptación. La bienvenida del inversionista (`welcomeMail`: acceso + sus tres consentimientos con su SHA-256) está lista y apagada (`VITRINA_WELCOME_MAIL = false`). Los documentos están en
-  `www/legal/{terms,privacy,cookies}` (`app/legal/[doc]`, hoy «Documento legal en redacción»): `internalPath()`
+  `www/legal/{terms,privacy,cookies}` (`app/legal/[doc]`; título y texto vigente de cada uno en `LEGAL_DOCUMENTS`, `vitrina/_components/legal-document.tsx`): `internalPath()`
   (`LEGAL_PATH` en `hosts.ts`) los reescribe a `/legal` y no a `/vitrina`, así que quedan fuera del muro. Es una aceptación declarativa: el correo no se verifica y no crea un `User` (esa tabla es del personal).
   `Investor.tenantNdaAccepted`/`tenantNdaDate` (la mitad del tenant del muro legal doble) los escribe `signNda()` y
   `subscribe()` los exige; `User.acceptedRwaxiLiability`/`rwaxiAcceptanceDate` existen en el esquema pero aún no se
