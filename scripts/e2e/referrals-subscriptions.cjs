@@ -1,7 +1,7 @@
 // E2E · HMAC-signed referrals (vitrina → portal) and attacks on attribution, subscription signing
 // (PAYMENT_PENDING: units reserved, no mint or fee yet) and the Super-Admin consolidated figures.
 const crypto = require("crypto");
-const { launch, ownerDb, ok, fail, shot, url, viem, abi, canon, sha256, webEnv, text, waitText, clickText, NDA_LANDING, toKycWizard } = require("./lib.cjs");
+const { launch, ownerDb, ok, fail, shot, url, viem, abi, canon, sha256, webEnv, text, waitText, clickText, NDA_LANDING, toKycWizard, attestEligibility } = require("./lib.cjs");
 
 const registryAbi = abi("RwaxiComplianceRegistry");
 const db = ownerDb();
@@ -129,6 +129,7 @@ async function signNdaWith(browser, ref) {
     // 3a · Forged request: units tampered in flight → rejected, nothing written
     const subsBefore = await db.subscription.count({ where: { organizationId: org.id } });
     await clickText(a, "Firmar contrato del vehículo y suscribir");
+    await attestEligibility(a);
     await a.waitForSelector("#ack1", { timeout: 30000 });
     for (const id of ["#ack1", "#ack2", "#ack3"]) await a.click(id);
     await a.setRequestInterception(true);
@@ -153,6 +154,29 @@ async function signNdaWith(browser, ref) {
       tampered && (await db.subscription.count({ where: { organizationId: org.id } })) === subsBefore && offeringMid.unitsSubscribed === offering0.unitsSubscribed,
     );
 
+    // 3a' · Forged self-attestation: a U.S. tax resident as Reg S (the modal never sends it) → rejected (400)
+    await a.setRequestInterception(true);
+    let forged = false;
+    const forge = (req) => {
+      if (req.method() === "POST" && req.headers()["next-action"] && !forged && /"tax_residence":"Colombia"/.test(req.postData() || "")) {
+        forged = true;
+        req.continue({ postData: req.postData().replace('"tax_residence":"Colombia"', '"tax_residence":"Estados Unidos"') });
+      } else req.continue();
+    };
+    a.on("request", forge);
+    await clickText(a, "Firmar y confirmar");
+    await a.waitForFunction(
+      () => [...document.querySelectorAll('[role="dialog"] [role="alert"], [role="alert"]')].some((n) => /Reg S/.test(n.textContent)),
+      { timeout: 60000 },
+    );
+    a.off("request", forge);
+    await a.setRequestInterception(false);
+    const offeringForged = await db.offering.findUniqueOrThrow({ where: { id: offering0.id } });
+    ok(
+      "autodeclaración alterada (residente de EE. UU. como Reg S) → rechazada en el servidor sin escribir nada",
+      forged && (await db.subscription.count({ where: { organizationId: org.id } })) === subsBefore && offeringForged.unitsSubscribed === offering0.unitsSubscribed,
+    );
+
     // 3b · Real subscription (default amount: 25.000 USD = 250 units)
     await clickText(a, "Firmar y confirmar");
     await waitText(a, "Ver mi portafolio", 60000);
@@ -172,6 +196,18 @@ async function signNdaWith(browser, ref) {
     );
     ok("Offering.unitsSubscribed +250", offering1.unitsSubscribed === offering0.unitsSubscribed + 250, `${offering0.unitsSubscribed} → ${offering1.unitsSubscribed}`);
     ok("agreementHash = SHA-256(JSON canónico del acuerdo) — verificación independiente", sub.agreementHash === sha256(canon(audit?.payload?.agreement)) && sub.paymentEvidenceRef === null);
+    const attested = audit?.payload?.agreement?.eligibility;
+    ok(
+      "autodeclaración guardada con la suscripción (Colombia · REG_S · fondos lícitos · fecha del servidor) y citada en el acuerdo v4",
+      sub.taxResidence === "Colombia" &&
+        sub.investorStatus === "REG_S" &&
+        sub.lawfulFunds === true &&
+        sub.attestedAt?.toISOString() === attested?.attestedAt &&
+        audit.payload.agreement.version === 4 &&
+        attested.taxResidence === "Colombia" &&
+        attested.investorStatus === "REG_S" &&
+        attested.lawfulFunds === true,
+    );
     ok("la firma no encola mintSubscription ni devenga comisión (espera la conciliación del pago)", mint === null && fee === null);
     ok(
       "AuditEvent SUBSCRIPTION_CREATED con el hash del contrato y la referencia de pago",

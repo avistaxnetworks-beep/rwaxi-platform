@@ -505,8 +505,15 @@ paso 2 tras cada migración nueva. Para eliminar un rol creado así, revocar sus
      mínimo, máx. 250.000 USD); unidades comprometidas con `UPDATE` condicional + `CHECK
      offerings_units_subscribed_range`. Token desplegado → `PAYMENT_PENDING` (referencia de transferencia
      `SUB-XXXXXXXX`, `paymentCodeOf`); pre-venta → `RESERVED`, sin pago, mint ni comisión hasta desplegar el token.
-     Exige el NDA de la oferta firmado (`NdaAcceptance` con su SHA-256 e `Investor.tenantNdaAccepted`); el acuerdo
-     (versión 3) lo cita (`nda.documentHash`). `agreementHash = evidenceHash(acuerdo)`; el acuerdo queda en
+     Exige el NDA de la oferta firmado (`NdaAcceptance` con su SHA-256 e `Investor.tenantNdaAccepted`) y la
+     **autodeclaración de elegibilidad**: el botón de suscribir del portal abre primero `EligibilityModal`
+     (`vitrina/_components/eligibility-modal.tsx`: residencia fiscal de la lista cerrada del KYC, `REG_S` o `REG_D`,
+     origen lícito de los fondos) y el borrador la lleva a `subscribe()`, que la revalida con `parseEligibility`
+     (`app/_lib/eligibility.ts`, puro: `is_eligible === true`, nunca `REG_S` con residencia en Estados Unidos) y la
+     rechaza como petición inválida (`status: 400`) antes de tocar la base; se guarda en la suscripción
+     (`tax_residence`, `investor_status`, `lawful_funds`, `attested_at` = hora del servidor; CHECKs
+     `subscriptions_eligibility_*`, NULL en las anteriores). El acuerdo (versión 4) cita el NDA (`nda.documentHash`)
+     y la autodeclaración (`eligibility`). `agreementHash = evidenceHash(acuerdo)`; el acuerdo queda en
      `AuditEvent SUBSCRIPTION_CREATED`. Sin mint ni fee devengado: la suscripción guarda la **comisión de plataforma
      estimada** (`platformFeeBps` = la fijada en el token o, en pre-venta, la pactada; `platformFeeUsd` = capital ×
      bps / 10.000), que `SUBSCRIPTION_CREATED` cita en `payload.platformFee`; nunca entra en el acuerdo que firma el

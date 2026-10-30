@@ -421,6 +421,7 @@ const vitrinaCard = async (page, code) => {
     );
     const unitsBefore = pausedRow.unitsSubscribed;
     await clickText(inv, "Firmar contrato del vehículo y suscribir");
+    await lib.attestEligibility(inv);
     await inv.waitForSelector("#ack1", { timeout: 30000 });
     for (const id of ["#ack1", "#ack2", "#ack3"]) await inv.click(id);
     await clickText(inv, "Firmar y confirmar");

@@ -19,6 +19,7 @@ import { LocalizedError, msg } from "@/app/_i18n/marks";
 import { render, requestLocale, requestTranslate } from "@/app/_i18n/server";
 import type { Translate } from "@/app/_i18n/translate";
 import { ACTIVITIES, COUNTRIES, INCOME, REGIMES, RISK, validateStep } from "@/app/_lib/data/kyc";
+import { parseEligibility } from "@/app/_lib/eligibility";
 import { REF_COOKIE, verifyReferral } from "@/app/_lib/referral";
 import { readInvestorSession, startInvestorSession } from "@/app/_lib/server/investor-session";
 import { paymentCodeOf } from "@/app/_lib/server/subscriptions";
@@ -61,6 +62,8 @@ const ISO_NUMERIC: Record<string, number> = {
 const RISK_ENUM: Record<string, RiskProfile> = { conservador: "CONSERVATIVE", moderado: "MODERATE", dinamico: "DYNAMIC" };
 
 class OnboardingError extends LocalizedError {}
+/** A missing or invalid eligibility self-attestation: a bad request (400), rejected before touching the database. */
+class EligibilityError extends OnboardingError {}
 
 /** Messages go back in the investor's language (rwaxi_portal_lang); the server logs stay in Spanish. */
 function failure(e: unknown, tr: Translate): { ok: false; error: string } {
@@ -476,6 +479,10 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
     if (!ack || ack.contract !== true || ack.risk !== true || ack.layers !== true) {
       throw new OnboardingError("Debes aceptar el contrato, los riesgos y las 4 capas estructurales.");
     }
+    // The self-attestation (EligibilityModal), checked again here: is_eligible, a country of the closed list, a
+    // status consistent with it (no Reg S for a U.S. tax resident) and the lawful origin of funds.
+    const eligibility = parseEligibility(input?.eligibility);
+    if (!eligibility.ok) throw new EligibilityError(eligibility.reason);
     const tenant = await activeTenant();
     const session = await readInvestorSession(tenant.id);
     if (!session) throw new OnboardingError("Tu sesión no es válida; firma de nuevo el NDA.");
@@ -568,14 +575,19 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
             status: awaitsPayment ? "PAYMENT_PENDING" : "RESERVED",
             platformFeeBps,
             platformFeeUsd,
+            // the self-attestation, dated by the server (the browser's clock is never trusted)
+            taxResidence: eligibility.taxResidence,
+            investorStatus: eligibility.investorStatus,
+            lawfulFunds: true,
+            attestedAt: now,
           },
         });
         const onchainId = toOnchainId(created.id);
         // The agreement the investor signed; its hash is combined with the payment reference later.
         // v2 records the language the acknowledgments were shown in; v3 cites the tenant NDA it rests on (the
-        // SHA-256 of the text the investor accepted).
+        // SHA-256 of the text the investor accepted); v4 carries the eligibility self-attestation.
         const agreement = {
-          version: 3,
+          version: 4,
           language,
           subscription: { id: created.id, onchainId },
           organization: { id: tenant.id, taxId: org.taxId },
@@ -587,6 +599,12 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
           acknowledgments: { contract: true, risk: true, layers: true },
           kycDossierHash: kyc.dossierHash,
           nda: { documentHash: nda.documentHash, acceptedAt: nda.acceptedAt.toISOString() },
+          eligibility: {
+            taxResidence: eligibility.taxResidence,
+            investorStatus: eligibility.investorStatus,
+            lawfulFunds: true,
+            attestedAt: now.toISOString(),
+          },
           createdAt: now.toISOString(),
         };
         const agreementHash = evidenceHash(agreement);
@@ -651,6 +669,7 @@ export async function subscribe(input: SubscriptionSubmission): Promise<Subscrip
       ...data,
     };
   } catch (e) {
+    if (e instanceof EligibilityError) return { ...failure(e, tr), status: 400 };
     return failure(e, tr);
   }
 }

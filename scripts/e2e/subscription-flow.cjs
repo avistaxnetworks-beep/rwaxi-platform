@@ -111,6 +111,7 @@ const feeOf = (capitalUsd, bps) => Math.round((Number(capitalUsd) * bps) / 100) 
     await inv.goto(url(slug), { waitUntil: "domcontentloaded", timeout: 180000 });
     await waitText(inv, "Firmar contrato y reservar unidades");
     await clickText(inv, "Firmar contrato y reservar unidades");
+    await lib.attestEligibility(inv, { country: "Estados Unidos", status: "REG_D" });
     await inv.waitForSelector("#ack1", { timeout: 30000 });
     for (const id of ["#ack1", "#ack2", "#ack3"]) await inv.click(id);
     await clickText(inv, "Firmar y confirmar");
@@ -124,8 +125,12 @@ const feeOf = (capitalUsd, bps) => Math.round((Number(capitalUsd) * bps) / 100) 
       `${sub.units} unidades · ${sub.capitalUsd} USD · ${sub.platformFeeBps} pb = ${sub.platformFeeUsd} USD`,
     );
     ok(
-      "acuerdo v3: cita el SHA-256 del NDA, su hash = agreementHash, y no incluye la comisión (B2B, la paga el desarrollador)",
-      agreement.version === 3 &&
+      "acuerdo v4: cita el SHA-256 del NDA y la autodeclaración (EE. UU. · REG_D), su hash = agreementHash, y no incluye la comisión (B2B, la paga el desarrollador)",
+      agreement.version === 4 &&
+        agreement.eligibility.taxResidence === "Estados Unidos" &&
+        agreement.eligibility.investorStatus === "REG_D" &&
+        sub.investorStatus === "REG_D" &&
+        sub.attestedAt?.toISOString() === agreement.eligibility.attestedAt &&
         agreement.nda.documentHash === nda.documentHash &&
         sha256(canon(agreement)) === sub.agreementHash &&
         created.subjectHash === sub.agreementHash &&

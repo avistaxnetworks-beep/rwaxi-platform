@@ -1,6 +1,7 @@
 // Shapes exchanged between the portal page, its Server Actions and the ported prototype UI.
 // Field names follow the prototype's `journey` so the existing panels render them unchanged.
 import type { OfferingTranslations } from "@rwaxi/database";
+import type { EligibilityAttestation } from "@/app/_lib/eligibility";
 
 export type KycStatusView = "pendiente" | "aprobado" | "rechazado" | "revocado";
 
@@ -196,8 +197,11 @@ export interface SubscriptionSubmission {
   units: number;
   /** the three acknowledgements of the subscription contract modal */
   acknowledgments: { contract: boolean; risk: boolean; layers: boolean };
+  /** the investor's self-attestation (EligibilityModal); the server validates it again and never trusts its date */
+  eligibility: EligibilityAttestation;
 }
 
 export type SubscriptionResult =
   | { ok: true; message: string; holding: PersistedHolding; holdings: PersistedHolding[]; offering: PortalOfferingState }
-  | { ok: false; error: string };
+  /** status 400: the self-attestation is missing or invalid (the request itself is wrong, not the state) */
+  | { ok: false; error: string; status?: 400 };

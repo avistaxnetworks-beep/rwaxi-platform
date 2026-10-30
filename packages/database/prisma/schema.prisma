@@ -114,6 +114,12 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+/// Investor status the subscriber self-attests (EligibilityModal)
+enum InvestorEligibilityStatus {
+  REG_S // inversionista internacional: persona no estadounidense que invierte desde fuera de EE. UU.
+  REG_D // inversionista acreditado (Regulation D, Regla 501)
+}
+
 enum ChainExecutionMode {
   RPC // enviada y confirmada contra un nodo
   SIMULATION // firmada con OPERATOR_PRIVATE_KEY de forma determinista, sin difundir
@@ -595,36 +601,43 @@ model DataRoomAccessGrant {
 // ─────────────────────────────────────────────────────────────── 11–12. capital & chain
 
 model Subscription {
-  id                   String             @id @default(cuid())
-  organizationId       String             @map("organization_id")
-  offeringId           String             @map("offering_id")
-  investorId           String             @map("investor_id")
+  id                   String                     @id @default(cuid())
+  organizationId       String                     @map("organization_id")
+  offeringId           String                     @map("offering_id")
+  investorId           String                     @map("investor_id")
   /// keccak256(id) — idempotency key for mintSubscription()
-  onchainId            String?            @unique @map("onchain_id")
+  onchainId            String?                    @unique @map("onchain_id")
   units                Int
-  capitalUsd           Decimal            @map("capital_usd") @db.Decimal(18, 2)
+  capitalUsd           Decimal                    @map("capital_usd") @db.Decimal(18, 2)
   /// The platform fee RWAXI invoices the developer for this subscription (B2B, never charged to the investor):
   /// basis points and capital × bps / 10 000. Estimated at signature (the token's fee, or the agreed one in
   /// pre-sale), fixed by the token when it is deployed, accrued when the payment is reconciled. NULL before
   /// subscriptions were linked to the fee.
-  platformFeeBps       Int?               @map("platform_fee_bps")
-  platformFeeUsd       Decimal?           @map("platform_fee_usd") @db.Decimal(18, 2)
-  status               SubscriptionStatus @default(RESERVED)
+  platformFeeBps       Int?                       @map("platform_fee_bps")
+  platformFeeUsd       Decimal?                   @map("platform_fee_usd") @db.Decimal(18, 2)
+  status               SubscriptionStatus         @default(RESERVED)
   /// SHA-256 of the signed subscription agreement (canonical JSON kept in the AuditEvent)
-  agreementHash        String?            @map("agreement_hash")
+  agreementHash        String?                    @map("agreement_hash")
   /// bank / fiduciary receipt reference entered by the developer when reconciling the payment
-  paymentReference     String?            @map("payment_reference")
-  paymentConfirmedAt   DateTime?          @map("payment_confirmed_at")
-  paymentConfirmedById String?            @map("payment_confirmed_by_id")
+  paymentReference     String?                    @map("payment_reference")
+  paymentConfirmedAt   DateTime?                  @map("payment_confirmed_at")
+  paymentConfirmedById String?                    @map("payment_confirmed_by_id")
   /// evidenceHash({subscriptionId, agreementHash, paymentReference}) — mintSubscription(paymentEvidenceRef)
-  paymentEvidenceRef   String?            @map("payment_evidence_ref")
-  mintTxHash           String?            @map("mint_tx_hash")
+  paymentEvidenceRef   String?                    @map("payment_evidence_ref")
+  mintTxHash           String?                    @map("mint_tx_hash")
   /// set exactly when CANCELLED (CHECK); a cancelled subscription released its committed units
-  cancelledAt          DateTime?          @map("cancelled_at")
+  cancelledAt          DateTime?                  @map("cancelled_at")
   /// e.g. KYC_REVOKED
-  cancellationReason   String?            @map("cancellation_reason")
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @updatedAt @map("updated_at")
+  cancellationReason   String?                    @map("cancellation_reason")
+  /// Eligibility self-attestation given before signing (app/_lib/eligibility.ts): tax residence (Spanish value of
+  /// the KYC's country list), Reg S / Reg D status, lawful origin of funds and the server's time of the
+  /// declaration. All four or none (CHECK); NULL on subscriptions signed before it was required.
+  taxResidence         String?                    @map("tax_residence")
+  investorStatus       InvestorEligibilityStatus? @map("investor_status")
+  lawfulFunds          Boolean?                   @map("lawful_funds")
+  attestedAt           DateTime?                  @map("attested_at")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
 
   organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   offering           Offering         @relation(fields: [offeringId], references: [id], onDelete: Cascade)

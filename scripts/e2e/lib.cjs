@@ -393,11 +393,24 @@ async function openComplianceCase(page, slug, investorId) {
   await page.waitForSelector('[role="dialog"]', { timeout: 30000 });
 }
 
+/**
+ * The eligibility self-attestation the portal asks for before the subscription contract (EligibilityModal): tax
+ * residence, Reg S / Reg D status and the lawful origin of funds.
+ */
+async function attestEligibility(page, { country = "Colombia", status = "REG_S" } = {}) {
+  await page.waitForSelector("[data-eligibility-form]", { timeout: 30000 });
+  await page.select("[data-eligibility-country]", country);
+  await page.click(`[data-eligibility-status="${status}"]`);
+  await page.click('[data-eligibility-form] input[type="checkbox"]');
+  await clickText(page, "Confirmar declaración", "[data-eligibility-form]");
+}
+
 /** Signs a subscription for the default amount (25.000 USD) from the investor's portal page. */
 async function subscribe(page, slug = "avista") {
   await page.goto(url(slug), { waitUntil: "domcontentloaded", timeout: 180000 });
   await waitText(page, "Firmar contrato del vehículo y suscribir");
   await clickText(page, "Firmar contrato del vehículo y suscribir");
+  await attestEligibility(page);
   await page.waitForSelector("#ack1", { timeout: 30000 });
   for (const id of ["#ack1", "#ack2", "#ack3"]) await page.click(id);
   await clickText(page, "Firmar y confirmar");
@@ -652,6 +665,7 @@ module.exports = {
   approveInvestor,
   openComplianceCase,
   subscribe,
+  attestEligibility,
   confirmPayment,
   DEMO_PASSWORD,
   demoTotpSecret,

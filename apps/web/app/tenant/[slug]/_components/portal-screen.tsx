@@ -9,6 +9,7 @@ import { byId } from "@/app/_lib/data/projects";
 import { localizeProject } from "@/app/_lib/offering-view";
 import { useI18n } from "@/app/_i18n/provider";
 import { EMPTY_KYC } from "@/app/_lib/data/kyc";
+import { EligibilityModal } from "@/app/vitrina/_components/eligibility-modal";
 import { signNda, submitKyc, subscribe } from "../actions";
 import { KycFileError, toKycSubmission } from "../_lib/kyc-submission";
 import { InvestorDataRoom } from "./investor-data-room";
@@ -103,9 +104,12 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
     return result;
   };
 
+  // Subscribing starts with the eligibility self-attestation; only then the contract modal opens, carrying it in the
+  // draft to subscribe() (which validates it again).
+  const [eligibilityDraft, setEligibilityDraft] = useState<unknown>(null);
   const subscription = {
     persist: (draft: any) =>
-      subscribe({ units: Number(draft?.units), acknowledgments: draft?.acknowledgments ?? {} }),
+      subscribe({ units: Number(draft?.units), acknowledgments: draft?.acknowledgments ?? {}, eligibility: draft?.eligibility }),
     onPersisted: (result: Extract<SubscriptionResult, { ok: true }>) => {
       d.setJourney((j: any) => ({ ...j, holdings: result.holdings, offering: result.offering }));
       d.toast(result.message);
@@ -146,7 +150,7 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
           onUpload={d.uploadPhotos}
           toast={d.toast}
           openDoc={(doc: unknown) => d.setModal({ type: "doc", doc })}
-          startSub={(draft: unknown) => d.setModal({ type: "subscribe", draft })}
+          startSub={(draft: unknown) => setEligibilityDraft(draft)}
           toBackoffice={() => {
             d.setBackofficeTab("cumplimiento");
             d.navigate("backoffice");
@@ -175,6 +179,15 @@ export function PortalScreen({ persisted }: { persisted: PersistedJourneyResult 
         />
       ) : (
         <div className="boot">{tr("RWAXI · CARGANDO TU PROCESO")}</div>
+      )}
+      {eligibilityDraft !== null && (
+        <EligibilityModal
+          onClose={() => setEligibilityDraft(null)}
+          onSuccess={(eligibility) => {
+            d.setModal({ type: "subscribe", draft: { ...(eligibilityDraft as object), eligibility } });
+            setEligibilityDraft(null);
+          }}
+        />
       )}
     </EnvironmentFrame>
   );
